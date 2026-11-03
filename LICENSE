@@ -1,0 +1,86 @@
+PolyForm Noncommercial License 1.0.0
+
+https://polyformproject.org/licenses/noncommercial/1.0.0
+
+Copyright (c) 2026 Thomas Delalonde
+
+1.  Acceptance
+
+In order to get any license under these terms, you must agree to them as
+both strict obligations and conditions to all your licenses.
+
+2.  Copyright License
+
+The licensor grants you a copyright license for the software to do
+everything you might do with the software that would otherwise infringe the
+licensor's copyright in it for any permitted purpose. However, you may
+only distribute the software according to Distribution and you may only
+make changes according to Changes and New Works.
+
+3.  Distribution
+
+You may distribute copies of the software to others, but only if:
+
+- you do not charge any fee for the software;
+- you do not use the software for any commercial purpose;
+- you keep intact all copyright and other notices, including this license;
+- you give each recipient a copy of this license;
+- you provide each recipient with a copy of the source code, or a way to get
+  a copy of the source code.
+
+4.  Changes and New Works
+
+You may make changes to the software, or create new works from it, and
+distribute them, but only if:
+
+- you do not charge any fee for the software;
+- you do not use the software for any commercial purpose;
+- you keep intact all copyright and other notices, including this license;
+- you give each recipient a copy of this license;
+- you provide each recipient with a copy of the source code, or a way to get
+  a copy of the source code;
+- you clearly mark any changes you make, or new works you create, as
+  different from the original software;
+- you do not use the licensor's name, trademarks, or service marks to
+  endorse or promote the new work, or in any other way, without the
+  licensor's prior written permission.
+
+5.  Patents
+
+The licensor grants you a patent license for the software to do everything
+with the software that would otherwise infringe any patent claims the
+licensor can license, for any permitted purpose. However, you may only
+distribute the software according to Distribution and you may only make
+changes according to Changes and New Works.
+
+6.  Permitted Purpose
+
+Any noncommercial purpose is a permitted purpose.
+
+7.  Termination
+
+Your license terminates automatically if you breach any of its conditions.
+If your license terminates, you must stop all use and distribution of the
+software and destroy all copies.
+
+8.  No Liability
+
+***As far as the law allows, the software comes as is, without any warranty
+or condition, and the licensor will not be liable to you for any damages
+arising out of use of the software, whether direct, indirect, special,
+incidental, or consequential, even if the licensor has been advised of the
+possibility of such damages.***
+
+9.  Definitions
+
+"Software" means the software the licensor makes available under these terms.
+
+"Commercial purpose" means any purpose intended for or directed toward
+commercial advantage or monetary compensation.
+
+"You" means the individual or entity exercising rights under these terms.
+
+"Licensor" means the individual or entity offering the software under
+these terms.
+
+SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0

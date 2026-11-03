@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#
+# Lanceur de Herdr Chat depuis un checkout du dépôt (T068).
+#
+# Le démon est le binaire Rust `herdr-core-chat` (PWA embarquée). Ce lanceur ne
+# fait que trouver le binaire construit dans CE checkout et lui passer la main
+# — aucun Bun, aucun Node à l'exécution. Une installation par archive ou par
+# Homebrew fournit directement le binaire et n'utilise pas ce script.
+#
+# ⚠️ **Il résout sa racine depuis SA PROPRE position**, jamais depuis le
+# répertoire courant : lancer `bin/herdr-core-chat` depuis n'importe où doit trouver
+# le même binaire.
+#
+# Ordre de recherche :
+#   1. `HERDR_CORE_CHAT_BIN` (chemin explicite d'un binaire) ;
+#   2. `target/release/herdr-core-chat` ;
+#   3. `target/debug/herdr-core-chat`.
+# Les variables d'environnement (`HERDR_REMOTE_PORT`, `HERDR_REMOTE_BIND`,
+# `HERDR_SOCKET_PATH`…) sont transmises telles quelles.
+set -euo pipefail
+
+ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+racine="$(cd "${ici}/.." && pwd)"
+
+# Un chemin explicite qui ne mène à rien est une erreur, jamais un repli
+# silencieux vers un autre binaire.
+if [[ -n "${HERDR_CORE_CHAT_BIN:-}" ]]; then
+  if [[ -x "${HERDR_CORE_CHAT_BIN}" && ! -d "${HERDR_CORE_CHAT_BIN}" ]]; then
+    exec "${HERDR_CORE_CHAT_BIN}" "$@"
+  fi
+  echo "herdr-core-chat : HERDR_CORE_CHAT_BIN=${HERDR_CORE_CHAT_BIN} n'est pas un exécutable." >&2
+  exit 1
+fi
+
+candidats=("${racine}/target/release/herdr-core-chat" "${racine}/target/debug/herdr-core-chat")
+for binaire in "${candidats[@]}"; do
+  if [[ -x "${binaire}" && ! -d "${binaire}" ]]; then
+    exec "${binaire}" "$@"
+  fi
+done
+
+echo "herdr-core-chat : binaire Rust introuvable (cherché : ${candidats[*]})." >&2
+echo "            Construisez-le depuis ${racine} :" >&2
+echo "              bun install --frozen-lockfile && bun run build   # PWA embarquée" >&2
+echo "              cargo build --release --locked -p herdr_core_chat" >&2
+exit 1

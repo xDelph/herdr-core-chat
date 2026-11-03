@@ -1,0 +1,5 @@
+{
+  "note": "Épuisée à T004: aucun fichier de test TS ne vit plus sous src/. Gardée vide sous la forme entries: [] (le cargo de la porte exige le fichier tant que T006 défaut — sa suppression totale, décision d'une tâche future explicitement consignée).",
+  "untilTask": "T004",
+  "entries": []
+}

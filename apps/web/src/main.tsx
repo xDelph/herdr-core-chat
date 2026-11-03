@@ -1,0 +1,98 @@
+/**
+ * Point d'entrée.
+ *
+ * ⚠️ **Le thème est posé avant le premier rendu** : posé après, l'écran
+ * s'afficherait clair puis basculerait.
+ *
+ * ⚠️ **Le service worker ne sert qu'aux notifications push** (`public/sw.js`) :
+ * il ne met rien en cache et ne se désinscrit jamais — se désinscrire détruirait
+ * l'abonnement push. La fraîcheur de l'app vient du serveur : `index.html` en
+ * `no-cache`, les fichiers hachés en `immutable`. Au retour au premier plan,
+ * `nouvelle-version.ts` compare le script d'entrée servi à celui de la page et
+ * offre de recharger — jamais pendant une saisie.
+ */
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { App } from "./app/App.tsx";
+import { reportError } from "./api.ts";
+import { presence } from "./app/services.ts";
+import { ecouteNavigationWorker, reprendNavigation } from "./navigation-worker.ts";
+import {
+  lireStyleMarque,
+  lireTheme,
+  poserStyleMarque,
+  poserTheme,
+  rafraichirCouleurDeBarre,
+} from "./preferences.ts";
+import "./styles/tokens.css";
+import "./styles/base.css";
+import "./styles/boite.css";
+import "./styles/conversation.css";
+import "./styles/feuilles.css";
+import "./styles/fiabilite.css";
+import "./styles/taches.css";
+import "./styles/squelettes.css";
+
+poserTheme(lireTheme());
+poserStyleMarque(lireStyleMarque());
+window.addEventListener("load", rafraichirCouleurDeBarre, { once: true });
+// Le thème « Auto » suit l'appareil : la barre système suit aussi.
+window
+  .matchMedia("(prefers-color-scheme: dark)")
+  .addEventListener("change", rafraichirCouleurDeBarre);
+
+const vaVers = (hash: string) => {
+  if (window.location.hash !== hash) window.location.hash = hash;
+};
+// La cible retenue par le worker (iOS perd parfois `navigate` et le
+// message) : reprise au démarrage et à chaque retour au premier plan — puis
+// un peu après, le clic pouvant être traité juste APRÈS le réveil de la page.
+const reprend = async () => {
+  try {
+    await reprendNavigation("caches" in window ? caches : undefined, Date.now(), vaVers);
+  } catch (cause) {
+    reportError("pending navigation unreadable", {
+      message: cause instanceof Error ? cause.message : String(cause),
+    });
+  }
+};
+const repriseAuReveil = () => {
+  if (document.visibilityState !== "visible") return;
+  void reprend();
+  for (const delai of [400, 1_200]) window.setTimeout(() => void reprend(), delai);
+};
+
+/** La présence de cet appareil suit sa visibilité (H23). */
+const suitPresence = () => void presence.surVisibilite();
+
+if ("serviceWorker" in navigator) {
+  // Après un appui sur une notification, le worker peut demander d'ouvrir une
+  // conversation : le fragment change, le routage suit (`hashchange`).
+  ecouteNavigationWorker(navigator.serviceWorker, vaVers);
+  // Au premier plan, cet appareil n'est pas notifié (H23).
+  suitPresence();
+  document.addEventListener("visibilitychange", suitPresence);
+  window.addEventListener("pagehide", suitPresence);
+  repriseAuReveil();
+  document.addEventListener("visibilitychange", repriseAuReveil);
+  window.addEventListener("pageshow", repriseAuReveil);
+  void (async () => {
+    try {
+      await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    } catch (cause) {
+      // Sans worker, pas de push — on le dit au journal, l'app reste utilisable.
+      reportError("service worker registration failed", {
+        message: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  })();
+}
+
+const racine = document.getElementById("root");
+if (racine === null) throw new Error("#root element not found");
+
+createRoot(racine).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

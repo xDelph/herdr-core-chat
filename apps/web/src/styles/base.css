@@ -1,0 +1,726 @@
+/* Base, atomes et disposition générale. Toutes les couleurs viennent de tokens.css. */
+* {
+  box-sizing: border-box;
+}
+/*
+  ⚠️ **Le document ne défile jamais ; seuls les panneaux défilent.** Sans
+  `overflow: hidden` ici, iOS laissait le document entier glisser (rebond,
+  clavier) sous la barre d'état, qui floute ce qui passe dessous : le haut de
+  l'écran paraissait flou. L'ancienne PWA avait mesuré et corrigé ce point ;
+  la réécriture l'avait perdu.
+*/
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+button:disabled {
+  cursor: default;
+}
+a {
+  color: inherit;
+}
+:focus-visible {
+  outline: 2px solid var(--work);
+  outline-offset: 2px;
+}
+output {
+  display: block;
+}
+fieldset.seg {
+  margin: 0;
+  min-width: 0;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.discret {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* ---------- disposition ---------- */
+/*
+  ⚠️ **La boîte de l'application est FIXE, posée sur la zone visible.**
+
+  - Clavier : iOS fait défiler le document pour montrer le champ, même avec
+    `overflow: hidden`. Un conteneur relatif suivait donc deux décalages à la
+    fois, et un vide restait sous le composeur. Fixe, il ne dépend que du
+    viewport visuel (`--haut-visible`, `--hauteur-app`, mesurés).
+  - Flou en haut : Safari 26 floute le haut de l'écran sauf s'il trouve, par
+    un test de toucher au bord, un élément FIXE et opaque — il en reprend
+    alors la couleur. La boîte fixe, avec son fond, est cet élément.
+*/
+#root {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--haut-visible, 0px);
+  height: var(--hauteur-app, 100dvh);
+  overflow: hidden;
+  background: var(--ground);
+}
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow: hidden;
+}
+.app > .boite,
+.app > .conversation,
+.app > .vide-large {
+  min-height: 0;
+  height: 100%;
+}
+.vide-large {
+  display: none;
+}
+@media (max-width: 899px) {
+  .app[data-vue="agent"] > .boite {
+    display: none;
+  }
+}
+@media (min-width: 900px) {
+  .app {
+    grid-template-columns: minmax(340px, 400px) 1fr;
+  }
+  .app > .boite {
+    border-right: 1px solid var(--line);
+  }
+  .vide-large {
+    display: grid;
+    place-items: center;
+    color: var(--ink-3);
+    text-align: center;
+    padding: 24px;
+  }
+  .conversation .retour {
+    display: none;
+  }
+}
+
+/* ---------- icônes ---------- */
+svg.i {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+svg.i.s {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- marques d'agent ---------- */
+.marque {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  font: 600 11px/1 var(--font-mono);
+  color: #fff;
+  letter-spacing: -0.02em;
+  background: var(--b-inconnu);
+}
+.marque--petite {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+  border-radius: 4px;
+}
+.marque--claude {
+  background: var(--b-claude);
+}
+.marque--codex {
+  background: var(--b-codex);
+}
+.marque--pi {
+  background: var(--b-pi);
+}
+.marque--oc {
+  background: var(--b-oc);
+}
+.marque--devin {
+  background: var(--b-devin);
+}
+/* Le vrai logo : une tuile sombre fixe, dans les deux thèmes. */
+.marque--logo {
+  background: #1b1f27;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.marque--logo svg {
+  width: 78%;
+  height: 78%;
+  display: block;
+}
+
+/* ---------- états : forme + couleur ---------- */
+.etat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.etat--attn {
+  color: var(--attn);
+}
+.etat--work {
+  color: var(--work);
+}
+.etat--ok {
+  color: var(--ok);
+}
+.etat--idle,
+.etat--unknown {
+  color: var(--ink-3);
+}
+.spin {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: tourne 1s linear infinite;
+  flex: none;
+}
+.losange {
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+  transform: rotate(45deg);
+  border-radius: 2px;
+  flex: none;
+  margin: 0 2px;
+}
+.point {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.anneau,
+.tirets {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  flex: none;
+}
+.tirets {
+  border-style: dashed;
+}
+@keyframes tourne {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+    border-right-color: currentColor;
+    opacity: 0.7;
+  }
+}
+
+.pastille {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.pastille .spin {
+  width: 11px;
+  height: 11px;
+}
+.pastille .losange {
+  width: 8px;
+  height: 8px;
+}
+.pastille--work {
+  background: var(--work-fill);
+  color: var(--work);
+}
+.pastille--attn {
+  background: var(--attn-fill);
+  color: var(--attn);
+}
+.pastille--ok {
+  background: var(--ok-fill);
+  color: var(--ok);
+}
+
+/* ---------- boutons ---------- */
+.bouton-icone {
+  width: var(--cible);
+  height: var(--cible);
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  border-radius: 12px;
+  color: var(--ink);
+  flex: none;
+}
+.bouton-icone:hover {
+  background: var(--surface-2);
+}
+.bouton {
+  min-height: var(--cible);
+  padding: 0 16px;
+  border-radius: var(--r-m);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  text-align: left;
+}
+.bouton:disabled {
+  opacity: 0.55;
+}
+.bouton--principal {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.bouton--attn {
+  border-color: var(--attn-line);
+}
+.bouton--danger {
+  color: var(--err);
+}
+.bouton--plein {
+  width: 100%;
+  min-height: 50px;
+}
+.bouton .k {
+  font: 500 12px/1 var(--font-mono);
+  color: var(--ink-3);
+}
+.bouton--principal .k {
+  color: inherit;
+  opacity: 0.7;
+}
+.lien {
+  border: 0;
+  background: none;
+  padding: 8px 4px;
+  color: var(--ink-2);
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  min-height: 40px;
+}
+.rond {
+  width: var(--cible);
+  height: var(--cible);
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.rond--envoi {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.rond--envoi:disabled {
+  opacity: 0.35;
+}
+.rond--stop {
+  background: var(--err-fill);
+  color: var(--err);
+}
+.rond--stop .carre {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* ---------- segmentés ---------- */
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.seg button {
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+  min-height: 30px;
+}
+.seg button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--ombre);
+  font-weight: 500;
+}
+.seg--plein {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+.seg--plein button {
+  min-height: 36px;
+}
+
+/* ---------- avis ---------- */
+.avis {
+  margin: 8px 16px 0;
+  padding: 10px 12px;
+  border-radius: var(--r-m);
+  font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  overflow-wrap: anywhere;
+}
+/* Un avis à plusieurs lignes (cause, détail, action) : en colonne. */
+.avis__corps {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.avis__corps p {
+  margin: 0;
+}
+.avis__detail {
+  font-size: 12px;
+  opacity: 0.85;
+}
+.avis--erreur {
+  background: var(--err-fill);
+  border-color: transparent;
+  color: var(--err);
+}
+.avis--attention {
+  background: var(--attn-fill);
+  border-color: var(--attn-line);
+  color: var(--attn);
+}
+.avis--ok {
+  background: var(--ok-fill);
+  border-color: transparent;
+  color: var(--ok);
+}
+.avis .lien {
+  min-height: 0;
+  padding: 0;
+  color: inherit;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ---------- markdown ---------- */
+.md {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.md-p {
+  margin: 0;
+}
+.md-heading {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.md-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 2px;
+}
+.md-code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.md-pre,
+.md-raw-html {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-s);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font: 12.5px/1.5 var(--font-mono);
+  /* ⚠️ Retour du 2026-10-31 : une commande longue dans une liste ou une
+     citation élargissait tout le fil (mesuré : 1285 px sur un écran de 390).
+     Le code revient à la ligne en gardant son indentation ; un jeton sans
+     espace (URL, chemin) se coupe où il faut. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.md-lang {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+.md-quote {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--line);
+  color: var(--ink-2);
+}
+.md-hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  width: 100%;
+}
+.md-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--surface);
+}
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.md-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-2);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.md-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.md-table tr:last-child td {
+  border-bottom: 0;
+}
+.md a {
+  color: var(--work);
+}
+
+/* ---------- barre d'état ---------- */
+/*
+  ⚠️ **Le flou en haut de l'écran.** Safari 26 (iOS) ne lit plus
+  `theme-color` : il floute le contenu sous la barre d'état, SAUF s'il trouve
+  un élément fixe, opaque et pleine largeur collé au bord haut — il en reprend
+  alors la couleur. Nos en-têtes sont dans le flux : rien à reprendre, donc du
+  flou. Ce bandeau fixe, de la hauteur de la zone sûre, lui donne la couleur
+  du fond.
+*/
+.barre-etat {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: max(var(--haut-sur), 1px);
+  background: var(--ground);
+  z-index: 40;
+  /* Pas de `pointer-events: none` : Safari cherche cet élément par un test
+     de toucher, qui ignore ce qui ne reçoit pas les touchers. */
+}
+
+/* ---------- notifications d'écran ---------- */
+/*
+  En haut, sous la barre d'état (zone sûre), au-dessus de tout : l'issue d'un
+  geste s'annonce là où l'œil la cherche sur un téléphone.
+*/
+.notifs {
+  position: fixed;
+  top: calc(var(--haut-sur) + var(--haut-visible, 0px) + 8px);
+  left: 12px;
+  right: 12px;
+  z-index: 50;
+  display: grid;
+  gap: 8px;
+  max-width: 520px;
+  margin: 0 auto;
+  pointer-events: none;
+}
+.notif {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 6px 10px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.35);
+  animation: descend 0.18s ease-out;
+}
+.notif--ok {
+  border-left-color: var(--ok);
+}
+.notif--attention {
+  border-left-color: var(--attn);
+}
+.notif--erreur {
+  border-left-color: var(--err);
+}
+.notif__texte {
+  margin: 0;
+  flex: 1;
+  font-size: 14px;
+  padding-top: 2px;
+  overflow-wrap: anywhere;
+}
+.notif__fermer {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  color: var(--ink-3);
+}
+@keyframes descend {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notif {
+    animation: none;
+  }
+}
+
+/* ---------- image plein écran ---------- */
+.plein-ecran {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #000;
+  color: #fff;
+  display: grid;
+}
+.plein-ecran__fond {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+.plein-ecran__cadre {
+  position: relative;
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--haut-sur) + 56px) 0 calc(var(--bas-sur) + 16px);
+  pointer-events: none;
+}
+.plein-ecran__image {
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.plein-ecran__image img {
+  display: block;
+  max-width: 100vw;
+  max-height: calc(var(--hauteur-app, 100dvh) - var(--haut-sur) - var(--bas-sur) - 72px);
+  object-fit: contain;
+}
+.plein-ecran--reelle .plein-ecran__cadre {
+  place-items: start;
+  pointer-events: auto;
+}
+.plein-ecran--reelle .plein-ecran__image {
+  cursor: zoom-out;
+}
+.plein-ecran--reelle .plein-ecran__image img {
+  max-width: none;
+  max-height: none;
+}
+.plein-ecran__fermer {
+  position: absolute;
+  top: calc(var(--haut-sur) + 8px);
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}

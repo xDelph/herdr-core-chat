@@ -1,0 +1,38 @@
+{
+  "name": "herdr-core-chat",
+  "private": true,
+  "version": "0.2.6",
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "engines": {
+    "node": "24.21.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "start": "bin/herdr-core-chat",
+    "build:daemon": "bun run build && cargo build --release --locked -p herdr_core_chat",
+    "dev": "cd apps/web && bun run dev",
+    "build": "cd apps/web && bun run build",
+    "lint": "oxlint --type-aware --react-plugin --jsx-a11y-plugin --react-perf-plugin --promise-plugin --deny-warnings --report-unused-disable-directives -c .oxlintrc.json apps packages",
+    "lint:fix": "oxlint --fix --type-aware --react-plugin --jsx-a11y-plugin --react-perf-plugin --promise-plugin --deny-warnings --report-unused-disable-directives -c .oxlintrc.json apps packages",
+    "format": "oxfmt apps packages",
+    "format:check": "oxfmt --check apps packages",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test",
+    "verify": "bun run format:check && bun run lint && bun run typecheck && bun run test"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "ajv": "8.20.0",
+    "json-schema-to-typescript": "16.0.0",
+    "oxfmt": "0.72.0",
+    "oxlint": "1.87.0",
+    "oxlint-tsgolint": "7.0.2003",
+    "rollup-plugin-visualizer": "^7.1.1",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {}
+}

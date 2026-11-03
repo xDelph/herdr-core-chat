@@ -1,0 +1,1803 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-29T00:00:00Z",
+  "capabilities": [
+    {
+      "id": "O01",
+      "deliverTasks": [
+        "T056"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr_core_chat/tests",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/composition.rs",
+        "crates/herdr_core_chat/tests/unit/cycle.rs"
+      ]
+    },
+    {
+      "id": "O02",
+      "deliverTasks": [
+        "T048"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr_core_chat/tests (config matrix)",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/config.rs"
+      ]
+    },
+    {
+      "id": "O03",
+      "deliverTasks": [
+        "T056"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr_core_chat/tests (composition)",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/demarrage.rs",
+        "crates/http-api/tests/unit/sante.rs"
+      ]
+    },
+    {
+      "id": "O04",
+      "deliverTasks": [
+        "T056"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr_core_chat/tests (shutdown) + crates/application/tests",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/cycle.rs"
+      ]
+    },
+    {
+      "id": "O05",
+      "deliverTasks": [
+        "T054"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr_core_chat/tests + crates/http-api/tests",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/assets.rs"
+      ]
+    },
+    {
+      "id": "O06",
+      "deliverTasks": [
+        "T054"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests + crates/herdr_core_chat/tests",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/assets.rs"
+      ]
+    },
+    {
+      "id": "O07",
+      "deliverTasks": [
+        "T054",
+        "T049"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/router.rs",
+        "crates/http-api/tests/unit/assets.rs"
+      ]
+    },
+    {
+      "id": "O08",
+      "deliverTasks": [
+        "T066",
+        "T068"
+      ],
+      "proofTask": "T064",
+      "target": "crates/xtask/tests + release workflow (CI)",
+      "status": "pending",
+      "gap": "Artefacts de release (T066) : workflow prêt, jamais exécuté — aucune archive produite en CI."
+    },
+    {
+      "id": "O09",
+      "deliverTasks": [
+        "T066",
+        "T070"
+      ],
+      "proofTask": "T064",
+      "target": "review docs only",
+      "status": "pending",
+      "gap": "Procédure de bascule/rollback (T070) : documentée dans docs/BASCULE.md, non exécutée par décision."
+    },
+    {
+      "id": "O10",
+      "deliverTasks": [
+        "T003",
+        "T069"
+      ],
+      "proofTask": "T064",
+      "target": "crates/xtask/tests + workspace gates",
+      "status": "pending",
+      "gap": "Porte finale (T069) : documentée (docs/FINAL-GATE.md, xtask final-gate), à exécuter par l'intégrateur après fusion des lots."
+    },
+    {
+      "id": "H01",
+      "deliverTasks": [
+        "T050",
+        "T010"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/sante.rs",
+        "crates/http-api/tests/unit/router.rs",
+        "crates/herdr_core_chat/tests/unit/composition.rs"
+      ]
+    },
+    {
+      "id": "H02",
+      "deliverTasks": [
+        "T050",
+        "T010"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/overview.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/overview.rs"
+      ]
+    },
+    {
+      "id": "H03",
+      "deliverTasks": [
+        "T050",
+        "T010"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/conversations.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/conversations.rs"
+      ]
+    },
+    {
+      "id": "H04",
+      "deliverTasks": [
+        "T050",
+        "T010"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (session matrix)",
+      "status": "proven",
+      "unitTests": [
+        "crates/sessions/tests/unit/cursor.rs",
+        "crates/sessions/tests/unit/port.rs",
+        "crates/sessions/tests/unit/path_policy.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/composition.rs",
+        "crates/http-api/tests/unit/session.rs"
+      ]
+    },
+    {
+      "id": "H05",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/prompt.rs",
+        "crates/http-api/tests/unit/corps.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/prompt.rs"
+      ]
+    },
+    {
+      "id": "H06",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/arret.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/stop.rs"
+      ]
+    },
+    {
+      "id": "H07",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (launch)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/lancement.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/launch.rs"
+      ]
+    },
+    {
+      "id": "H08",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/catalogues.rs"
+      ],
+      "unitTests": [
+        "crates/catalog/tests/unit/port.rs"
+      ]
+    },
+    {
+      "id": "H09",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/catalogues.rs"
+      ],
+      "unitTests": [
+        "crates/catalog/tests/unit/cache.rs"
+      ]
+    },
+    {
+      "id": "H10",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (interactive)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/reponse.rs"
+      ],
+      "unitTests": [
+        "crates/interactions/tests/unit/repondre.rs"
+      ]
+    },
+    {
+      "id": "H11",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/focus.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/focus.rs"
+      ]
+    },
+    {
+      "id": "H12",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (interactive)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/confiance.rs"
+      ],
+      "unitTests": [
+        "crates/interactions/tests/unit/confiance.rs"
+      ]
+    },
+    {
+      "id": "H13",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/journal_client.rs"
+      ]
+    },
+    {
+      "id": "H14",
+      "deliverTasks": [
+        "T053"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (SSE)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/events.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/events/subscription.rs"
+      ]
+    },
+    {
+      "id": "H15",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/push.rs"
+      ],
+      "unitTests": [
+        "crates/notifications/tests/unit/port.rs"
+      ]
+    },
+    {
+      "id": "H16",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/push.rs"
+      ],
+      "unitTests": [
+        "crates/notifications/tests/unit/store.rs"
+      ]
+    },
+    {
+      "id": "H17",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (files)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/fichiers.rs"
+      ],
+      "unitTests": [
+        "crates/files/tests/unit/authorized_file.rs"
+      ]
+    },
+    {
+      "id": "H18",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/fichiers.rs"
+      ],
+      "unitTests": [
+        "crates/files/tests/unit/scan.rs"
+      ]
+    },
+    {
+      "id": "H19",
+      "deliverTasks": [
+        "lot-sessions"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (flux de session SSE, STREAMING.md)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/flux_session.rs",
+        "crates/http-api/tests/unit/router.rs"
+      ],
+      "unitTests": [
+        "crates/sessions/tests/unit/hub.rs"
+      ]
+    },
+    {
+      "id": "H20",
+      "deliverTasks": [
+        "lot-taches"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (tâches de fond)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/taches.rs"
+      ],
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_claude_taches.rs"
+      ]
+    },
+    {
+      "id": "H21",
+      "deliverTasks": [
+        "lot-taches"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (transcription d'une tâche)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/taches.rs"
+      ],
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_claude_taches.rs"
+      ]
+    },
+    {
+      "id": "H22",
+      "deliverTasks": [
+        "lot-lectures"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (lecture partagée entre appareils)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/lectures.rs",
+        "crates/herdr_core_chat/tests/unit/lectures.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/lectures.rs"
+      ]
+    },
+    {
+      "id": "H23",
+      "deliverTasks": [
+        "lot-presence"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (présence d'un appareil, push écarté)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/push.rs",
+        "crates/notifications/tests/unit/notifieur.rs"
+      ],
+      "unitTests": [
+        "crates/notifications/tests/unit/presence.rs"
+      ]
+    },
+    {
+      "id": "D01",
+      "deliverTasks": [
+        "T005",
+        "T023",
+        "T038",
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests + crates/domene→domain/tests",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/application/tests/unit/overview.rs"
+      ],
+      "gap": "Le décodage fil de result.snapshot n'est testé qu'au niveau du client : les tests composés utilisent HerdrFaux, qui contourne le décodage."
+    },
+    {
+      "id": "D02",
+      "deliverTasks": [
+        "T005",
+        "T023",
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (overview)",
+      "status": "proven",
+      "unitTests": [
+        "crates/application/tests/unit/overview.rs"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/overview.rs"
+      ]
+    },
+    {
+      "id": "D03",
+      "deliverTasks": [
+        "T005",
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (overview)",
+      "status": "proven",
+      "unitTests": [
+        "crates/application/tests/unit/overview.rs",
+        "crates/domain/tests/unit/observation.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/assemblage.rs"
+      ]
+    },
+    {
+      "id": "D04",
+      "deliverTasks": [
+        "T005"
+      ],
+      "proofTask": "T064",
+      "target": "crates/domain/tests (naming) + application tests",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/domain/tests/unit/naming.rs",
+        "crates/application/tests/unit/overview.rs"
+      ],
+      "gap": "Partiel : le versant notifications passe par la veille composée (crates/herdr_core_chat/tests/unit/veille.rs : « un agent · tab 1 ») ; le rang de pane et le libellé multi-pane ne sont pas affirmés à travers le routeur."
+    },
+    {
+      "id": "D05",
+      "deliverTasks": [
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (conversations/overview)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/application/tests/unit/visibilite.rs"
+      ],
+      "gap": "Visibilité prouvée au niveau application seulement."
+    },
+    {
+      "id": "D06",
+      "deliverTasks": [
+        "T011",
+        "T014",
+        "T015",
+        "T017",
+        "T023",
+        "T024"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests (registry)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/pipeline.rs"
+      ],
+      "gap": "Pipeline de session prouvé avec le vrai lecteur seulement au niveau crate ; les tests composés utilisent des faux de session."
+    },
+    {
+      "id": "D07",
+      "deliverTasks": [
+        "T023"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/integration (discovery)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/resolver.rs"
+      ],
+      "gap": "Partiel : le chemin publié (`path`) est résolu par le vrai PortSessions derrière le routeur composé (crates/herdr_core_chat/tests/unit/composition.rs) ; les recherches par identifiant Codex/Claude et la sélection SQLite opencode/Devin ne sont prouvées qu'au niveau crate."
+    },
+    {
+      "id": "D08",
+      "deliverTasks": [
+        "T023"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/integration (discovery)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/resolver.rs"
+      ],
+      "gap": "Idem D07."
+    },
+    {
+      "id": "D09",
+      "deliverTasks": [
+        "T014",
+        "T026"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/unit (jsonl) + metadata",
+      "status": "proven",
+      "unitTests": [
+        "crates/sessions/tests/unit/jsonl.rs",
+        "crates/sessions/tests/unit/port.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/assemblage.rs"
+      ]
+    },
+    {
+      "id": "D10",
+      "deliverTasks": [
+        "T014"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/unit (jsonl) + property_tests",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/jsonl.rs",
+        "crates/sessions/tests/unit/borne.rs"
+      ],
+      "gap": "Partiel : queue, rotation au même chemin et historique périmé passent par le vrai lecteur derrière le routeur composé (crates/herdr_core_chat/tests/unit/composition.rs) ; lectures avant/arrière complètes et enregistrements partiels prouvés au niveau crate."
+    },
+    {
+      "id": "D11",
+      "deliverTasks": [
+        "T018"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: pi)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_pi.rs"
+      ],
+      "gap": "Profil Pi prouvé au niveau crate seulement."
+    },
+    {
+      "id": "D12",
+      "deliverTasks": [
+        "T019"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: codex)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_codex.rs"
+      ],
+      "gap": "Profil Codex prouvé au niveau crate seulement."
+    },
+    {
+      "id": "D13",
+      "deliverTasks": [
+        "T019"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: codex)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_codex.rs"
+      ],
+      "gap": "Idem D12."
+    },
+    {
+      "id": "D14",
+      "deliverTasks": [
+        "T020"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: claude)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_claude.rs"
+      ],
+      "gap": "Profil Claude prouvé au niveau crate seulement."
+    },
+    {
+      "id": "D15",
+      "deliverTasks": [
+        "T021"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: opencode)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_opencode.rs"
+      ],
+      "gap": "Profil opencode prouvé au niveau crate seulement."
+    },
+    {
+      "id": "D16",
+      "deliverTasks": [
+        "T022"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: devin)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_devin.rs"
+      ],
+      "gap": "Profil devin prouvé au niveau crate seulement."
+    },
+    {
+      "id": "D17",
+      "deliverTasks": [
+        "T015",
+        "T021",
+        "T022"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/unit (sqlite)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_opencode.rs",
+        "crates/sessions/tests/unit/sqlite.rs"
+      ],
+      "gap": "Lecture SQLite prouvée au niveau crate seulement."
+    },
+    {
+      "id": "D18",
+      "deliverTasks": [
+        "T026",
+        "T027",
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests + sessions metadata",
+      "status": "proven",
+      "unitTests": [
+        "crates/application/tests/unit/conversations.rs",
+        "crates/herdr_core_chat/tests/unit/assemblage.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/assemblage.rs"
+      ]
+    },
+    {
+      "id": "D19",
+      "deliverTasks": [
+        "T026"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests (metadata reducer)",
+      "status": "proven",
+      "unitTests": [
+        "crates/application/tests/unit/conversations.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/assemblage.rs"
+      ]
+    },
+    {
+      "id": "D20",
+      "deliverTasks": [
+        "T027",
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/conversations.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/conversations.rs"
+      ]
+    },
+    {
+      "id": "D21",
+      "deliverTasks": [
+        "T040"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (git)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/application/tests/unit/git.rs"
+      ],
+      "gap": "Le routeur est testé avec le faux branche_simple ; le vrai lecteur git n'est prouvé qu'au niveau application."
+    },
+    {
+      "id": "D22",
+      "deliverTasks": [
+        "T026"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (normalization) ",
+      "status": "proven",
+      "unitTests": [
+        "crates/application/tests/unit/conversations.rs",
+        "crates/sessions/tests/unit/codecs.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/assemblage.rs"
+      ]
+    },
+    {
+      "id": "A01",
+      "deliverTasks": [
+        "T035"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (prompt)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/prompt.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/prompt.rs"
+      ]
+    },
+    {
+      "id": "A02",
+      "deliverTasks": [
+        "T035"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (prompt dedup)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/prompt.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/prompt.rs",
+        "crates/application/tests/unit/admission.rs"
+      ]
+    },
+    {
+      "id": "A03",
+      "deliverTasks": [
+        "T035",
+        "T013"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr-core (removed)/tests + application tests",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/prompt.rs"
+      ],
+      "unitTests": []
+    },
+    {
+      "id": "A04",
+      "deliverTasks": [
+        "T036"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (stop)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/arret.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/stop.rs"
+      ]
+    },
+    {
+      "id": "A05",
+      "deliverTasks": [
+        "T036"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (focus)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/focus.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/focus.rs"
+      ]
+    },
+    {
+      "id": "A06",
+      "deliverTasks": [
+        "T013",
+        "T031"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr-core (removed)/tests + application",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/catalog/tests/unit/port.rs",
+        "crates/application/tests/unit/types_installes.rs",
+        "crates/application/tests/unit/launch.rs"
+      ],
+      "gap": "installees_depuis et TypesViaCatalogue ne sont jamais derrière le routeur dans un test (faux InventaireFaux)."
+    },
+    {
+      "id": "A07",
+      "deliverTasks": [
+        "T037"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (launch)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/lancement.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/launch.rs"
+      ]
+    },
+    {
+      "id": "A08",
+      "deliverTasks": [
+        "T037"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (launch)",
+      "status": "proven",
+      "unitTests": [
+        "crates/application/tests/unit/launch.rs"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/lancement.rs"
+      ]
+    },
+    {
+      "id": "A09",
+      "deliverTasks": [
+        "T032",
+        "T033"
+      ],
+      "proofTask": "T064",
+      "target": "crates/interactions/tests",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/confiance.rs"
+      ],
+      "unitTests": [
+        "crates/interactions/tests/unit/confiance.rs"
+      ]
+    },
+    {
+      "id": "A10",
+      "deliverTasks": [
+        "T033"
+      ],
+      "proofTask": "T064",
+      "target": "crates/interactions/tests",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/confiance.rs"
+      ],
+      "unitTests": [
+        "crates/interactions/tests/unit/confiance.rs"
+      ]
+    },
+    {
+      "id": "A11",
+      "deliverTasks": [
+        "T032"
+      ],
+      "proofTask": "T064",
+      "target": "crates/interactions/tests (recognition)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/reponse.rs"
+      ],
+      "unitTests": [
+        "crates/interactions/tests/unit/ecran.rs"
+      ]
+    },
+    {
+      "id": "A12",
+      "deliverTasks": [
+        "T033"
+      ],
+      "proofTask": "T064",
+      "target": "crates/interactions/tests (planning/verification)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/reponse.rs"
+      ],
+      "unitTests": [
+        "crates/interactions/tests/unit/repondre.rs"
+      ]
+    },
+    {
+      "id": "A13",
+      "deliverTasks": [
+        "T028",
+        "T029",
+        "T031"
+      ],
+      "proofTask": "T064",
+      "target": "crates/catalog/tests",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/catalog/tests/unit/adapters.rs",
+        "crates/catalog/tests/unit/cache.rs",
+        "crates/catalog/tests/unit/process.rs"
+      ],
+      "gap": "Le routeur est testé avec FauxCatalogue ; les adaptateurs de catalogue ne sont prouvés qu'au niveau crate."
+    },
+    {
+      "id": "A14",
+      "deliverTasks": [
+        "T029",
+        "T030"
+      ],
+      "proofTask": "T064",
+      "target": "crates/catalog/tests (args)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/catalog/tests/unit/args.rs"
+      ],
+      "gap": "Branché par catalog::args::verificateur_args (construit_args puis niveau_supporte) ; le routeur composé (crates/herdr_core_chat/tests/unit/composition.rs) ne passe que le cas Pi/niveau — les arguments des autres familles ne sont prouvés qu'au niveau crate."
+    },
+    {
+      "id": "A15",
+      "deliverTasks": [
+        "T030"
+      ],
+      "proofTask": "T064",
+      "target": "crates/catalog/tests (args)",
+      "status": "proven",
+      "unitTests": [
+        "crates/catalog/tests/unit/args.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/composition.rs",
+        "crates/http-api/tests/unit/lancement.rs"
+      ]
+    },
+    {
+      "id": "E01",
+      "deliverTasks": [
+        "T041"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (watcher, fake clock)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/application/tests/unit/events/watcher.rs",
+        "crates/herdr_core_chat/tests/unit/veille.rs"
+      ],
+      "gap": "Cadence de la boucle et compteur d'erreurs prouvés seulement en unitaire (veille.rs teste une itération)."
+    },
+    {
+      "id": "E02",
+      "deliverTasks": [
+        "T041"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (watcher)",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/veille.rs",
+        "crates/http-api/tests/unit/publication.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/events/watcher.rs"
+      ]
+    },
+    {
+      "id": "E03",
+      "deliverTasks": [
+        "T041"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (watcher)",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/veille.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/events/watcher.rs"
+      ]
+    },
+    {
+      "id": "E04",
+      "deliverTasks": [
+        "T042"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (journal)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/events.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/events/journal.rs"
+      ]
+    },
+    {
+      "id": "E05",
+      "deliverTasks": [
+        "T043",
+        "T053"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests + http-api SSE tests",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/events.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/events/subscription.rs"
+      ]
+    },
+    {
+      "id": "E06",
+      "deliverTasks": [
+        "T041"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (watcher)",
+      "status": "proven",
+      "unitTests": [
+        "crates/application/tests/unit/events/watcher.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/veille.rs"
+      ]
+    },
+    {
+      "id": "E07",
+      "deliverTasks": [
+        "T045"
+      ],
+      "proofTask": "T064",
+      "target": "crates/notifications/tests (payload)",
+      "status": "proven",
+      "unitTests": [
+        "crates/notifications/tests/unit/payload.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/veille.rs"
+      ]
+    },
+    {
+      "id": "E08",
+      "deliverTasks": [
+        "T044"
+      ],
+      "proofTask": "T064",
+      "target": "crates/notifications/tests (store/vapid)",
+      "status": "proven",
+      "unitTests": [
+        "crates/notifications/tests/unit/store.rs",
+        "crates/notifications/tests/unit/vapid.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/store_push.rs",
+        "crates/herdr_core_chat/tests/unit/config.rs"
+      ]
+    },
+    {
+      "id": "E09",
+      "deliverTasks": [
+        "T045"
+      ],
+      "proofTask": "T064",
+      "target": "crates/notifications/tests (delivery)",
+      "status": "proven",
+      "unitTests": [
+        "crates/notifications/tests/unit/delivery.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/veille.rs"
+      ]
+    },
+    {
+      "id": "E10",
+      "deliverTasks": [
+        "T044"
+      ],
+      "proofTask": "T064",
+      "target": "crates/notifications/tests (store)",
+      "status": "proven",
+      "unitTests": [
+        "crates/notifications/tests/unit/store.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/store_push.rs"
+      ]
+    },
+    {
+      "id": "S01",
+      "deliverTasks": [
+        "T048",
+        "T049"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr_core_chat/tests + http-api origin tests",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/router.rs",
+        "crates/http-api/tests/unit/origin.rs",
+        "crates/herdr_core_chat/tests/unit/config.rs"
+      ]
+    },
+    {
+      "id": "S02",
+      "deliverTasks": [
+        "T049"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (origin matrix)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/router.rs",
+        "crates/http-api/tests/unit/origin.rs"
+      ]
+    },
+    {
+      "id": "S03",
+      "deliverTasks": [
+        "T049"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (body limits)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/router.rs",
+        "crates/http-api/tests/unit/prompt.rs"
+      ]
+    },
+    {
+      "id": "S04",
+      "deliverTasks": [
+        "T011",
+        "T014",
+        "T015"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests (confined) + sessions path_policy",
+      "status": "proven",
+      "unitTests": [
+        "crates/sessions/tests/unit/path_policy.rs",
+        "crates/files/tests/unit/confined.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/composition.rs"
+      ]
+    },
+    {
+      "id": "S05",
+      "deliverTasks": [
+        "T046"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests + application authorization",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/fichiers.rs",
+        "crates/http-api/tests/unit/assets.rs"
+      ],
+      "unitTests": [
+        "crates/files/tests/unit/authorized_file.rs"
+      ]
+    },
+    {
+      "id": "S06",
+      "deliverTasks": [
+        "T046"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests (authorized_file)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/files/tests/unit/authorized_file.rs"
+      ],
+      "gap": "Limites prouvées au niveau crate ; MAX_FILE_BYTES déclaré deux fois (crates/contracts/src/limits.rs:40 et crates/files/src/authorized_file.rs:29) sans test d'égalité ; constante de fenêtre de session 512 KiB non testée en Rust."
+    },
+    {
+      "id": "S07",
+      "deliverTasks": [
+        "T046"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests (mime)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/files/tests/unit/mime.rs"
+      ],
+      "gap": "La politique MIME vit dans files ; HA/fichiers.rs ne vérifie que la correspondance d'entêtes."
+    },
+    {
+      "id": "S08",
+      "deliverTasks": [
+        "T047"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests (scan)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/files/tests/unit/scan.rs"
+      ],
+      "gap": "Scan d'images prouvé au niveau crate seulement."
+    },
+    {
+      "id": "S09",
+      "deliverTasks": [
+        "T047"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests (scan)",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/files/tests/unit/scan.rs"
+      ],
+      "gap": "Idem S08."
+    },
+    {
+      "id": "S10",
+      "deliverTasks": [
+        "T010",
+        "T055"
+      ],
+      "proofTask": "T064",
+      "target": "crates/domain/tests + http-api error tests",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/errors.rs",
+        "crates/http-api/tests/unit/session.rs"
+      ],
+      "unitTests": [
+        "crates/contracts/tests/unit/corpus.rs"
+      ]
+    },
+    {
+      "id": "S11",
+      "deliverTasks": [
+        "T055"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr_core_chat/tests (logging)",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/logging.rs",
+        "crates/http-api/tests/unit/journal_client.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/diagnostics.rs"
+      ]
+    },
+    {
+      "id": "S12",
+      "deliverTasks": [
+        "T055"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr_core_chat/tests (logging)",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/logging.rs"
+      ]
+    },
+    {
+      "id": "S13",
+      "deliverTasks": [
+        "T010"
+      ],
+      "proofTask": "T064",
+      "target": "crates/domain/tests (errors) + http-api",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/application/tests/unit/diagnostics.rs",
+        "crates/domain/tests/unit/errors.rs"
+      ],
+      "gap": "message_sur est branché, mais aucune assertion à travers le routeur."
+    },
+    {
+      "id": "S14",
+      "deliverTasks": [
+        "T003",
+        "T004",
+        "T006",
+        "T064"
+      ],
+      "proofTask": "T064",
+      "target": "crates/test-support/tests + xtask layout gate",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/test-support/tests/unit/fake_herdr.rs",
+        "crates/test-support/tests/unit/push_sink.rs"
+      ],
+      "gap": "Politique d'isolement des tests, pas un comportement d'exécution : prouvée sur l'infrastructure de test."
+    }
+  ],
+  "corrections": [
+    {
+      "id": "C01",
+      "tasks": [
+        "T007",
+        "T008",
+        "T009",
+        "T057",
+        "T068"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/router.rs",
+        "crates/http-api/tests/unit/errors.rs"
+      ],
+      "unitTests": [
+        "crates/contracts/tests/unit/registry.rs",
+        "packages/shared/tests/contrat-genere.test.ts"
+      ]
+    },
+    {
+      "id": "C02",
+      "tasks": [
+        "T014",
+        "T025",
+        "T026",
+        "T027"
+      ],
+      "proofTask": "T064",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/jsonl.rs"
+      ],
+      "gap": "Prouvé au niveau crate seulement."
+    },
+    {
+      "id": "C03",
+      "tasks": [
+        "T033",
+        "T051"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/confiance.rs"
+      ],
+      "unitTests": [
+        "crates/interactions/tests/unit/engine.rs"
+      ]
+    },
+    {
+      "id": "C04",
+      "tasks": [
+        "T010",
+        "T050"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/composition.rs",
+        "crates/http-api/tests/unit/session.rs"
+      ],
+      "unitTests": [
+        "crates/sessions/tests/unit/port.rs"
+      ]
+    },
+    {
+      "id": "C05",
+      "tasks": [
+        "T013",
+        "T035",
+        "T051"
+      ],
+      "proofTask": "T064",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/application/tests/unit/prompt.rs"
+      ],
+      "gap": "HerdrFaux contourne le contrôle du discriminant du client : prouvé au niveau client seulement."
+    },
+    {
+      "id": "C06",
+      "tasks": [
+        "T034",
+        "T035"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/prompt.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/prompt.rs",
+        "crates/application/tests/unit/admission.rs"
+      ]
+    },
+    {
+      "id": "C07",
+      "tasks": [
+        "T030",
+        "T037",
+        "T051"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/lancement.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/launch.rs"
+      ]
+    },
+    {
+      "id": "C08",
+      "tasks": [
+        "T049",
+        "T054"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/router.rs"
+      ]
+    },
+    {
+      "id": "C09",
+      "tasks": [
+        "T049"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/prompt.rs",
+        "crates/http-api/tests/unit/corps.rs"
+      ]
+    },
+    {
+      "id": "C10",
+      "tasks": [
+        "T048"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/config.rs"
+      ]
+    },
+    {
+      "id": "C11",
+      "tasks": [
+        "T042",
+        "T043",
+        "T053"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/events.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/events/journal.rs",
+        "crates/application/tests/unit/events/subscription.rs"
+      ]
+    },
+    {
+      "id": "C12",
+      "tasks": [
+        "T024",
+        "T025",
+        "T050"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "unitTests": [
+        "crates/sessions/tests/unit/cursor.rs",
+        "crates/sessions/tests/unit/port_curseurs.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/composition.rs"
+      ]
+    },
+    {
+      "id": "C13",
+      "tasks": [
+        "T011",
+        "T046",
+        "T047"
+      ],
+      "proofTask": "T064",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/files/tests/unit/confined.rs",
+        "crates/sessions/tests/unit/path_policy.rs"
+      ],
+      "gap": "Prouvé au niveau crate seulement."
+    },
+    {
+      "id": "C14",
+      "tasks": [
+        "T044",
+        "T045"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "unitTests": [
+        "crates/files/tests/unit/atomic.rs",
+        "crates/notifications/tests/unit/store.rs",
+        "crates/notifications/tests/unit/delivery.rs"
+      ],
+      "tests": [
+        "crates/herdr_core_chat/tests/unit/veille.rs"
+      ]
+    },
+    {
+      "id": "C15",
+      "tasks": [
+        "T023"
+      ],
+      "proofTask": "T064",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/resolver.rs"
+      ],
+      "gap": "Prouvé au niveau crate seulement."
+    },
+    {
+      "id": "C16",
+      "tasks": [
+        "T031",
+        "T037"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/catalogues.rs",
+        "crates/http-api/tests/unit/lancement.rs"
+      ],
+      "unitTests": [
+        "crates/catalog/tests/unit/cache.rs"
+      ]
+    },
+    {
+      "id": "C17",
+      "tasks": [
+        "T032",
+        "T033",
+        "T034"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/confiance.rs",
+        "crates/http-api/tests/unit/reponse.rs"
+      ],
+      "unitTests": [
+        "crates/interactions/tests/unit/engine.rs"
+      ]
+    },
+    {
+      "id": "C18",
+      "tasks": [
+        "T025",
+        "T050",
+        "T057",
+        "T059"
+      ],
+      "proofTask": "T064",
+      "status": "unit-only",
+      "unitTests": [
+        "crates/sessions/tests/unit/borne.rs"
+      ],
+      "gap": "Prouvé au niveau crate seulement."
+    },
+    {
+      "id": "C19",
+      "tasks": [
+        "T058"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "apps/web/tests/envois-store.test.ts"
+      ]
+    },
+    {
+      "id": "C20",
+      "tasks": [
+        "T058",
+        "T059"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "apps/web/tests/envois-store.test.ts",
+        "apps/web/tests/flux-session.test.ts"
+      ]
+    },
+    {
+      "id": "C21",
+      "tasks": [
+        "T060"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "apps/web/tests/mise-a-jour.test.ts"
+      ]
+    },
+    {
+      "id": "C22",
+      "tasks": [
+        "T061"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "apps/web/tests/markdown.test.ts",
+        "apps/web/tests/sections.test.ts"
+      ]
+    },
+    {
+      "id": "C23",
+      "tasks": [
+        "T038",
+        "T039",
+        "T059"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "apps/web/tests/rafraichissement.test.ts"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/refresh.rs"
+      ]
+    },
+    {
+      "id": "C24",
+      "tasks": [
+        "T036",
+        "T062"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "apps/web/tests/ecrans.test.ts"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/focus.rs"
+      ]
+    },
+    {
+      "id": "C25",
+      "tasks": [
+        "T062",
+        "T067"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "apps/web/tests/dialogue-modal.test.ts"
+      ]
+    },
+    {
+      "id": "C26",
+      "tasks": [
+        "T027",
+        "T053",
+        "T057",
+        "T059"
+      ],
+      "proofTask": "T064",
+      "status": "unit-only",
+      "tests": [
+        "crates/http-api/tests/unit/events.rs",
+        "crates/http-api/tests/unit/flux_session.rs"
+      ],
+      "unitTests": [
+        "crates/sessions/tests/unit/hub.rs"
+      ],
+      "gap": "L'observation partagée/louée de SessionHub n'est prouvée qu'en unitaire ; les tests composés utilisent FauxObservateur."
+    },
+    {
+      "id": "C27",
+      "tasks": [
+        "T063",
+        "T065"
+      ],
+      "proofTask": "T064",
+      "status": "proven",
+      "tests": [
+        "apps/web/tests/calcul-historique.test.ts"
+      ]
+    }
+  ],
+  "historicalBaselineRef": "576bbf4902a00d3ef9702b4df315c943c7ac5680",
+  "statusModel": {
+    "proven": "au moins une preuve passe par la composition réelle : crates/http-api/tests (routeur composé), crates/herdr_core_chat/tests (démon assemblé) ou apps/web/tests (modules de la PWA, corrections front)",
+    "unit-only": "code branché dans le démon, preuve seulement au niveau composant (unitTests) ; gap obligatoire",
+    "not-wired": "composant présent mais non appelé par le démon, ou issue inatteignable en production ; gap obligatoire",
+    "pending": "rien de livré ni de prouvé",
+    "audit": "audit T064 du 2026-10-29 sur lot/plan (e7dd7d8) — lecture du code, voir EXECUTION.md ; re-marquage du lot finition (2026-10-29) après fusion des lots notif, sessions et tâches — preuves composées ajoutées, voir EXECUTION.md"
+  },
+  "todoAfterMerge": [
+    {
+      "ids": [
+        "O08",
+        "O09",
+        "O10"
+      ],
+      "lot": "intégrateur",
+      "note": "après exécution réelle de release-rust.yml, de la bascule et de xtask final-gate"
+    }
+  ]
+}
