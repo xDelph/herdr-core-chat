@@ -13,6 +13,7 @@ pub mod composition;
 pub mod config;
 pub mod cycle;
 pub mod demarrage;
+pub mod integrations;
 pub mod lectures;
 pub mod logging;
 pub mod veille;

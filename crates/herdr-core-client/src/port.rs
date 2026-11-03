@@ -13,9 +13,14 @@
 //! illisible est journalisé, une génération de protocole inconnue est
 //! refusée, une erreur de l'amont garde son `data.kind`.
 //!
-//! ⚠️ **Lancement (P7) non porté** : `create_tab`, `start_agent`,
-//! `fermer_onglet` et `focus` répondent `Unsupported` — jamais un substitut
-//! non vérifié (AGENTS §1.5).
+//! ⚠️ **Lancement (P7)** — comme Herdr.app (`tab.new` : « Agents run in your
+//! interactive shell ») : `create_tab` lance **le shell de la machine** dans
+//! un nouvel onglet de l'espace (labels `herdr.space`/`herdr.tab` : « a
+//! terminal with those labels shows up there », guide de Herdr.app),
+//! `start_agent` y tape la commande de l'agent, `fermer_onglet` ne ferme que
+//! les onglets **créés ici**. On ne tape jamais dans un terminal qu'on n'a
+//! pas créé (AGENTS §1.1). `focus` reste `Unsupported` (pas de fenêtre
+//! côté core).
 
 use crate::client::{ClientCore, HelloResult, Terminal};
 use crate::disposition::{Disposition, disposition_depuis};
@@ -36,6 +41,7 @@ use domain::status::AgentStatus;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -57,6 +63,25 @@ const FENETRE_ENTREE_DEJA_APPUYEE: Duration = Duration::from_secs(5);
 /// Identifiant de l'espace synthétique quand la disposition est illisible.
 pub const ESPACE_INDISPONIBLE: &str = "herdr-app-layout-unavailable";
 
+/// Préfixe des espaces synthétiques « hors disposition ».
+pub const PREFIXE_HORS: &str = "hors:";
+
+/// Combien de temps on observe l'amorçage d'un agent après avoir tapé sa
+/// commande (le moteur de lancement borne le tout à 125 s).
+pub const DELAI_AMORCAGE: Duration = Duration::from_secs(20);
+
+/// Le pas d'observation de l'amorçage.
+const PAS_AMORCAGE: Duration = Duration::from_millis(500);
+
+static COMPTEUR_ONGLETS: AtomicU64 = AtomicU64::new(0);
+
+/// Un onglet que CE démon a créé : son terminal (le shell), seul cible
+/// permise de `start_agent` et `fermer_onglet`.
+#[derive(Clone, Debug)]
+struct Lance {
+    adresse: String,
+}
+
 pub struct PortCore {
     client: Mutex<ClientCore>,
     etat_herdr_app: PathBuf,
@@ -65,6 +90,10 @@ pub struct PortCore {
     causes_dites: Mutex<BTreeMap<&'static str, String>>,
     /// Le dernier `send_text` : terminal et instant.
     dernier_texte: Mutex<Option<(String, Instant)>>,
+    /// Les onglets créés par ce démon (identifiant d'onglet → terminal).
+    lances: Mutex<BTreeMap<String, Lance>>,
+    /// Le délai d'observation de l'amorçage (les tests le raccourcissent).
+    delai_amorcage: Duration,
 }
 
 impl PortCore {
@@ -76,7 +105,26 @@ impl PortCore {
             etat_herdr_app: etat_herdr_app.as_ref().to_path_buf(),
             causes_dites: Mutex::new(BTreeMap::new()),
             dernier_texte: Mutex::new(None),
+            lances: Mutex::new(BTreeMap::new()),
+            delai_amorcage: DELAI_AMORCAGE,
         }
+    }
+
+    /// Le même port avec un délai d'amorçage choisi (tests).
+    #[must_use]
+    pub fn avec_delai_amorcage(mut self, delai: Duration) -> Self {
+        self.delai_amorcage = delai;
+        self
+    }
+
+    /// Le terminal d'un onglet créé ici, s'il l'a été.
+    fn lance_de_terminal(&self, adresse: &str) -> Option<Lance> {
+        self.lances
+            .lock()
+            .ok()?
+            .values()
+            .find(|lance| lance.adresse == adresse)
+            .cloned()
     }
 
     fn verrouiller(&self) -> Result<MutexGuard<'_, ClientCore>, PortError> {
@@ -378,7 +426,14 @@ pub fn snapshot_depuis(
         let label = Some(espace.name.clone())
             .filter(|nom| !nom.is_empty())
             .or(nom_etat)
-            .or_else(|| Some(espace.folder.clone()).filter(|d| !d.is_empty()));
+            // Dernier recours (Herdr.app fermé, sans son état) : le NOM du
+            // dossier, pas son chemin complet — il sert aussi de base au nom
+            // d'agent lancé (`<nom>-1`).
+            .or_else(|| {
+                Some(espace.folder.clone())
+                    .filter(|d| !d.is_empty())
+                    .map(|d| nom_de_dossier(&d))
+            });
         let mut onglets = Vec::new();
         for onglet in &espace.onglets {
             let nom_etat = etat
@@ -505,6 +560,79 @@ pub fn snapshot_depuis(
         }
     }
     snapshot
+}
+
+/// Un nouvel identifiant d'onglet, à la forme de ceux de Herdr.app
+/// (`tb` + 32 hexadécimaux) : « an id Herdr doesn't know becomes a new tab ».
+fn nouvel_onglet() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let n = COMPTEUR_ONGLETS.fetch_add(1, Ordering::SeqCst);
+    let instant = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let mut moities = [0u64; 2];
+    for (i, moitie) in moities.iter_mut().enumerate() {
+        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+        h.write_u128(instant);
+        h.write_u64(n);
+        h.write_u32(std::process::id());
+        h.write_usize(i);
+        *moitie = h.finish();
+    }
+    format!("tb{:016x}{:016x}", moities[0], moities[1])
+}
+
+/// Un nom de terminal valide pour herdr-core (« 1-32 of a-z 0-9 - _ . »),
+/// dérivé du nom d'agent ; `None` s'il n'en reste rien.
+#[must_use]
+pub fn nom_de_terminal(nom: &str) -> Option<String> {
+    let propre: String = nom
+        .to_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || "-_.".contains(c) {
+                c
+            } else {
+                '-'
+            }
+        })
+        .take(32)
+        .collect();
+    let propre = propre.trim_matches('-').to_string();
+    (!propre.is_empty()).then_some(propre)
+}
+
+/// La commande d'un type d'agent (Cursor : `cursor-agent`).
+fn commande_de(kind: &str) -> &str {
+    match kind {
+        "cursor" => "cursor-agent",
+        autre => autre,
+    }
+}
+
+/// Un mot pour `sh`/`zsh`/`bash`/`fish` : tel quel s'il est sûr, sinon entre
+/// apostrophes.
+fn mot_shell(mot: &str) -> String {
+    let sur = !mot.is_empty()
+        && mot
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_./=:@%+,".contains(c));
+    if sur {
+        mot.to_string()
+    } else {
+        format!("'{}'", mot.replace('\'', "'\\''"))
+    }
+}
+
+/// La ligne tapée dans le shell pour lancer l'agent.
+#[must_use]
+pub fn ligne_de_lancement(kind: &str, args: &[String]) -> String {
+    std::iter::once(commande_de(kind))
+        .chain(args.iter().map(String::as_str))
+        .map(mot_shell)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Le futur déjà prêt d'un port bloquant-déguisé.
@@ -687,22 +815,137 @@ impl ControlPort for PortCore {
         }))
     }
 
-    fn create_tab(&self, _request: CreateTab) -> PortFuture<'_, CreatedTab> {
-        pret(Err(PortError::Unsupported {
-            feature: "create_tab (agent launch is not ported to herdr-core yet)".into(),
+    /// Un nouvel onglet dans un espace de Herdr.app, avec le shell de la
+    /// machine dans le dossier connu. Refusé hors d'un espace réel
+    /// (terminaux hors disposition, disposition illisible).
+    fn create_tab(&self, request: CreateTab) -> PortFuture<'_, CreatedTab> {
+        let espace = request.workspace.to_string();
+        if espace.starts_with(PREFIXE_HORS) || espace == ESPACE_INDISPONIBLE {
+            return pret(Err(PortError::Unsupported {
+                feature: String::from("launching an agent outside a Herdr.app space"),
+            }));
+        }
+        let onglet = nouvel_onglet();
+        let labels: BTreeMap<String, String> = [
+            (String::from("herdr.space"), espace),
+            (String::from("herdr.tab"), onglet.clone()),
+        ]
+        .into_iter()
+        .collect();
+        let nom = request.label.as_deref().and_then(nom_de_terminal);
+        let resultat = self.verrouiller().and_then(|mut client| {
+            match client.terminal_run_shell(&request.cwd, nom.as_deref(), &labels) {
+                // Un nom déjà pris n'empêche pas l'onglet : sans nom.
+                Err(ErreurTransport::AmontRefus {
+                    kind: Some(kind), ..
+                }) if kind == "name_taken" => {
+                    client.terminal_run_shell(&request.cwd, None, &labels)
+                }
+                autre => autre,
+            }
+            .map_err(erreur_port)
+        });
+        pret(resultat.map(|(adresse, _)| {
+            if let Ok(mut lances) = self.lances.lock() {
+                lances.insert(
+                    onglet.clone(),
+                    Lance {
+                        adresse: adresse.clone(),
+                    },
+                );
+            }
+            tracing::info!(terminal = %adresse, onglet = %onglet, "herdr-core : onglet créé");
+            CreatedTab {
+                tab: TabId::from(onglet),
+                pane: PaneId::from(adresse),
+            }
         }))
     }
 
-    fn start_agent(&self, _request: StartAgent) -> PortFuture<'_, StartEvidence> {
-        pret(Err(PortError::Unsupported {
-            feature: "start_agent (agent launch is not ported to herdr-core yet)".into(),
-        }))
+    /// Tape la commande de l'agent dans le shell d'un onglet créé ici, puis
+    /// observe l'amorçage : un statut publié, ou un autre programme au
+    /// premier plan.
+    ///
+    /// - shell sans invite à l'écran → `ShellNotReady` (rien n'a été tapé :
+    ///   le moteur peut rejouer) ;
+    /// - shell terminé → `Failed` ;
+    /// - rien vu dans le délai → `Timeout` : l'agent PEUT exister, le moteur
+    ///   ne relance pas et garde l'onglet.
+    fn start_agent(&self, request: StartAgent) -> PortFuture<'_, StartEvidence> {
+        let adresse = request.pane.to_string();
+        if self.lance_de_terminal(&adresse).is_none() {
+            return pret(Ok(StartEvidence::Failed {
+                detail: format!("terminal {adresse} was not created by Herdr Core Chat"),
+            }));
+        }
+        let ecran = match self
+            .verrouiller()
+            .and_then(|mut client| client.terminal_read(&adresse, 50).map_err(erreur_port))
+        {
+            Ok(ecran) => ecran,
+            Err(erreur) => return pret(Err(erreur)),
+        };
+        if ecran.trim().is_empty() {
+            return pret(Ok(StartEvidence::ShellNotReady {
+                detail: format!("the shell in {adresse} shows no prompt yet"),
+            }));
+        }
+        let avant = match self.terminal(&adresse) {
+            Ok(terminal) => terminal,
+            Err(erreur) => return pret(Err(erreur)),
+        };
+        let ligne = ligne_de_lancement(request.kind.as_str(), &request.args);
+        if let Err(erreur) = self.verrouiller().and_then(|mut client| {
+            client
+                .terminal_send(&adresse, &ligne, None, false)
+                .map_err(erreur_port)
+        }) {
+            return pret(Ok(StartEvidence::Failed {
+                detail: erreur.description(),
+            }));
+        }
+        tracing::info!(terminal = %adresse, ligne = %ligne, "herdr-core : agent tapé");
+        let debut = Instant::now();
+        loop {
+            let terminal = match self.terminal(&adresse) {
+                Ok(terminal) => terminal,
+                Err(erreur) => return pret(Err(erreur)),
+            };
+            if terminal.state == "finished" {
+                return pret(Ok(StartEvidence::Failed {
+                    detail: format!("the shell in {adresse} exited before `{ligne}` started"),
+                }));
+            }
+            let statut = terminal.status.as_ref().is_some_and(|v| !v.is_null());
+            if statut || terminal.foreground_pid != avant.foreground_pid {
+                return pret(Ok(StartEvidence::Started {
+                    pane: request.pane.clone(),
+                }));
+            }
+            if debut.elapsed() >= self.delai_amorcage {
+                return pret(Err(PortError::Timeout));
+            }
+            std::thread::sleep(PAS_AMORCAGE);
+        }
     }
 
-    fn fermer_onglet(&self, _tab: TabId) -> PortFuture<'_, ()> {
-        pret(Err(PortError::Unsupported {
-            feature: "close_tab (agent launch is not ported to herdr-core yet)".into(),
-        }))
+    /// Ferme un onglet **créé ici** (son shell est terminé : Herdr.app ferme
+    /// le pane d'un programme sorti). Jamais un onglet de l'utilisateur.
+    fn fermer_onglet(&self, tab: TabId) -> PortFuture<'_, ()> {
+        let lance = self
+            .lances
+            .lock()
+            .ok()
+            .and_then(|mut lances| lances.remove(tab.as_str()));
+        let Some(lance) = lance else {
+            return pret(Err(PortError::Unsupported {
+                feature: format!("closing tab {tab}, which Herdr Core Chat did not create"),
+            }));
+        };
+        pret(
+            self.verrouiller()
+                .and_then(|mut client| client.terminal_kill(&lance.adresse).map_err(erreur_port)),
+        )
     }
 
     /// L'arrêt : la touche d'arrêt est appuyée (`terminal.interrupt`) —

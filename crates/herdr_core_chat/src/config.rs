@@ -120,6 +120,9 @@ pub struct Config {
     pub vapid_cle_publique: Option<String>,
     /// `HERDR_CORE_CHAT_VAPID_PRIVATE_KEY` — brut.
     pub vapid_cle_privee: Option<String>,
+    /// `PATH` — où chercher les CLI d'agents installées (le service le
+    /// fixe ; vide : aucun agent n'est vu comme installé).
+    pub path_executables: String,
 }
 
 /// Lit la configuration depuis l'environnement injecté et le domicile —
@@ -276,6 +279,7 @@ pub fn config_depuis_avec(
         vapid_sujet_resolu: sujet_vapid(env),
         vapid_cle_publique: env.get("HERDR_CORE_CHAT_VAPID_PUBLIC_KEY").cloned(),
         vapid_cle_privee: env.get("HERDR_CORE_CHAT_VAPID_PRIVATE_KEY").cloned(),
+        path_executables: env.get("PATH").cloned().unwrap_or_default(),
     })
 }
 

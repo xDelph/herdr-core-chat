@@ -69,9 +69,14 @@ async fn demarre(config: &Config) -> Result<(), String> {
     ));
     // Le port de contrôle vu par les handlers : le même objet, derrière son trait.
     let controle_port: Arc<dyn application::ports::ControlPort> = Arc::clone(&controle) as _;
-    // Adaptateur herdr-core non implémenté (P0/P2) : aucune intégration amont.
-    let integrations: catalog::port::SourceIntegrations =
-        Arc::new(move || Err(String::from("adaptateur herdr-core non implémenté (P2)")));
+    // Les agents installés : herdr-core n'a pas d'`integration.list`, le
+    // démon cherche les CLI dans le `PATH` de sa configuration.
+    let path_executables = config.path_executables.clone();
+    let integrations: catalog::port::SourceIntegrations = Arc::new(move || {
+        Ok(herdr_core_chat::integrations::integrations_par_path(
+            &path_executables,
+        ))
+    });
     // UN cache de catalogues, partagé par `/api/agents/:kind/models` et la
     // validation du lancement (le niveau de raisonnement y est vérifié).
     let cache_catalogues = Arc::new(catalog::cache::CacheCatalogues::nouveau());

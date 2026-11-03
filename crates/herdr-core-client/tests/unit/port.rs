@@ -248,6 +248,8 @@ fn hors_disposition_l_enfant_suit_son_parent_l_orphelin_son_dossier() {
         .map(|w| w.label.clone())
         .collect();
     assert_eq!(labels[1].as_deref(), Some("outil (outside Herdr.app)"));
+    // Sans état Herdr.app : le nom du dossier de l'espace, pas son chemin.
+    assert_eq!(labels[0].as_deref(), Some("p"));
     // L'espace agrège ce qui demande le plus : `working` (l'enfant) > `idle`.
     assert_eq!(
         snapshot.workspaces[0].agent_status,
@@ -414,19 +416,4 @@ fn l_arret_est_envoye_quel_que_soit_l_effet_observe() {
         }
         autre => panic!("{autre:?}"),
     }
-}
-
-#[test]
-fn le_lancement_non_porte_est_dit_jamais_simule() {
-    let (port, demandes) = port_sur(json!([]), sans_doc(), rien);
-    match attends(port.start_agent(domain::ports::StartAgent {
-        pane: PaneId::from(String::from("t1")),
-        kind: domain::ids::AgentKind::from(String::from("pi")),
-        name: None,
-        args: Vec::new(),
-    })) {
-        Err(PortError::Unsupported { feature }) => assert!(feature.contains("not ported")),
-        autre => panic!("{autre:?}"),
-    }
-    assert!(demandes_de(&demandes, "terminal.run").is_empty());
 }

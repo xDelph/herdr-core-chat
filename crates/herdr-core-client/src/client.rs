@@ -231,6 +231,48 @@ impl ClientCore {
         Ok(())
     }
 
+    /// `terminal.run` du **shell de la machine** (ni `argv` ni `line`), dans
+    /// `cwd`, avec ses labels — `no_parent`/`no_notify` : herdr-core ne tape
+    /// aucune note `<hc>` dans un terminal de l'utilisateur à son sujet.
+    /// Rend l'adresse et le PID du shell au premier plan.
+    pub fn terminal_run_shell(
+        &mut self,
+        cwd: &str,
+        name: Option<&str>,
+        labels: &std::collections::BTreeMap<String, String>,
+    ) -> Result<(String, Option<u32>), ErreurTransport> {
+        let mut params = json!({
+            "cwd": cwd,
+            "labels": labels,
+            "keep": true,
+            "no_parent": true,
+            "no_notify": true,
+        });
+        if let Some(nom) = name {
+            params["name"] = json!(nom);
+        }
+        let r = self.transport.appelle("terminal.run", params)?;
+        let adresse = r
+            .get("address")
+            .and_then(Value::as_str)
+            .filter(|adresse| !adresse.is_empty())
+            .ok_or_else(|| ErreurTransport::EnveloppeInvalide("terminal.run sans address".into()))?
+            .to_string();
+        let pid = r
+            .get("foreground")
+            .and_then(|f| f.get("pid"))
+            .and_then(Value::as_u64)
+            .and_then(|pid| u32::try_from(pid).ok());
+        Ok((adresse, pid))
+    }
+
+    /// `terminal.kill` : raccroche, termine, puis tue le programme.
+    pub fn terminal_kill(&mut self, terminal: &str) -> Result<(), ErreurTransport> {
+        self.transport
+            .appelle("terminal.kill", json!({"terminal": terminal}))?;
+        Ok(())
+    }
+
     /// `terminal.interrupt` : la touche d'arrêt, puis ce qui a été observé
     /// (`stopped`, `exited`, `still_working`, `unknown`). Surveille au plus
     /// 5 s (le transport attend 15 s).
