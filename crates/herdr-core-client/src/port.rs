@@ -58,6 +58,12 @@ impl PortCore {
             .and_then(Value::as_str);
         let candidat = app.or_else(|| term.argv.first().map(String::as_str));
         let nom = candidat?.rsplit('/').next()?.to_string();
+        // Normalisation : herdr-core reporte « claude-code », le type lisible
+        // du domaine est « claude ».
+        let nom = match nom.as_str() {
+            "claude-code" => "claude".to_string(),
+            autre => autre.to_string(),
+        };
         if nom.is_empty() {
             None
         } else {

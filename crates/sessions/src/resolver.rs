@@ -298,19 +298,30 @@ pub fn chemin_claude_par_pid(racines: &Racines, pid: u32) -> Option<PathBuf> {
     let contenu = std::fs::read_to_string(&meta_path).ok()?;
     let json: serde_json::Value = serde_json::from_str(&contenu).ok()?;
     let session_id = json.get("sessionId").and_then(|v| v.as_str())?;
-    let cwd = json.get("cwd").and_then(|v| v.as_str())?;
-    // slug : cwd avec '/' → '-' (préfixe '-').
-    let slug = cwd.replace('/', "-");
-    let slug = if slug.starts_with('-') {
-        slug
-    } else {
-        format!("-{slug}")
-    };
-    let chemin = racines
-        .claude_projects
-        .join(&slug)
-        .join(format!("{session_id}.jsonl"));
-    if chemin.exists() { Some(chemin) } else { None }
+    if session_id.trim().is_empty() {
+        return None;
+    }
+    // Recherche par nom de fichier : évite de reconstruire le slug (Claude
+    // remplace plus que « / »), et reste robuste.
+    let suffixe = format!("{session_id}.jsonl");
+    let mut trouves: Vec<PathBuf> = Vec::new();
+    fn parcours(racine: &std::path::Path, suffixe: &str, trouves: &mut Vec<PathBuf>) {
+        if let Ok(entrees) = std::fs::read_dir(racine) {
+            for e in entrees.flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    parcours(&p, suffixe, trouves);
+                } else if let Some(nom) = p.file_name().and_then(|n| n.to_str()) {
+                    if nom.ends_with(suffixe) {
+                        trouves.push(p);
+                    }
+                }
+            }
+        }
+    }
+    parcours(&racines.claude_projects, &suffixe, &mut trouves);
+    trouves.sort();
+    trouves.into_iter().next()
 }
 
 /// Résout une session Pi par son dossier de travail : le dossier encodé
