@@ -199,6 +199,34 @@ impl ClientCore {
         Ok(())
     }
 
+    pub fn terminal_run(
+        &mut self,
+        argv: &[String],
+        cwd: Option<&str>,
+        name: Option<&str>,
+        labels: &std::collections::BTreeMap<String, String>,
+        no_parent: bool,
+        no_notify: bool,
+    ) -> Result<String, ErreurTransport> {
+        let mut params = json!({"argv": argv});
+        if let Some(c) = cwd {
+            params["cwd"] = json!(c);
+        }
+        if let Some(n) = name {
+            params["name"] = json!(n);
+        }
+        if !labels.is_empty() {
+            params["labels"] = json!(labels);
+        }
+        params["no_parent"] = json!(no_parent);
+        params["no_notify"] = json!(no_notify);
+        let r = self.transport.appelle("terminal.run", params)?;
+        Ok(r.get("address")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string())
+    }
+
     pub fn terminal_interrupt(&mut self, terminal: &str) -> Result<String, ErreurTransport> {
         let r = self
             .transport

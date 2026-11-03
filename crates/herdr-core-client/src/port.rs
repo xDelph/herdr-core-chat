@@ -10,8 +10,8 @@ use crate::disposition::disposition_depuis;
 use domain::errors::PortError;
 use domain::ids::{AgentKind, PaneId, TabId, WorkspaceId};
 use domain::observation::{
-    AgentObservation, ReadSource, ScreenObservation, SituatedPane, Snapshot, SnapshotProvenance,
-    TabObservation, UpstreamPing, WorkspaceObservation,
+    AgentObservation, ReadSource, ScreenObservation, SituatedPane, Snapshot, TabObservation,
+    UpstreamPing, WorkspaceObservation,
 };
 use domain::ports::{
     ControlPort, CreateTab, CreatedTab, FocusEvidence, PartialStep, PortFuture, PromptEvidence,
