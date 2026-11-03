@@ -220,7 +220,10 @@ const injoignable = (): string =>
           overview: "transport: No such file or directory (os error 2)",
         },
         health: {
-          herdr: { reachable: false, socket: "/Users/x/.local/state/herdr-core/default/default.sock" },
+          herdr: {
+            reachable: false,
+            socket: "/Users/x/.local/state/herdr-core/default/default.sock",
+          },
           ok: false,
           uptimeMs: 1_000,
         },

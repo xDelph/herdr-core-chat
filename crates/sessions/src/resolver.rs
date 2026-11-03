@@ -332,7 +332,6 @@ pub fn chemin_pi_par_cwd(racines: &Racines, cwd: &str) -> Option<PathBuf> {
         return None;
     }
     let encode = cwd.replace('/', "-");
-    let dir_name = format!("--{}--", encode.trim_start_matches('-'));
     // Pi encode le chemin complet avec tirets ; le nom de dossier réel commence
     // par '--' et finit par '--'. On cherche un dossier dont le nom contient
     // le cwd encodé.
