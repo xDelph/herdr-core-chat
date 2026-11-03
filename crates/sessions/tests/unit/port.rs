@@ -255,6 +255,7 @@ fn la_resolution_utilise_l_emplacement_publie_par_herdr() {
             value: chemin.display().to_string(),
         }),
         title: None,
+        pid: None,
     }))
     .unwrap_or_else(|cause| panic!("résolution : {cause:?}"));
     let source = resolution.unwrap_or_else(|| panic!("une source publiée est résolue"));
@@ -272,6 +273,7 @@ fn sans_emplacement_publie_rien_n_est_resolu() {
         cwd: Some(String::from("/projets/atelier")),
         published: None,
         title: None,
+        pid: None,
     }))
     .unwrap_or_else(|cause| panic!("résolution : {cause:?}"));
     // Aucune preuve de session : une VALEUR absente, pas une panne.

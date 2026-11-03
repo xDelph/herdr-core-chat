@@ -124,6 +124,9 @@ pub struct AgentObservation {
     /// sont renvoyées et c'est l'index amont qui tranche (SessionLocator).
     pub terminal_title: Option<String>,
     pub cwd: Option<String>,
+    /// PID du processus foreground (herdr-core), pour la résolution de session
+    /// par agent (ex. Claude via `~/.claude/sessions/<pid>.json`).
+    pub foreground_pid: Option<u32>,
     pub foreground_cwd: Option<String>,
     pub completion_seq: Option<u64>,
     pub state_change_seq: Option<u64>,

@@ -68,6 +68,7 @@ fn agent(pane: &str, tab: &str, workspace: &str, kind: &str) -> AgentObservation
         name: None,
         terminal_title: None,
         cwd: Some(String::from("/projets/atelier")),
+        foreground_pid: None,
         foreground_cwd: None,
         completion_seq: None,
         state_change_seq: None,

@@ -283,6 +283,36 @@ pub fn chemin_codex_par_id(racines: &Racines, id: &str) -> Option<PathBuf> {
     trouves.into_iter().next()
 }
 
+/// Résout une session Claude depuis le PID foreground (herdr-core) :
+/// `~/.claude/sessions/<pid>.json` → `sessionId` + `cwd`, puis
+/// `~/.claude/projects/<slug>/<sessionId>.jsonl`.
+#[must_use]
+pub fn chemin_claude_par_pid(racines: &Racines, pid: u32) -> Option<PathBuf> {
+    // Dossier des sessions claude : dérivé de claude_projects (../sessions).
+    let sessions_dir = racines
+        .claude_projects
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new(""))
+        .join("sessions");
+    let meta_path = sessions_dir.join(format!("{pid}.json"));
+    let contenu = std::fs::read_to_string(&meta_path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&contenu).ok()?;
+    let session_id = json.get("sessionId").and_then(|v| v.as_str())?;
+    let cwd = json.get("cwd").and_then(|v| v.as_str())?;
+    // slug : cwd avec '/' → '-' (préfixe '-').
+    let slug = cwd.replace('/', "-");
+    let slug = if slug.starts_with('-') {
+        slug
+    } else {
+        format!("-{slug}")
+    };
+    let chemin = racines
+        .claude_projects
+        .join(&slug)
+        .join(format!("{session_id}.jsonl"));
+    if chemin.exists() { Some(chemin) } else { None }
+}
+
 /// Résout un identifiant claude en chemin — cherché dans le nom du fichier
 /// (le dossier intermédiaire est le chemin de travail encodé, qui ne se
 /// déduit pas d'un identifiant : on cherche, on ne compose pas).
@@ -439,10 +469,24 @@ pub fn source_session_de(
     emplacement: Option<&Emplacement>,
     titre: Option<&str>,
     cwd: Option<&str>,
+    pid: Option<u32>,
 ) -> Option<SourceSession> {
     let annonce = source_session(resolveur, kind, emplacement);
     if annonce.is_some() {
         return annonce;
+    }
+    // Claude : pas de lien publié par herdr-core ; résolution par PID foreground.
+    if kind == Some("claude") {
+        if let Some(pid) = pid {
+            if let Some(chemin) = chemin_claude_par_pid(&resolveur.racines, pid) {
+                return source_session(
+                    resolveur,
+                    kind,
+                    Some(&Emplacement::nouveau("path", &chemin.display().to_string())),
+                );
+            }
+        }
+        return None;
     }
     if kind != Some("codex") {
         return None;

@@ -131,6 +131,7 @@ impl ControlPort for FauxPort {
                     name: None,
                     terminal_title: None,
                     cwd: None,
+                    foreground_pid: None,
                     foreground_cwd: None,
                     completion_seq: None,
                     state_change_seq: None,

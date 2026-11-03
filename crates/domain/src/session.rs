@@ -180,6 +180,9 @@ pub struct SessionHint {
     /// proposées et l'index amont tranche.
     pub title: Option<String>,
     pub cwd: Option<String>,
+    /// PID foreground de l'agent (herdr-core), utilisé pour la résolution de
+    /// session quand l'amont n'a pas publié de lien (Claude, …).
+    pub pid: Option<u32>,
 }
 
 /// La demande d'une page de session.

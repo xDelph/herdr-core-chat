@@ -319,6 +319,7 @@ async fn resous(services: &Arc<Services>, pane_id: &str) -> Result<ResolvedSourc
             published: agent.session.clone(),
             title: agent.terminal_title.clone(),
             cwd: agent.cwd.clone(),
+            pid: agent.foreground_pid,
         };
         tokio::runtime::Handle::current()
             .block_on(services.sessions.resolve(hint))?

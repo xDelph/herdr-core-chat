@@ -62,6 +62,7 @@ async fn session_sur_place(
         published: agent.session.clone(),
         title: agent.terminal_title.clone(),
         cwd: agent.cwd.clone(),
+        pid: agent.foreground_pid,
     };
     let source = match services.sessions.resolve(hint).await {
         Ok(Some(source)) => source,

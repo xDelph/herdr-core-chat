@@ -84,6 +84,7 @@ pub(crate) fn agent(
         name: Some(domain::ids::AgentName::from(String::from("nom"))),
         terminal_title: Some(String::from("titre")),
         cwd: Some(String::from("/projets/atelier")),
+        foreground_pid: None,
         foreground_cwd: None,
         completion_seq: None,
         state_change_seq: None,

@@ -297,6 +297,7 @@ fn la_source_unique_decide_pour_tous() {
         None,
         Some("Audit PWA and webapp | herdr-pwa"),
         Some("/dev/projets/herdr-pwa"),
+        None,
     );
     let _ = codex_titre; // l'index vide ici : None — le repli existe, il ne trouve pas
     assert!(
@@ -305,7 +306,8 @@ fn la_source_unique_decide_pour_tous() {
             Some("pi"),
             None,
             Some("Audit PWA and webapp | herdr-pwa"),
-            Some("/dev/projets/herdr-pwa")
+            Some("/dev/projets/herdr-pwa"),
+            None
         )
         .is_none(),
         "le repli par titre est codex-SEUL"

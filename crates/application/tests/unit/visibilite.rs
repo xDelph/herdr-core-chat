@@ -152,6 +152,7 @@ fn l_agent_sans_champs_est_bien_un_agent() {
         name: None,
         terminal_title: None,
         cwd: Some(String::from("/projets/atelier")),
+        foreground_pid: None,
         foreground_cwd: None,
         completion_seq: None,
         state_change_seq: None,

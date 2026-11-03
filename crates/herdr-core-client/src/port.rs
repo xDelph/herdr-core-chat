@@ -222,6 +222,7 @@ impl PortCore {
                         Some(t.title.clone())
                     },
                     cwd: Some(t.cwd.clone()),
+                    foreground_pid: t.foreground_pid,
                     foreground_cwd: None,
                     completion_seq: None,
                     state_change_seq: None,

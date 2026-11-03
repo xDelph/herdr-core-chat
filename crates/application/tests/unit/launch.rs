@@ -91,6 +91,7 @@ fn agent_nomme(pane: &str, nom: &str) -> AgentObservation {
         name: Some(AgentName::from(String::from(nom))),
         terminal_title: None,
         cwd: None,
+        foreground_pid: None,
         foreground_cwd: None,
         completion_seq: None,
         state_change_seq: None,

@@ -42,6 +42,7 @@ fn source_de_port(port: &dyn SessionPort, agent: &AgentObservation) -> Option<So
         published: agent.session.clone(),
         title: agent.terminal_title.clone(),
         cwd: agent.cwd.clone(),
+        pid: agent.foreground_pid,
     };
     // ⚠️ Le port est un futur ; la lecture de liste est synchrone côté
     // application. On l'attend au premier poll (les adaptateurs sont

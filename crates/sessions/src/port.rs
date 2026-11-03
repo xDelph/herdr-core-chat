@@ -143,8 +143,10 @@ pub fn resout(resolveur: &Resolveur, hint: &SessionHint) -> Option<ResolvedSourc
         emplacement.as_ref(),
         hint.title.as_deref(),
         hint.cwd.as_deref(),
+        hint.pid,
     )?;
-    Some(match source {
+    // Claude via PID : enrichir avec sessionId + cwd lus dans le fichier pid.
+    let mut resolved = match source {
         SourceSession::Fichier { base } => ResolvedSource {
             kind: SourceKind::File,
             base: base.display().to_string(),
@@ -164,7 +166,25 @@ pub fn resout(resolveur: &Resolveur, hint: &SessionHint) -> Option<ResolvedSourc
                 crate::resolver::Magasin::Devin => "devin",
             }))),
         },
-    })
+    };
+    if kind.as_deref() == Some("claude") {
+        if let Some(pid) = hint.pid {
+            let sessions_dir = resolveur
+                .racines
+                .claude_projects
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new(""))
+                .join("sessions");
+            if let Ok(contenu) = std::fs::read_to_string(sessions_dir.join(format!("{pid}.json"))) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contenu) {
+                    if let Some(sid) = json.get("sessionId").and_then(|v| v.as_str()) {
+                        resolved.session_id = Some(domain::ids::SessionId::from(String::from(sid)));
+                    }
+                }
+            }
+        }
+    }
+    Some(resolved)
 }
 
 /// Le refus d'un `cursor` (H04 : 400 `invalid cursor`) — la cause réelle
