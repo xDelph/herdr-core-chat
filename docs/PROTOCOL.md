@@ -166,11 +166,75 @@ d'`agent_session`). `[EXÉCUTÉ]` (champ absent du schéma `Terminal`)
 
 Résolution **par agent**, sans repli d'un profil vers un autre :
 - **Claude Code** : `foreground.pid` → `~/.claude/sessions/<pid>.json` →
-  `sessionId` (+ `cwd`). `[EXÉCUTÉ]` (sur 0.9.3 ; à confirmer sous herdr-core)
-- **Pi, opencode, codex, devin** : à trouver et prouver. Tant que ce n'est pas
-  prouvé : agent affiché « sans fil », jamais un fil deviné. `[INCONNU]`
+  `sessionId`. `[EXÉCUTÉ]` sous herdr-core 0.1.17 (2026-11-03, lecture seule :
+  3 terminaux `claude-code` du core de l'utilisateur, fichier présent pour
+  chaque `foreground.pid`, champ `pid` du fichier = ce PID). Le démon exige
+  cette égalité (PID recyclé → aucun fil).
+- **Pi, opencode, devin** : aucun lien prouvé. « La session la plus récente du
+  dossier » a été retirée (fil DEVINÉ : deux agents du même dossier liraient le
+  même) — l'agent est affiché « sans fil ». `[INCONNU]`
+- **codex** : garde la recherche par titre confirmée par son index ;
+  non revérifiée sous herdr-core. `[INCONNU]`
 
 ---
+
+## 6bis. Relevés complémentaires (2026-11-03, deuxième passe)
+
+### `terminal.send` `[SCHÉMA]`
+- `text` : « Pasted, then submitted with Enter » — **il n'existe pas
+  d'écriture sans Entrée**. L'adaptateur déclare donc `send_text` comme
+  « texte + Entrée » et absorbe l'`enter` que l'appelant envoie juste après
+  (sinon un second Entrée validerait une ligne vide ou le choix suivant).
+- `SendResult.status` est un **mot** (`"idle"`), pas l'objet 7501 — l'ancien
+  client le lisait comme un objet et le perdait toujours.
+- `started: true` = passé `working` dans les secondes qui suivent : c'est la
+  **seule** confirmation d'un prompt. `false`/`null` → « inconnu ».
+- `force` : utilisé **seulement** pour répondre à une question
+  (`blocked` + `kind: question`), jamais pour `permission`/`auth`.
+
+### `terminal.interrupt` `[SCHÉMA]`
+- `outcome` : `stopped` (sorti de `working`, ou shell revenu à l'invite),
+  `exited`, `still_working` (rien vu dans le délai), `unknown` (pas de statut).
+  Paramètre `timeout` (10 s par défaut ; l'adaptateur passe 5 s). Dans tous les
+  cas la touche est partie : « interruption envoyée », jamais « rien à
+  arrêter ».
+
+### `Status` `[SCHÉMA]`
+- `state` : « idle, working, done, blocked or error ». `error` a désormais son
+  état dans le domaine (`AgentStatus::Error`), sa section (« Needs you ») et sa
+  notification (« Agent error »).
+- `kind` : « permission, question or auth (blocked only, when the program
+  said) ».
+
+### `terminal.list` sur le core de l'utilisateur `[EXÉCUTÉ]` (lecture seule)
+- `claude-code` : `foreground.name` vaut la **version** (`2.1.317`), pas
+  `claude` — seul `status.app` identifie l'agent.
+- Aucun Pi sous herdr-core au relevé ; un terminal `node` sans statut existe
+  (programme inconnu) : il reste un pane, pas un agent.
+
+### Disposition Herdr.app `[EXÉCUTÉ]` (lecture seule)
+- `doc.get {name: "herdr-app"}` : version 38, 8 espaces, **tous les `name`
+  vides**. Arbre : `row` → `children[]` de `block` → `content.terminal` (+ `id`,
+  `size.weight`). Fixture anonymisée :
+  `crates/herdr-core-client/tests/fixtures/herdr-app-0.1.12/`.
+- `~/.config/herdr-app/workspace-state.json` (mod de Herdr.app), `version: 1` :
+  `spaces[] {id, name, named, folder, tabs[] {id, name, named, …}}`,
+  `agents[]`. Ses identifiants sont **ceux du doc** : c'est la source des noms
+  affichés (décision de l'utilisateur, 2026-11-03). Version inconnue → cause
+  journalisée, noms du doc.
+
+### Vérification de bout en bout `[EXÉCUTÉ]` (core isolé `57289159…`, 2026-11-03)
+- Core jetable : `HC_SESSION=hccv1` + `XDG_STATE_HOME`/`XDG_CONFIG_HOME`/
+  `XDG_DATA_HOME`/`XDG_RUNTIME_DIR` temporaires, `HC_TERMINAL_SOCKET` retiré
+  de l'environnement. Avec `XDG_RUNTIME_DIR`, le socket est
+  `$XDG_RUNTIME_DIR/herdr-core/<session>.sock` (pas sous `XDG_STATE_HOME`).
+- Démon (`HOME` temporaire, port 8799) : `/api/health` → `protocol 1`,
+  `0.1.17` ; `/api/overview` → l'espace du doc `herdr-app` posé par `doc.set`,
+  et le terminal hors disposition groupé « <dossier> (outside Herdr.app) ».
+  Doc rendu invalide (`spaces: "cassé"`) → un espace « Herdr.app layout
+  unavailable: doc `herdr-app` v2: `spaces` is not an array » + une ligne de
+  journal. Données écrites dans `$HOME/.herdr-core-chat/` uniquement.
+- Démon puis core arrêtés après usage (`server.status` vérifié avant).
 
 ## 7. Ce qui reste à prouver (P1)
 
@@ -180,3 +244,7 @@ Résolution **par agent**, sans repli d'un profil vers un autre :
 - `terminal.read` : champs `complete`/`how`/`why`. `[SCHÉMA]`
 - OSC 7501 sous herdr-core pour Pi. `[INCONNU]`
 - Résolution de session pour Pi/opencode/codex/devin. `[INCONNU]`
+- Lancement (P7) : `terminal.run` avec labels `herdr.space`/`herdr.tab` —
+  apparition dans Herdr.app non vérifiée ; non porté (`Unsupported`).
+- `events.subscribe` n'est pas encore utilisé : la veille interroge toutes les
+  2 s (`terminal.list` + `doc.get`).

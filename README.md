@@ -1,132 +1,127 @@
-![Herdr Chat](docs/banner.png)
+![Herdr Core Chat](docs/banner.png)
 
-**Pilot Herdr and its agents from your phone.** Herdr Chat is a PWA that reads your
-Pi, codex, opencode, devin and Claude Code sessions and lets you drive them from
-anywhere in your tailnet.
+**Pilot Herdr.app and its agents from your phone.** Herdr Core Chat is a PWA that
+talks to **herdr-core** (`hc`, the core behind Herdr.app), reads your agents'
+sessions and lets you drive them from anywhere in your tailnet.
+
+It is a separate app from **Herdr Chat** (the companion of the Herdr 0.9.3 TUI).
+Both can run on the same machine at the same time: they share no port, no data
+folder, no push keys and no service.
 
 No SSH. No terminal on the phone. Nothing is copied out of your machine.
 
 ## What it does
 
-- **Conversations, not terminals.** Each agent's session is rendered as it actually
-  reads: messages, thinking, tool calls, diffs, subagent results. Long output stays
-  folded.
-- **Answers you when you are not looking.** Push notifications tell you when an agent
-  finishes — and says *"needs you"* when it is waiting on a question, instead of
-  claiming it is done.
-- **Questions, with their choices.** When an agent blocks on a prompt, Herdr Chat
-  reads it off the screen and shows the real options as buttons.
-- **Send, answer, stop, change model.** All through Herdr's own API, with the same
-  confirmations — nothing is reported as sent until the transport says so.
+- **Conversations, not terminals.** An agent's session is rendered as it actually
+  reads: messages, thinking, tool calls, diffs, subagent results.
+- **Answers you when you are not looking.** Push notifications say *"finished"*,
+  *"needs you"* when an agent is waiting on a question, and *"error"* when it
+  reports one.
+- **Questions, with their choices.** When an agent blocks on a prompt, the real
+  options are read off the screen and shown as buttons.
+- **Send, answer, stop.** Through herdr-core's own API. A message is only shown as
+  sent once the agent has actually started working on it; a refusal (for
+  example an agent waiting on a permission decision) is shown as is.
 - **Honest by default.** A missing value is shown as missing. An error carries its
   cause. Nothing is invented to fill a gap.
 
+### Current limits
+
+- **Conversations are resolved per agent.** herdr-core does not say which
+  session file belongs to a terminal. Claude Code is resolved from its process
+  (`~/.claude/sessions/<pid>.json`, proven); codex keeps its title lookup
+  confirmed by its own index (not yet re-checked under herdr-core). Pi, opencode
+  and devin are listed **without a conversation** until a reliable link is
+  proven — never with a guessed one.
+- **Launching agents is not ported yet.** The launch sheet answers
+  "unsupported".
+
 ## Requirements
 
-- **Herdr** running on the same machine (`~/.config/herdr/herdr.sock`).
+- **Herdr.app / herdr-core** on the same machine
+  (`~/.local/state/herdr-core/default/default.sock`).
 - **[Tailscale](https://tailscale.com)** for remote access. The server binds to
   `127.0.0.1` only — Tailscale Serve is the single supported way in.
 
 ## Install
 
-```bash
-brew trust xDelph/herdr-chat     # newer Homebrew asks before loading third-party taps
-brew install xDelph/herdr-chat
-brew services start herdr-chat
-```
+Not published yet (no formula, no release). Run it from a checkout (below). The
+prepared Homebrew formula is `packaging/herdr-core-chat.rb`.
 
-> The formula published today (`v0.1.x`) still installs the former TypeScript
-> daemon. The native formula (`packaging/herdr-chat.rb`, single `herdrchat`
-> binary, same port and variables) is prepared but **not published**; it replaces
-> the old one only through the reviewed switch-over in `docs/BASCULE.md`.
-
-Then expose it to your tailnet:
+Then expose it to your tailnet, on a port Herdr Chat does not use:
 
 ```bash
-tailscale serve --bg http://127.0.0.1:8791
+tailscale serve --bg --https=443 http://127.0.0.1:8792
 ```
 
 Open `https://<your-machine>.<tailnet>.ts.net` on your phone and add it to the
-home screen. It installs as a normal app: its own icon, no Safari chrome.
+home screen. It installs as its own app ("Herdr Core Chat").
 
-If port 443 is already taken, serve on an explicit port — the address then
-carries it:
-
-```bash
-tailscale serve --bg --https=8790 http://127.0.0.1:8791
-```
-
-Either way, Herdr Chat reads `tailscale serve status` at startup and allows the
-matching origin, so there is nothing to declare by hand. (Port 443 is **omitted**
-from that origin — browsers never send `:443` — which is why the default setup
-works without extra configuration.)
+Herdr Core Chat reads `tailscale serve status` at startup and allows the
+origin that proxies to **its** local port, so there is nothing to declare by
+hand. (Port 443 is omitted from that origin — browsers never send `:443`.)
 
 ## How it fits together
 
 ```text
-iPhone ── Tailscale ── Serve :443 ── 127.0.0.1:8791 ── Herdr Chat
-                                       (ou :8790, au choix)
+iPhone ── Tailscale ── Serve :443 ── 127.0.0.1:8792 ── Herdr Core Chat
                                                             │
-                                                            ├── Herdr socket     (control)
-                                                            └── session stores   (content)
+                                                            ├── herdr-core socket  (terminals, status, layout)
+                                                            ├── Herdr.app state    (space and tab names)
+                                                            └── session stores     (content)
+
+iPhone ── Tailscale ── Serve :8790 ── 127.0.0.1:8791 ── Herdr Chat (Herdr 0.9.3, untouched)
 ```
 
-**Herdr stays the orchestrator.** Herdr Chat is a local layer: it reads, displays and
-forwards. It never replaces Herdr and never starts a second agent behind your back.
-
-Content and catch-up come from the **session files**, never from the API — Herdr's
-`revision` is always `0` and only one event type is implemented. Control and status
-come from the **socket**. See `docs/PROTOCOL.md` for what was measured, and
-`docs/DECISIONS.md` for why.
+**herdr-core stays the orchestrator.** Herdr Core Chat reads, displays and
+forwards. Status comes from the programs themselves (OSC 7501, relayed by the
+core); spaces and tabs come from the `herdr-app` doc of the core, and their
+displayed names from `~/.config/herdr-app/workspace-state.json`. See
+`docs/PROTOCOL.md` for what was measured.
 
 ## Configuration
 
-Every variable is optional — a bare install works.
+Every variable is optional — a bare install works. The names of Herdr Chat
+(`HERDR_REMOTE_*`, `HERDR_SOCKET_PATH`) are **never read**: Herdr 0.9.3 exports
+`HERDR_SOCKET_PATH` in its panes.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `HERDR_REMOTE_BIND` | `127.0.0.1` | Interface to bind. Never expose publicly. |
-| `HERDR_REMOTE_PORT` | `8791` | Local port |
-| `HERDR_REMOTE_PUBLIC_ORIGINS` | derived | Extra allowed origins, comma-separated |
-| `HERDR_REMOTE_LOG_PATH` | `~/.herdr-remote/herdr-remote.log` | Error journal |
-| `HERDR_REMOTE_PUSH_STORE` | `~/.herdr-remote/push.json` | Push subscriptions |
-| `HERDR_REMOTE_READS_STORE` | `reads.json` next to the push store | Read marks shared across devices (unread dot) |
+| `HERDR_CORE_CHAT_SOCKET` | `~/.local/state/herdr-core/default/default.sock` | herdr-core socket |
+| `HERDR_CORE_CHAT_HERDR_APP_STATE` | `~/.config/herdr-app/workspace-state.json` | Herdr.app names for spaces and tabs |
+| `HERDR_CORE_CHAT_BIND` | `127.0.0.1` | Interface to bind. Never expose publicly. |
+| `HERDR_CORE_CHAT_PORT` | `8792` | Local port (Herdr Chat uses 8791) |
+| `HERDR_CORE_CHAT_PUBLIC_ORIGINS` | derived | Extra allowed origins, comma-separated |
+| `HERDR_CORE_CHAT_LOG_PATH` | `~/.herdr-core-chat/herdr-core-chat.log` | Error journal |
+| `HERDR_CORE_CHAT_PUSH_STORE` | `~/.herdr-core-chat/push.json` | Push subscriptions and VAPID keys |
+| `HERDR_CORE_CHAT_READS_STORE` | `reads.json` next to the push store | Read marks shared across devices |
 | `PI_SESSIONS_ROOT` | `~/.pi/agent/sessions` | Pi session root |
 | `CODEX_SESSION_ROOT` | `~/.codex/sessions` | codex session root |
 | `CLAUDE_PROJECTS_ROOT` | `~/.claude/projects` | Claude Code session root |
 | `OPENCODE_DB` | `~/.local/share/opencode/opencode.db` | opencode session database |
 | `DEVIN_DB` | `~/.local/share/devin/cli/sessions.db` | devin session database |
 
-Each agent type is only offered once its session store has actually been read and
-measured. Types whose store could not be read are refused rather than guessed —
-see `type_lisible` in `crates/application/src/visibilite.rs` for the current list.
-
 The VAPID key pair for push notifications is generated on first run and stored
-alongside the subscriptions. `HERDR_REMOTE_VAPID_SUBJECT`,
-`HERDR_REMOTE_VAPID_PUBLIC_KEY` and `HERDR_REMOTE_VAPID_PRIVATE_KEY` override it;
-`HERDR_SOCKET_PATH` (or `HERDR_SOCKET`) points at a non-default Herdr socket and
-`HERDR_REMOTE_FILES_ROOTS` adds readable file roots.
+alongside the subscriptions (never shared with Herdr Chat).
+`HERDR_CORE_CHAT_VAPID_SUBJECT`, `HERDR_CORE_CHAT_VAPID_PUBLIC_KEY` and
+`HERDR_CORE_CHAT_VAPID_PRIVATE_KEY` override it; `HERDR_CORE_CHAT_FILES_ROOTS`
+adds readable file roots.
 
 ## Running from a checkout
 
-The daemon is a single native binary, `herdrchat` (Rust, `crates/herdr_core_chat`),
-with the PWA embedded at build time. Bun is only needed to **build** the PWA; it
-is never needed to run the daemon.
+The daemon is a single native binary, `herdr-core-chat` (Rust,
+`crates/herdr_core_chat`), with the PWA embedded at build time. Bun is only
+needed to **build** the PWA.
 
 ```bash
 bun install --frozen-lockfile
-bun run build                                 # apps/web/dist, embedded by the next step
-cargo build --release --locked -p herdrchat   # target/release/herdrchat
-bin/herdr-core-chat                                 # or: bun run start
+bun run build                                        # apps/web/dist, embedded by the next step
+cargo build --release --locked -p herdr_core_chat    # target/release/herdr-core-chat
+bin/herdr-core-chat                                  # or: bun run start
 ```
 
-`bin/herdr-core-chat` execs `target/release/herdrchat` (else `target/debug/herdrchat`,
-or `HERDRCHAT_BIN` when set) and fails with the build commands when none exists.
-Release archives (`.github/workflows/release-rust.yml`) contain the binary itself:
-macOS arm64/x86_64 and Linux x86_64/aarch64, each with a `.sha256`.
-
-The switch-over procedure from the former TS service, and its rollback, are in
-`docs/BASCULE.md`.
+`bin/herdr-core-chat` execs `target/release/herdr-core-chat` (else
+`target/debug/herdr-core-chat`, or `HERDR_CORE_CHAT_BIN` when set).
 
 ## Development
 
@@ -138,13 +133,10 @@ cargo run --locked -p xtask -- verify   # Rust: layout, coverage, graph, fmt, cl
 bun run dev      # Vite dev server
 ```
 
-Both gates must be green before any commit. The test suite is the design
-contract: each test carries a requirement id, and changing a rule is expected to
-break a test. `docs/FINAL-GATE.md` lists the complete pre-release gate.
-
-The former TypeScript daemon (`apps/server`, Bun + Effect) was removed at T068;
-`docs/BASCULE.md` explains how to run it from git history if a comparison is
-ever needed.
+Tests never touch a real herdr-core: they use a fake core on a temporary
+socket. Checks against herdr-core itself are run on an **isolated** core
+(`HC_SESSION=<throwaway>` + temporary `XDG_*`), never on the user's — see
+`AGENTS.md`. `docs/FINAL-GATE.md` lists the complete pre-release gate.
 
 ## License
 

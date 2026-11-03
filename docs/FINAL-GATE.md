@@ -20,8 +20,8 @@ Elle enchaîne, dans cet ordre :
 | 8 | `xtask release --native` | build de release sans `apps/web/dist` (refusé par `crates/herdr_core_chat/build.rs`), OpenSSL système dans les liens, archive/empreinte non écrite |
 | 9 | binaire empaqueté `--version` avec `PATH=/usr/bin:/bin` | dépendance à Bun/Node ou à une bibliothèque absente |
 
-Sortie : `dist/herdr-chat-<cible>/` (binaire, `manifest.json` avec
-`validee: true` pour la cible native), `dist/herdr-chat-<cible>.tar.gz` et son
+Sortie : `dist/herdr-core-chat-<cible>/` (binaire, `manifest.json` avec
+`validee: true` pour la cible native), `dist/herdr-core-chat-<cible>.tar.gz` et son
 `.sha256`. Les autres cibles ne sont **validées** qu'en CI, sur leur runner
 natif (`.github/workflows/release-rust.yml`) ; assemblées ailleurs, elles sont
 `compile-only`.
@@ -34,8 +34,8 @@ Tailscale.
 | Contrôle | Commande | Remarque |
 |---|---|---|
 | Couverture détaillée | `cargo run --locked -p xtask -- coverage` | la liste `unit-only`/`not-wired`/`pending` et `todoAfterMerge` sont les limites à relire |
-| Scénario navigateur fixture | `bun run build && cargo build -p herdrchat && bun scripts/scenario-fixture.ts <sortie>` | Chrome headless + `xtask fixture-daemon` (fausse Herdr, HOME temporaire, port libre) ; liste → chat → page d'historique → reconnexion → isolement ; captures + `rapport.json` ; code 1 si une étape échoue |
-| Banc TS/Rust | `cargo run --locked -p xtask -- bench --stack ts --ts-root <worktree TS>` | le démon TS n'est plus dans l'arbre (T068), voir `BASCULE.md` §8 |
+| Scénario navigateur fixture | `bun run build && cargo build -p herdr_core_chat && bun scripts/scenario-fixture.ts <sortie>` | ⚠️ **non porté** : `xtask fixture-daemon` sert encore une fausse Herdr **0.9.3** (`xtask/src/bench/fixture.rs`) ; le démon herdr-core-chat ne la comprend pas (`hello`). À refaire sur un faux herdr-core. |
+| Banc TS/Rust | `cargo run --locked -p xtask -- bench --stack ts --ts-root <worktree TS>` | hérité d'Herdr Chat (comparaison TS 0.9.3) ; même limite que le scénario : la fausse amont est 0.9.3 |
 | Revue de l'écart | `git diff --stat <base>..HEAD` | chaque fichier expliqué dans `EXECUTION.md` |
 
 ## Ce que la porte ne prouve pas

@@ -110,7 +110,7 @@
       "proofTask": "T064",
       "target": "review docs only",
       "status": "pending",
-      "gap": "Procédure de bascule/rollback (T070) : documentée dans docs/BASCULE.md, non exécutée par décision."
+      "gap": "Sans objet pour herdr-core-chat (coexistence, pas de bascule) : voir docs/COEXISTENCE.md."
     },
     {
       "id": "O10",

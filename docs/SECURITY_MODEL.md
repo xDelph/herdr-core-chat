@@ -11,10 +11,10 @@ iPhone personnel ── tailnet Tailscale ── Serve HTTPS ── 127.0.0.1:<p
 ```
 
 - Le serveur de release écoute exclusivement sur `127.0.0.1` ; Tailscale Serve est le seul chemin distant pris en charge. `tailscale funnel` et toute exposition sur le LAN ou Internet sont exclus.
-- Serve publie HTTPS `:8443` vers `127.0.0.1:8793` (démon Rust) et HTTPS `:8790` vers `127.0.0.1:8791` (ancien backend TS). Les deux coexistent : l'ancien reste accessible pendant la migration. Le démon Rust est le backend de release.
+- Serve publie HTTPS `:443` vers `127.0.0.1:8792` (herdr-core-chat). Herdr Chat (Herdr 0.9.3) garde `:8790`/`:8443` vers `127.0.0.1:8791` : les deux coexistent sans rien partager (`COEXISTENCE.md`).
 - L'accès distant dépend des appareils et règles d'accès du tailnet. Avant la release, vérifier qu'un appareil personnel autorisé atteint la PWA et qu'un appareil exclu par les grants/ACL n'atteint pas le port Serve. Ne pas déduire cette restriction du seul fait que Serve est activé.
 - **Toute personne ou tout processus pouvant joindre le service peut lire les sessions exposées et appeler les routes mutantes.** Cela comprend les processus locaux du Mac et tout appareil auquel la politique Tailscale accorde l'accès. C'est une limite assumée du mode personnel, pas une authentification implicite.
-- Le chemin alternatif actuel `HERDR_REMOTE_BIND=<IP Tailscale>` existe dans le dépôt, mais n'est pas la configuration publiée pour la release PWA. Son sort doit être tranché dans S01 et la documentation d'installation doit décrire le chemin effectivement vérifié.
+- Le chemin alternatif actuel `HERDR_CORE_CHAT_BIND=<IP Tailscale>` existe dans le dépôt, mais n'est pas la configuration publiée pour la release PWA. Son sort doit être tranché dans S01 et la documentation d'installation doit décrire le chemin effectivement vérifié.
 
 ## Surface HTTP
 
@@ -31,7 +31,7 @@ Il n'y a **pas de distinction d'autorisation par route**. Les protections de che
 
 Ces contrôles ne sont **pas** une authentification : un programme local ou un pair Tailscale autorisé peut envoyer lui-même des requêtes HTTP.
 
-1. S01 définit une liste exacte d'origines HTTP acceptées : `http://127.0.0.1:<port>` et l'URL HTTPS affichée par Tailscale Serve. Cette dernière est configurée explicitement, par exemple dans `HERDR_REMOTE_PUBLIC_ORIGIN` ; aucune correspondance par suffixe `.ts.net` ni confiance dans un `Host` arbitraire. Une origine de développement Vite éventuelle est configurée séparément et n'entre pas dans le paquet de release.
+1. S01 définit une liste exacte d'origines HTTP acceptées : `http://127.0.0.1:<port>` et l'URL HTTPS affichée par Tailscale Serve. Cette dernière est configurée explicitement, par exemple dans `HERDR_CORE_CHAT_PUBLIC_ORIGIN` ; aucune correspondance par suffixe `.ts.net` ni confiance dans un `Host` arbitraire. Une origine de développement Vite éventuelle est configurée séparément et n'entre pas dans le paquet de release.
 2. Le serveur rejette un `Host` hors de cette liste avec **421**, avant de servir la PWA ou l'API. Il ne reflète pas une origine arbitraire dans les en-têtes CORS.
 3. S02 impose, sur les quatre routes mutantes, la méthode `POST`, `Content-Type: application/json` et un `Origin` égal à l'origine configurée correspondant au `Host` demandé. Origine absente ou différente : **403** avant tout effet ; autre méthode : **405** ; autre type de contenu : **415**. Les prérequêtes intersites ne reçoivent pas d'autorisation CORS.
 4. Toutes les routes `GET` doivent rester sans effet de mutation. Les réponses de session, fichiers et aperçus ne sont jamais rendues accessibles à un site tiers par CORS.
