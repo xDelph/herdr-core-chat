@@ -33,8 +33,11 @@ No SSH. No terminal on the phone. Nothing is copied out of your machine.
   confirmed by its own index (not yet re-checked under herdr-core). Pi, opencode
   and devin are listed **without a conversation** until a reliable link is
   proven — never with a guessed one.
-- **Launching agents is not ported yet.** The launch sheet answers
-  "unsupported".
+- **Launching agents** opens a new tab in a Herdr.app space: your machine's
+  shell in the project folder, labelled so Herdr.app shows it, with the agent
+  command typed in — as Herdr.app does itself. The installed agents are the
+  CLIs found in the daemon's `PATH`. Launching outside a Herdr.app space is
+  refused.
 
 ## Requirements
 

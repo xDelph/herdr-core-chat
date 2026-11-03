@@ -236,6 +236,19 @@ Résolution **par agent**, sans repli d'un profil vers un autre :
   journal. Données écrites dans `$HOME/.herdr-core-chat/` uniquement.
 - Démon puis core arrêtés après usage (`server.status` vérifié avant).
 
+### Lancement (P7) `[EXÉCUTÉ]` (core isolé `4b4d0cb2…`, 2026-11-03)
+- Comme `tab.new` de Herdr.app (« Agents run in your interactive shell ») :
+  `terminal.run` **sans `argv` ni `line`** (le shell de la machine) avec
+  `cwd`, `labels {herdr.space, herdr.tab: tb<32 hex>}`, `keep`, `no_parent`,
+  `no_notify` ; puis `terminal.send` de la ligne de l'agent dans CE shell.
+- Démon composé, faux `pi` dans le `PATH` (jamais le vrai CLI) :
+  `/api/agents/kinds` → `pi` `current` ; `POST /api/workspaces/spl/agents
+  {"kind":"pi"}` → 201 `started`, terminal `t2` labellisé, le programme au
+  premier plan passe du shell au faux `pi`.
+- `start_agent` et `fermer_onglet` refusent tout terminal que le démon n'a
+  pas créé. `name` herdr-core : `1-32 of a-z 0-9 - _ .` (nom d'agent
+  assaini ; `name_taken` → onglet sans nom).
+
 ## 7. Ce qui reste à prouver (P1)
 
 - `events.subscribe` : comportement `missed` + resnapshot sous charge. `[INCONNU]`
@@ -244,7 +257,10 @@ Résolution **par agent**, sans repli d'un profil vers un autre :
 - `terminal.read` : champs `complete`/`how`/`why`. `[SCHÉMA]`
 - OSC 7501 sous herdr-core pour Pi. `[INCONNU]`
 - Résolution de session pour Pi/opencode/codex/devin. `[INCONNU]`
-- Lancement (P7) : `terminal.run` avec labels `herdr.space`/`herdr.tab` —
-  apparition dans Herdr.app non vérifiée ; non porté (`Unsupported`).
+- Lancement (P7) : l'**apparition dans Herdr.app** d'un terminal labellisé
+  `herdr.space`/`herdr.tab` est documentée par le guide de Herdr.app
+  (`~/.config/herdr-app/AGENTS.md` : « a terminal with those labels shows up
+  there », « an id Herdr doesn't know becomes a new space or tab ») mais non
+  exécutée (aucune fenêtre de test). `[SCHÉMA]`
 - `events.subscribe` n'est pas encore utilisé : la veille interroge toutes les
   2 s (`terminal.list` + `doc.get`).
