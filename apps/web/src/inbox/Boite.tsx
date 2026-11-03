@@ -171,7 +171,7 @@ export const Boite = ({
 
   // Dans un projet, regrouper par projet n'aurait qu'un groupe : par état.
   const groupes: ReadonlyArray<Groupe> = useMemo(
-    () => groupesDe(filtrees, ordre, projet === null ? groupement : "statut", nomDuProjet),
+    () => groupesDe(filtrees, ordre, projet === null ? groupement : "statut", nomDuProjet, lectures),
     [filtrees, groupement, nomDuProjet, ordre, projet],
   );
 

@@ -75,8 +75,20 @@ export const sectionOf = (status: AgentStatus): Section => {
  * encore, par procuration : il rejoint « En cours » — sinon trois sous-agents
  * au travail disparaissaient dans les récents. `blocked` garde la priorité.
  */
-export const sectionDe = (conversation: ConversationSummary): Section => {
-  const section = sectionOf(conversation.status);
+export const sectionDe = (conversation: ConversationSummary, lectures?: ReadonlyMap<string, number>): Section => {
+  let section = sectionOf(conversation.status);
+  // Un agent `done` **lu** (sur cet appareil ou un autre) rejoint `idle` :
+  // « terminé et vu » n'est plus une réponse à lire. Tant qu'il n'est pas lu,
+  // il reste dans `done` (point « non lu »).
+  if (section === "done") {
+    const locale = lectures?.get(conversation.paneId);
+    const partagee = conversation.readAt;
+    const vue =
+      locale === undefined ? partagee : partagee === undefined ? locale : Math.max(locale, partagee);
+    if (vue !== undefined && conversation.timestamp !== undefined && vue >= conversation.timestamp) {
+      section = "idle";
+    }
+  }
   return (section === "idle" || section === "done") && attenteDeTaches(conversation.tachesDeFond) !== null
     ? "en-cours"
     : section;
@@ -165,11 +177,12 @@ const trier = (
 export const sectionConversations = (
   conversations: ReadonlyArray<ConversationSummary>,
   ordre: Ordre = "recent",
+  lectures?: ReadonlyMap<string, number>,
 ): ReadonlyArray<Groupe> =>
   SECTIONS.map((section) => ({
     cle: section,
     conversations: trier(
-      conversations.filter((conversation) => sectionDe(conversation) === section),
+      conversations.filter((conversation) => sectionDe(conversation, lectures) === section),
       ordre,
     ),
     titre: SECTION_LABEL[section],
@@ -213,6 +226,7 @@ const groupesParProjet = (
   conversations: ReadonlyArray<ConversationSummary>,
   ordre: Ordre,
   nomDuProjet: (workspaceId: string) => string,
+  lectures?: ReadonlyMap<string, number>,
 ): ReadonlyArray<Groupe> => {
   const parProjet = new Map<string, Array<ConversationSummary>>();
   for (const conversation of conversations) {
@@ -247,12 +261,14 @@ export const grouperAttentionPuisProjet = (
   conversations: ReadonlyArray<ConversationSummary>,
   ordre: Ordre,
   nomDuProjet: (workspaceId: string) => string,
+  lectures?: ReadonlyMap<string, number>,
 ): ReadonlyArray<Groupe> => [
-  ...sectionConversations(conversations.filter(attireLAttention), ordre),
+  ...sectionConversations(conversations.filter(attireLAttention), ordre, lectures),
   ...groupesParProjet(
     conversations.filter((c) => !attireLAttention(c)),
     ordre,
     nomDuProjet,
+    lectures,
   ),
 ];
 
@@ -272,10 +288,11 @@ export const groupesDe = (
   ordre: Ordre,
   groupement: "statut" | "projet",
   nomDuProjet: (workspaceId: string) => string,
+  lectures?: ReadonlyMap<string, number>,
 ): ReadonlyArray<Groupe> =>
   groupement === "projet"
-    ? grouperAttentionPuisProjet(conversations, ordre, nomDuProjet)
-    : sectionConversations(conversations, ordre);
+    ? grouperAttentionPuisProjet(conversations, ordre, nomDuProjet, lectures)
+    : sectionConversations(conversations, ordre, lectures);
 
 /**
  * Dernier horodatage d'un groupe, ou `null` s'il n'en a aucun.
