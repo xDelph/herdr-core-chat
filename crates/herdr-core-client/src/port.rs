@@ -89,7 +89,9 @@ impl PortCore {
         drop(client);
 
         let disposition = doc.value.as_ref().and_then(|v| disposition_depuis(v).ok());
-
+        let ws_state = crate::workspace_state::WorkspaceState::charger(
+            &crate::workspace_state::WorkspaceState::chemin_par_defaut(),
+        );
         // Index terminal → (space_id, tab_id) via disposition.
         let mut term_space: std::collections::BTreeMap<String, (String, String)> =
             std::collections::BTreeMap::new();
@@ -121,6 +123,19 @@ impl PortCore {
                 let mut pane_count = 0u64;
                 let mut tab_count = 0u64;
                 let mut agg_status: Option<AgentStatus> = None;
+                // Nom d'espace : doc (souvent vide) → workspace-state (mod) → dossier.
+                let space_name_ws = ws_state
+                    .as_ref()
+                    .and_then(|w| w.spaces.get(&sp.id))
+                    .map(|e| e.name.clone())
+                    .filter(|n: &String| !n.is_empty());
+                let space_label = if !sp.name.is_empty() {
+                    Some(sp.name.clone())
+                } else if let Some(n) = space_name_ws {
+                    Some(n)
+                } else {
+                    Some(sp.folder.clone())
+                };
                 for tb in &sp.onglets {
                     tab_count += 1;
                     let term_addrs = &tb.terminaux;
@@ -145,14 +160,20 @@ impl PortCore {
                             });
                         }
                     }
+                    let tab_name_ws = ws_state
+                        .as_ref()
+                        .and_then(|w| w.tabs.get(&tb.id))
+                        .map(|e| e.name.clone())
+                        .filter(|n: &String| !n.is_empty());
+                    let tab_label = if !tb.name.is_empty() {
+                        Some(tb.name.clone())
+                    } else {
+                        tab_name_ws
+                    };
                     tabs.push(TabObservation {
                         tab_id: TabId::from(tb.id.clone()),
                         workspace_id: WorkspaceId::from(sp.id.clone()),
-                        label: if tb.name.is_empty() {
-                            None
-                        } else {
-                            Some(tb.name.clone())
-                        },
+                        label: tab_label,
                         number: tabs.len() as u64 + 1,
                         agent_status: None,
                         pane_count: Some(term_addrs.len() as u64),
@@ -160,11 +181,7 @@ impl PortCore {
                 }
                 workspaces.push(WorkspaceObservation {
                     workspace_id: WorkspaceId::from(sp.id.clone()),
-                    label: if sp.name.is_empty() {
-                        Some(sp.folder.clone())
-                    } else {
-                        Some(sp.name.clone())
-                    },
+                    label: space_label,
                     agent_status: agg_status,
                     focused: None,
                     number: None,
