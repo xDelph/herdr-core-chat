@@ -350,6 +350,24 @@ pub fn chemin_pi_par_cwd(racines: &Racines, cwd: &str) -> Option<PathBuf> {
     candidats.into_iter().next_back()
 }
 
+/// Résout une session devin par son dossier de travail (sqlite).
+#[must_use]
+pub fn session_devin_par_cwd(racines: &Racines, cwd: &str) -> Option<String> {
+    if cwd.trim().is_empty() {
+        return None;
+    }
+    let conn = rusqlite::Connection::open_with_flags(
+        &racines.devin_db,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .ok()?;
+    let mut stmt = conn
+        .prepare("SELECT id FROM sessions WHERE working_directory = ?1 ORDER BY last_activity_at DESC LIMIT 1")
+        .ok()?;
+    let id: String = stmt.query_row(rusqlite::params![cwd], |r| r.get(0)).ok()?;
+    if id.trim().is_empty() { None } else { Some(id) }
+}
+
 /// Résout une session opencode par son dossier de travail : requête sqlite
 /// sur `session_v2` (directory = cwd), session la plus récente.
 #[must_use]
@@ -563,6 +581,16 @@ pub fn source_session_de(
     if kind == Some("opencode") {
         if let Some(cwd) = cwd {
             if let Some(id) = session_opencode_par_cwd(&resolveur.racines, cwd) {
+                let empl = Emplacement::nouveau("id", &id);
+                return source_session(resolveur, kind, Some(&empl));
+            }
+        }
+        return None;
+    }
+    // devin : résolution par dossier de travail (sqlite).
+    if kind == Some("devin") {
+        if let Some(cwd) = cwd {
+            if let Some(id) = session_devin_par_cwd(&resolveur.racines, cwd) {
                 let empl = Emplacement::nouveau("id", &id);
                 return source_session(resolveur, kind, Some(&empl));
             }
