@@ -313,6 +313,64 @@ pub fn chemin_claude_par_pid(racines: &Racines, pid: u32) -> Option<PathBuf> {
     if chemin.exists() { Some(chemin) } else { None }
 }
 
+/// Résout une session Pi par son dossier de travail : le dossier encodé
+/// `--<cwd>--` sous la racine des sessions, puis le fichier le plus récent.
+#[must_use]
+pub fn chemin_pi_par_cwd(racines: &Racines, cwd: &str) -> Option<PathBuf> {
+    if cwd.trim().is_empty() {
+        return None;
+    }
+    let encode = cwd.replace('/', "-");
+    let dir_name = format!("--{}--", encode.trim_start_matches('-'));
+    // Pi encode le chemin complet avec tirets ; le nom de dossier réel commence
+    // par '--' et finit par '--'. On cherche un dossier dont le nom contient
+    // le cwd encodé.
+    let mut candidats: Vec<PathBuf> = Vec::new();
+    if let Ok(entrees) = std::fs::read_dir(&racines.pi_sessions) {
+        for e in entrees.flatten() {
+            let p = e.path();
+            if !p.is_dir() {
+                continue;
+            }
+            let nom = e.file_name().to_string_lossy().to_string();
+            if nom.contains(&encode) {
+                // fichier jsonl le plus récent
+                if let Ok(files) = std::fs::read_dir(&p) {
+                    for f in files.flatten() {
+                        let fp = f.path();
+                        if fp.extension().and_then(|x| x.to_str()) == Some("jsonl") {
+                            candidats.push(fp);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    candidats.sort();
+    candidats.into_iter().next_back()
+}
+
+/// Résout une session opencode par son dossier de travail : requête sqlite
+/// sur `session_v2` (directory = cwd), session la plus récente.
+#[must_use]
+pub fn session_opencode_par_cwd(racines: &Racines, cwd: &str) -> Option<String> {
+    if cwd.trim().is_empty() {
+        return None;
+    }
+    let conn = rusqlite::Connection::open_with_flags(
+        &racines.opencode_db,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .ok()?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id FROM session_v2 WHERE directory = ?1 ORDER BY time_updated DESC LIMIT 1",
+        )
+        .ok()?;
+    let id: String = stmt.query_row(rusqlite::params![cwd], |r| r.get(0)).ok()?;
+    if id.trim().is_empty() { None } else { Some(id) }
+}
+
 /// Résout un identifiant claude en chemin — cherché dans le nom du fichier
 /// (le dossier intermédiaire est le chemin de travail encodé, qui ne se
 /// déduit pas d'un identifiant : on cherche, on ne compose pas).
@@ -484,6 +542,29 @@ pub fn source_session_de(
                     kind,
                     Some(&Emplacement::nouveau("path", &chemin.display().to_string())),
                 );
+            }
+        }
+        return None;
+    }
+    // Pi : résolution par dossier de travail (pas de lien publié).
+    if kind == Some("pi") {
+        if let Some(cwd) = cwd {
+            if let Some(chemin) = chemin_pi_par_cwd(&resolveur.racines, cwd) {
+                return source_session(
+                    resolveur,
+                    kind,
+                    Some(&Emplacement::nouveau("path", &chemin.display().to_string())),
+                );
+            }
+        }
+        return None;
+    }
+    // opencode : résolution par dossier de travail (sqlite).
+    if kind == Some("opencode") {
+        if let Some(cwd) = cwd {
+            if let Some(id) = session_opencode_par_cwd(&resolveur.racines, cwd) {
+                let empl = Emplacement::nouveau("id", &id);
+                return source_session(resolveur, kind, Some(&empl));
             }
         }
         return None;
