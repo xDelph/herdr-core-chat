@@ -167,22 +167,11 @@ pub fn resout(resolveur: &Resolveur, hint: &SessionHint) -> Option<ResolvedSourc
             }))),
         },
     };
-    if kind.as_deref() == Some("claude") {
-        if let Some(pid) = hint.pid {
-            let sessions_dir = resolveur
-                .racines
-                .claude_projects
-                .parent()
-                .unwrap_or_else(|| std::path::Path::new(""))
-                .join("sessions");
-            if let Ok(contenu) = std::fs::read_to_string(sessions_dir.join(format!("{pid}.json"))) {
-                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contenu) {
-                    if let Some(sid) = json.get("sessionId").and_then(|v| v.as_str()) {
-                        resolved.session_id = Some(domain::ids::SessionId::from(String::from(sid)));
-                    }
-                }
-            }
-        }
+    if kind.as_deref() == Some("claude")
+        && let Some(pid) = hint.pid
+        && let Some(sid) = crate::resolver::session_claude_par_pid(&resolveur.racines, pid)
+    {
+        resolved.session_id = Some(domain::ids::SessionId::from(sid));
     }
     Some(resolved)
 }

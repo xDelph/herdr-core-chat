@@ -404,3 +404,113 @@ fn un_identifiant_introuvable_est_mis_en_cache_peu_de_temps() {
     fs::write(&rollout, "{}").unwrap_or_else(|cause| panic!("écriture : {cause}"));
     assert_eq!(vif.chemin_par_id(FamilleId::Codex, "neuf"), Some(rollout));
 }
+
+/// Écrit `~/.claude/sessions/<pid>.json` à côté de la racine des projets.
+fn fichier_pid_claude(racines: &Racines, pid: u32, contenu: &serde_json::Value) {
+    let Some(parent) = racines.claude_projects.parent() else {
+        panic!("racine claude sans parent");
+    };
+    let dossier = parent.join("sessions");
+    if let Err(cause) = fs::create_dir_all(&dossier) {
+        panic!("mkdir sessions refusé : {cause}");
+    }
+    if let Err(cause) = fs::write(dossier.join(format!("{pid}.json")), contenu.to_string()) {
+        panic!("fichier pid refusé : {cause}");
+    }
+}
+
+#[test]
+fn claude_se_resout_par_le_pid_du_premier_plan() {
+    let racines = racines_fake();
+    let projet = racines.claude_projects.join("-Users-moi-projet");
+    if let Err(cause) = fs::create_dir_all(&projet) {
+        panic!("mkdir projet refusé : {cause}");
+    }
+    let session = projet.join("sess-42.jsonl");
+    if let Err(cause) = fs::write(&session, "{}\n") {
+        panic!("session refusée : {cause}");
+    }
+    fichier_pid_claude(
+        &racines,
+        4242,
+        &json!({"pid": 4242, "sessionId": "sess-42", "cwd": "/Users/moi/projet"}),
+    );
+    let resolveur = Resolveur::nouveau(racines);
+    match source_session_de(&resolveur, Some("claude"), None, None, None, Some(4242)) {
+        Some(sessions::resolver::SourceSession::Fichier { base }) => assert!(base == session),
+        autre => panic!("la session du PID se retrouve, eu {autre:?}"),
+    }
+    // Sans PID : aucun fil — jamais « la plus récente du dossier ».
+    assert!(
+        source_session_de(
+            &resolveur,
+            Some("claude"),
+            None,
+            None,
+            Some("/Users/moi/projet"),
+            None
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn un_fichier_pid_qui_nomme_un_autre_processus_est_refuse() {
+    // PID recyclé : le fichier resté d'un processus mort ne désigne pas la
+    // session du processus actuel.
+    let racines = racines_fake();
+    let session = racines.claude_projects.join("sess-vieille.jsonl");
+    if let Err(cause) = fs::write(&session, "{}\n") {
+        panic!("session refusée : {cause}");
+    }
+    fichier_pid_claude(
+        &racines,
+        77,
+        &json!({"pid": 78, "sessionId": "sess-vieille"}),
+    );
+    let resolveur = Resolveur::nouveau(racines);
+    assert!(source_session_de(&resolveur, Some("claude"), None, None, None, Some(77)).is_none());
+}
+
+#[test]
+fn pi_opencode_devin_restent_sans_fil_meme_avec_une_session_dans_le_dossier() {
+    // Porte capable d'échouer : une session Pi existe bien dans le dossier
+    // encodé du cwd, et une session opencode et devin dans leurs bases pour
+    // ce même cwd. Les choisir serait DEVINER (AGENTS §3.6) : aucun fil.
+    let racines = racines_fake();
+    let cwd = "/Users/moi/projet";
+    let dossier_pi = racines.pi_sessions.join("--Users-moi-projet--");
+    if let Err(cause) = fs::create_dir_all(&dossier_pi) {
+        panic!("mkdir pi refusé : {cause}");
+    }
+    if let Err(cause) = fs::write(dossier_pi.join("2026-11-03_s.jsonl"), "{}\n") {
+        panic!("session pi refusée : {cause}");
+    }
+    let base_opencode = match rusqlite::Connection::open(&racines.opencode_db) {
+        Ok(base) => base,
+        Err(cause) => panic!("base opencode refusée : {cause}"),
+    };
+    if let Err(cause) = base_opencode.execute_batch(
+        "CREATE TABLE session_v2 (id TEXT PRIMARY KEY, directory TEXT, time_updated INTEGER);
+         INSERT INTO session_v2 VALUES ('ses_1', '/Users/moi/projet', 1);",
+    ) {
+        panic!("schéma opencode refusé : {cause}");
+    }
+    let base_devin = match rusqlite::Connection::open(&racines.devin_db) {
+        Ok(base) => base,
+        Err(cause) => panic!("base devin refusée : {cause}"),
+    };
+    if let Err(cause) = base_devin.execute_batch(
+        "CREATE TABLE sessions (id TEXT PRIMARY KEY, working_directory TEXT, last_activity_at INTEGER);
+         INSERT INTO sessions VALUES ('dv_1', '/Users/moi/projet', 1);",
+    ) {
+        panic!("schéma devin refusé : {cause}");
+    }
+    let resolveur = Resolveur::nouveau(racines);
+    for kind in ["pi", "opencode", "devin"] {
+        assert!(
+            source_session_de(&resolveur, Some(kind), None, None, Some(cwd), Some(1)).is_none(),
+            "{kind} : un fil deviné par dossier"
+        );
+    }
+}

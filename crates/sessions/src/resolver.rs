@@ -283,120 +283,28 @@ pub fn chemin_codex_par_id(racines: &Racines, id: &str) -> Option<PathBuf> {
     trouves.into_iter().next()
 }
 
-/// Résout une session Claude depuis le PID foreground (herdr-core) :
-/// `~/.claude/sessions/<pid>.json` → `sessionId` + `cwd`, puis
-/// `~/.claude/projects/<slug>/<sessionId>.jsonl`.
+/// L'identifiant de session Claude d'un processus (herdr-core ne publie aucun
+/// lien vers la session) : `~/.claude/sessions/<pid>.json` → `sessionId`.
+/// Le dossier est le voisin de `claude_projects` (`~/.claude/sessions`).
+///
+/// ⚠️ Le fichier doit **nommer ce même PID** (`pid`) quand il le porte : un
+/// fichier resté d'un processus mort dont le PID a été recyclé ne désigne pas
+/// la session du processus actuel.
 #[must_use]
-pub fn chemin_claude_par_pid(racines: &Racines, pid: u32) -> Option<PathBuf> {
-    // Dossier des sessions claude : dérivé de claude_projects (../sessions).
-    let sessions_dir = racines
-        .claude_projects
-        .parent()
-        .unwrap_or_else(|| std::path::Path::new(""))
-        .join("sessions");
-    let meta_path = sessions_dir.join(format!("{pid}.json"));
-    let contenu = std::fs::read_to_string(&meta_path).ok()?;
+pub fn session_claude_par_pid(racines: &Racines, pid: u32) -> Option<String> {
+    let dossier = racines.claude_projects.parent()?.join("sessions");
+    let contenu = std::fs::read_to_string(dossier.join(format!("{pid}.json"))).ok()?;
     let json: serde_json::Value = serde_json::from_str(&contenu).ok()?;
-    let session_id = json.get("sessionId").and_then(|v| v.as_str())?;
+    if let Some(annonce) = json.get("pid").and_then(serde_json::Value::as_u64)
+        && annonce != u64::from(pid)
+    {
+        return None;
+    }
+    let session_id = json.get("sessionId").and_then(serde_json::Value::as_str)?;
     if session_id.trim().is_empty() {
         return None;
     }
-    // Recherche par nom de fichier : évite de reconstruire le slug (Claude
-    // remplace plus que « / »), et reste robuste.
-    let suffixe = format!("{session_id}.jsonl");
-    let mut trouves: Vec<PathBuf> = Vec::new();
-    fn parcours(racine: &std::path::Path, suffixe: &str, trouves: &mut Vec<PathBuf>) {
-        if let Ok(entrees) = std::fs::read_dir(racine) {
-            for e in entrees.flatten() {
-                let p = e.path();
-                if p.is_dir() {
-                    parcours(&p, suffixe, trouves);
-                } else if let Some(nom) = p.file_name().and_then(|n| n.to_str()) {
-                    if nom.ends_with(suffixe) {
-                        trouves.push(p);
-                    }
-                }
-            }
-        }
-    }
-    parcours(&racines.claude_projects, &suffixe, &mut trouves);
-    trouves.sort();
-    trouves.into_iter().next()
-}
-
-/// Résout une session Pi par son dossier de travail : le dossier encodé
-/// `--<cwd>--` sous la racine des sessions, puis le fichier le plus récent.
-#[must_use]
-pub fn chemin_pi_par_cwd(racines: &Racines, cwd: &str) -> Option<PathBuf> {
-    if cwd.trim().is_empty() {
-        return None;
-    }
-    let encode = cwd.replace('/', "-");
-    // Pi encode le chemin complet avec tirets ; le nom de dossier réel commence
-    // par '--' et finit par '--'. On cherche un dossier dont le nom contient
-    // le cwd encodé.
-    let mut candidats: Vec<PathBuf> = Vec::new();
-    if let Ok(entrees) = std::fs::read_dir(&racines.pi_sessions) {
-        for e in entrees.flatten() {
-            let p = e.path();
-            if !p.is_dir() {
-                continue;
-            }
-            let nom = e.file_name().to_string_lossy().to_string();
-            if nom.contains(&encode) {
-                // fichier jsonl le plus récent
-                if let Ok(files) = std::fs::read_dir(&p) {
-                    for f in files.flatten() {
-                        let fp = f.path();
-                        if fp.extension().and_then(|x| x.to_str()) == Some("jsonl") {
-                            candidats.push(fp);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    candidats.sort();
-    candidats.into_iter().next_back()
-}
-
-/// Résout une session devin par son dossier de travail (sqlite).
-#[must_use]
-pub fn session_devin_par_cwd(racines: &Racines, cwd: &str) -> Option<String> {
-    if cwd.trim().is_empty() {
-        return None;
-    }
-    let conn = rusqlite::Connection::open_with_flags(
-        &racines.devin_db,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    )
-    .ok()?;
-    let mut stmt = conn
-        .prepare("SELECT id FROM sessions WHERE working_directory = ?1 ORDER BY last_activity_at DESC LIMIT 1")
-        .ok()?;
-    let id: String = stmt.query_row(rusqlite::params![cwd], |r| r.get(0)).ok()?;
-    if id.trim().is_empty() { None } else { Some(id) }
-}
-
-/// Résout une session opencode par son dossier de travail : requête sqlite
-/// sur `session_v2` (directory = cwd), session la plus récente.
-#[must_use]
-pub fn session_opencode_par_cwd(racines: &Racines, cwd: &str) -> Option<String> {
-    if cwd.trim().is_empty() {
-        return None;
-    }
-    let conn = rusqlite::Connection::open_with_flags(
-        &racines.opencode_db,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    )
-    .ok()?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id FROM session_v2 WHERE directory = ?1 ORDER BY time_updated DESC LIMIT 1",
-        )
-        .ok()?;
-    let id: String = stmt.query_row(rusqlite::params![cwd], |r| r.get(0)).ok()?;
-    if id.trim().is_empty() { None } else { Some(id) }
+    Some(session_id.to_string())
 }
 
 /// Résout un identifiant claude en chemin — cherché dans le nom du fichier
@@ -561,52 +469,17 @@ pub fn source_session_de(
     if annonce.is_some() {
         return annonce;
     }
-    // Claude : pas de lien publié par herdr-core ; résolution par PID foreground.
+    // Claude : herdr-core ne publie aucun lien ; le PID du programme au
+    // premier plan désigne sa session (`~/.claude/sessions/<pid>.json`,
+    // EXÉCUTÉ). La recherche du fichier passe par le cache du résolveur.
     if kind == Some("claude") {
-        if let Some(pid) = pid {
-            if let Some(chemin) = chemin_claude_par_pid(&resolveur.racines, pid) {
-                return source_session(
-                    resolveur,
-                    kind,
-                    Some(&Emplacement::nouveau("path", &chemin.display().to_string())),
-                );
-            }
-        }
-        return None;
+        let id = session_claude_par_pid(&resolveur.racines, pid?)?;
+        return source_session(resolveur, kind, Some(&Emplacement::nouveau("id", &id)));
     }
-    // Pi : résolution par dossier de travail (pas de lien publié).
-    if kind == Some("pi") {
-        if let Some(cwd) = cwd {
-            if let Some(chemin) = chemin_pi_par_cwd(&resolveur.racines, cwd) {
-                return source_session(
-                    resolveur,
-                    kind,
-                    Some(&Emplacement::nouveau("path", &chemin.display().to_string())),
-                );
-            }
-        }
-        return None;
-    }
-    // opencode : résolution par dossier de travail (sqlite).
-    if kind == Some("opencode") {
-        if let Some(cwd) = cwd {
-            if let Some(id) = session_opencode_par_cwd(&resolveur.racines, cwd) {
-                let empl = Emplacement::nouveau("id", &id);
-                return source_session(resolveur, kind, Some(&empl));
-            }
-        }
-        return None;
-    }
-    // devin : résolution par dossier de travail (sqlite).
-    if kind == Some("devin") {
-        if let Some(cwd) = cwd {
-            if let Some(id) = session_devin_par_cwd(&resolveur.racines, cwd) {
-                let empl = Emplacement::nouveau("id", &id);
-                return source_session(resolveur, kind, Some(&empl));
-            }
-        }
-        return None;
-    }
+    // Pi, opencode, devin : aucune preuve de lien entre un terminal et sa
+    // session sous herdr-core (AGENTS §3.6). « La plus récente du dossier »
+    // serait un fil DEVINÉ — deux agents du même dossier liraient le même :
+    // l'agent reste « sans fil » tant qu'un lien n'est pas prouvé.
     if kind != Some("codex") {
         return None;
     }
