@@ -14,7 +14,7 @@
 //! ⚠️ **Le graphe du workspace** : `application` ne dépend ni de `catalog`
 //! ni de `sessions`. La construction des args (T030) et la disponibilité
 //! réelle (T013, `integration.list`) sont **injectées** par la composition
-//! (herdrchat/T056) ; le moteur n'importe que le port et le nommage.
+//! (herdr_core_chat/T056) ; le moteur n'importe que le port et le nommage.
 //!
 //! ⚠️ **La réservation de nom** : deux lancements CONCURRENTS du même
 //! libellé voient le second décalé (`atelier-1`, `atelier-2`…) même si la

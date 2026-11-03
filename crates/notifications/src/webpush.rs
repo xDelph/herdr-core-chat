@@ -9,8 +9,8 @@
 //! crate. Sans `sub` explicite, `web-push` signe avec
 //! `mailto:example@example.com` : un sujet que personne n'a choisi, et que
 //! le service push d'Apple est en droit de refuser (`BadJwtToken`). Le fil
-//! résolvait le sujet (`HERDR_REMOTE_VAPID_SUBJECT`, puis la première origine
-//! HTTPS configurée, puis `mailto:herdr-remote@example.com`, CURRENT §6) et
+//! résolvait le sujet (`HERDR_CORE_CHAT_VAPID_SUBJECT`, puis la première origine
+//! HTTPS configurée, puis `mailto:herdr-core-chat@example.com`, CURRENT §6) et
 //! le passait à `setVapidDetails` : on fait de même.
 
 use crate::delivery::{ErreurLivraison, LivraisonPush};
@@ -25,7 +25,7 @@ use web_push::{
 
 /// Le sujet VAPID par défaut — celui du fil, quand ni le sujet explicite ni
 /// une origine HTTPS configurée n'existent.
-pub const SUJET_PAR_DEFAUT: &str = "mailto:herdr-remote@example.com";
+pub const SUJET_PAR_DEFAUT: &str = "mailto:herdr-core-chat@example.com";
 
 /// Le client réel — le TTL 60 s du contrat, la clé privée du store, le sujet
 /// de la configuration.

@@ -166,7 +166,7 @@ fn le_journal_par_defaut_vit_a_cote_des_donnees() {
     let chemin = herdr_core_chat::logging::journal_par_defaut("/Users/moi");
     assert_eq!(
         chemin,
-        std::path::PathBuf::from("/Users/moi/.herdr-remote/herdr-remote.log")
+        std::path::PathBuf::from("/Users/moi/.herdr-core-chat/herdr-core-chat.log")
     );
 }
 

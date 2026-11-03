@@ -8,9 +8,11 @@
  * Un point d'entrée mort, lui, ne se voit pas : `tsc` ne relie pas le champ
  * `"main"` d'un `package.json` au fichier réel.
  *
- * Pourquoi `8791` : `tailscale serve` expose `https://…:8790` et le retransmet
- * vers `127.0.0.1:8791`. Le port **local** du backend est donc `8791` ; `8790` n'est
- * que le port HTTPS côté tailnet. Les deux ne doivent jamais être confondus.
+ * Pourquoi `8792` : Herdr Chat (l'application d'Herdr 0.9.3) tourne à côté sur
+ * `8791`, servi en HTTPS par Tailscale sur `:8790` (et `:8443`). herdr-core-chat
+ * prend donc `8792` en local et le port HTTPS par défaut `443` côté tailnet
+ * (`tailscale serve` : `/` → `127.0.0.1:8792`). Le port local et le port tailnet
+ * ne doivent jamais être confondus, ni partagés avec Herdr Chat.
  *
  * `8765` reste interdit : il est occupé par `print-cost-report`. `3000` aussi,
  * pris par OrbStack.
@@ -19,8 +21,8 @@
 /** Port local du backend, tel que visé par `tailscale serve`. */
 export const DEFAULT_BACKEND_PORT = 8792;
 
-/** Port HTTPS côté tailnet, servi par Tailscale. Distinct du port local. */
-export const DEFAULT_TAILNET_PORT = 8790;
+/** Port HTTPS côté tailnet, servi par Tailscale. Distinct du port local et de ceux d'Herdr Chat (8790, 8443). */
+export const DEFAULT_TAILNET_PORT = 443;
 
 /**
  * Port effectif du backend, lu depuis l'environnement.
@@ -31,7 +33,7 @@ export const DEFAULT_TAILNET_PORT = 8790;
  * pourquoi. Ici, une valeur illisible retombe simplement sur le défaut.
  */
 export const backendPort = (env: Record<string, string | undefined>): number => {
-  const raw = env["HERDR_REMOTE_PORT"];
+  const raw = env["HERDR_CORE_CHAT_PORT"];
   if (raw === undefined || raw === "") {
     return DEFAULT_BACKEND_PORT;
   }

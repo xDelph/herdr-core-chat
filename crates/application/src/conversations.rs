@@ -4,7 +4,7 @@
 //! ⚠️ **Le graphe interdit `application → sessions`** : la lecture du
 //! contenu de session est INJECTÉE (`LitSessions`) — `application` assemble
 //! les résumés (le titre, l'aperçu, le modèle en vigueur, l'horodatage),
-//! `sessions` lit et normalise (T026–T027), `herdrchat` compose (T056).
+//! `sessions` lit et normalise (T026–T027), `herdr_core_chat` compose (T056).
 //!
 //! ⚠️ **L'isolation par ligne (C23/D20)** : une session illisible donne une
 //! ligne `error` avec sa cause — les autres lignes restent entières ; la

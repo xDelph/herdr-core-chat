@@ -1,6 +1,6 @@
 //! Les assets de la PWA côté HTTP (T054, O05–O07) — la **politique** de
 //! service ; la fourniture des octets est injectée (`FournisseurAssets`,
-//! composé par herdrchat avec le build embarqué).
+//! composé par herdr_core_chat avec le build embarqué).
 //!
 //! ⚠️ **Confinement par construction.** Le fil résolvait des chemins disque
 //! (`realpath`, comparaison par segments) parce que le build vivait sur le

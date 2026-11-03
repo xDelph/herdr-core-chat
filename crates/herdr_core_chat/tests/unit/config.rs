@@ -260,7 +260,7 @@ fn les_valeurs_par_defaut_sont_exactes() {
     assert_eq!(config.fenetre_deduplication_ms, 60_000);
     assert_eq!(
         config.log_path,
-        Path::new("/foyer/.herdr-remote/herdr-remote.log")
+        Path::new("/foyer/.herdr-core-chat/herdr-core-chat.log")
     );
     assert_eq!(config.codex_home, Path::new("/foyer/.codex"));
     assert_eq!(
@@ -268,6 +268,18 @@ fn les_valeurs_par_defaut_sont_exactes() {
         Path::new("/foyer/.local/share/devin/cli/sessions.db")
     );
     assert!(config.racines_fichiers_extra.is_empty());
+    assert_eq!(
+        config.push_store_path,
+        Path::new("/foyer/.herdr-core-chat/push.json")
+    );
+    assert_eq!(
+        config.lectures_store_path,
+        Path::new("/foyer/.herdr-core-chat/reads.json")
+    );
+    assert_eq!(
+        config.etat_herdr_app_path,
+        Path::new("/foyer/.config/herdr-app/workspace-state.json")
+    );
     // Origines : locale toujours + rien d'autre (pas de tailnet configuré).
     assert_eq!(config.origines_publiques, ["http://127.0.0.1:8792"]);
 }
@@ -276,7 +288,7 @@ fn les_valeurs_par_defaut_sont_exactes() {
 fn les_surcharges_sont_lues_et_la_precedence_tenue() {
     let mut env = env_dep();
     env.insert(
-        String::from("HERDR_SOCKET_PATH"),
+        String::from("HERDR_CORE_CHAT_SOCKET"),
         String::from("/custom/socket.sock"),
     );
     env.insert(String::from("PI_SESSIONS_ROOT"), String::from("/pi"));
@@ -287,12 +299,12 @@ fn les_surcharges_sont_lues_et_la_precedence_tenue() {
     );
     env.insert(String::from("OPENCODE_DB"), String::from("/db/opencode.db"));
     env.insert(
-        String::from("HERDR_REMOTE_LOG_PATH"),
+        String::from("HERDR_CORE_CHAT_LOG_PATH"),
         String::from("/logs/app.log"),
     );
     env.insert(String::from("CODEX_HOME"), String::from("/codex-home"));
     env.insert(String::from("DEVIN_DB"), String::from("/db/devin.db"));
-    env.insert(String::from("HERDR_REMOTE_PORT"), String::from("9000"));
+    env.insert(String::from("HERDR_CORE_CHAT_PORT"), String::from("9000"));
     env.insert(
         String::from("HERDR_SOCKET"),
         String::from("/bus-agents.sock"),
@@ -313,14 +325,70 @@ fn les_surcharges_sont_lues_et_la_precedence_tenue() {
 }
 
 #[test]
+fn les_variables_d_herdr_chat_ne_sont_jamais_lues() {
+    // Coexistence (AGENTS §5) : Herdr 0.9.3 exporte `HERDR_SOCKET_PATH` dans
+    // ses panes, et le service d'Herdr Chat pose `HERDR_REMOTE_*`. Un démon
+    // qui les lirait viserait le socket 0.9.3, le port 8791 ou le store push
+    // de l'autre application.
+    let mut env = env_dep();
+    for (cle, valeur) in [
+        ("HERDR_SOCKET_PATH", "/Users/moi/.config/herdr/herdr.sock"),
+        ("HERDR_REMOTE_PORT", "8791"),
+        (
+            "HERDR_REMOTE_PUSH_STORE",
+            "/Users/moi/.herdr-remote/push.json",
+        ),
+        (
+            "HERDR_REMOTE_LOG_PATH",
+            "/Users/moi/.herdr-remote/herdr-remote.log",
+        ),
+        (
+            "HERDR_REMOTE_READS_STORE",
+            "/Users/moi/.herdr-remote/reads.json",
+        ),
+    ] {
+        env.insert(String::from(cle), String::from(valeur));
+    }
+    let config = configue(&mut env);
+    assert_eq!(
+        config.herdr_socket_path,
+        Path::new("/foyer/.local/state/herdr-core/default/default.sock")
+    );
+    assert_eq!(config.port, PORT_DEFAUT);
+    assert_eq!(
+        config.push_store_path,
+        Path::new("/foyer/.herdr-core-chat/push.json")
+    );
+    assert_eq!(
+        config.log_path,
+        Path::new("/foyer/.herdr-core-chat/herdr-core-chat.log")
+    );
+    assert_eq!(
+        config.lectures_store_path,
+        Path::new("/foyer/.herdr-core-chat/reads.json")
+    );
+}
+
+#[test]
+fn l_etat_herdr_app_se_surcharge() {
+    let mut env = env_dep();
+    env.insert(
+        String::from("HERDR_CORE_CHAT_HERDR_APP_STATE"),
+        String::from("/tmp/etat.json"),
+    );
+    let config = configue(&mut env);
+    assert_eq!(config.etat_herdr_app_path, Path::new("/tmp/etat.json"));
+}
+
+#[test]
 fn le_pluriel_des_origines_prime_sur_le_singulier() {
     let mut env = env_dep();
     env.insert(
-        String::from("HERDR_REMOTE_PUBLIC_ORIGINS"),
+        String::from("HERDR_CORE_CHAT_PUBLIC_ORIGINS"),
         String::from("https://a.example, https://b.example"),
     );
     env.insert(
-        String::from("HERDR_REMOTE_PUBLIC_ORIGIN"),
+        String::from("HERDR_CORE_CHAT_PUBLIC_ORIGIN"),
         String::from("https://legacy.example"),
     );
     let config = configue(&mut env);
@@ -344,7 +412,7 @@ fn le_pluriel_des_origines_prime_sur_le_singulier() {
     // Sans le pluriel, le singulier sert de repli.
     let mut env = env_dep();
     env.insert(
-        String::from("HERDR_REMOTE_PUBLIC_ORIGIN"),
+        String::from("HERDR_CORE_CHAT_PUBLIC_ORIGIN"),
         String::from("https://legacy.example"),
     );
     let config = configue(&mut env);
@@ -359,12 +427,12 @@ fn le_pluriel_des_origines_prime_sur_le_singulier() {
 fn le_port_est_strictement_decimal() {
     for invalide in ["0", "8792abc", "-1", "65536", "vingt", " 8792"] {
         let mut env = env_dep();
-        env.insert(String::from("HERDR_REMOTE_PORT"), invalide.to_string());
+        env.insert(String::from("HERDR_CORE_CHAT_PORT"), invalide.to_string());
         match config_depuis_avec(&env, Path::new("/foyer"), &SansTailscale) {
             Err(ErreurConfig { detail }) => {
                 assert_eq!(
                     detail,
-                    format!("HERDR_REMOTE_PORT invalide : « {invalide} »"),
+                    format!("HERDR_CORE_CHAT_PORT invalide : « {invalide} »"),
                     "port « {invalide} » refusé"
                 );
             }
@@ -373,7 +441,7 @@ fn le_port_est_strictement_decimal() {
     }
     for valide in ["1", "8792", "65535"] {
         let mut env = env_dep();
-        env.insert(String::from("HERDR_REMOTE_PORT"), valide.to_string());
+        env.insert(String::from("HERDR_CORE_CHAT_PORT"), valide.to_string());
         assert_eq!(
             configue(&mut env).port,
             valide
@@ -397,7 +465,7 @@ fn le_bind_est_strict_et_tailnet_seulement() {
         "pas-une-ip",
     ] {
         let mut env = env_dep();
-        env.insert(String::from("HERDR_REMOTE_BIND"), refus.to_string());
+        env.insert(String::from("HERDR_CORE_CHAT_BIND"), refus.to_string());
         match config_depuis_avec(&env, Path::new("/foyer"), &SansTailscale) {
             Err(ErreurConfig { detail }) => {
                 assert!(detail.contains("refusé"), "bind « {refus} » : {detail}");
@@ -412,7 +480,7 @@ fn le_bind_est_strict_et_tailnet_seulement() {
         "fd7a:115c:a1e0::1",
     ] {
         let mut env = env_dep();
-        env.insert(String::from("HERDR_REMOTE_BIND"), accepte.to_string());
+        env.insert(String::from("HERDR_CORE_CHAT_BIND"), accepte.to_string());
         let config = configue(&mut env);
         assert_eq!(config.hostname, accepte);
         assert!(
@@ -525,11 +593,11 @@ fn le_sujet_vapid_suit_la_precedence_du_fil() {
     let mut env = env_dep();
     assert_eq!(
         configue(&mut env).vapid_sujet_resolu,
-        "mailto:herdr-remote@example.com"
+        "mailto:herdr-core-chat@example.com"
     );
 
     env.insert(
-        String::from("HERDR_REMOTE_PUBLIC_ORIGINS"),
+        String::from("HERDR_CORE_CHAT_PUBLIC_ORIGINS"),
         String::from("http://100.64.0.2:8792, https://herdr.exemple.ts.net:8790"),
     );
     assert_eq!(
@@ -538,7 +606,7 @@ fn le_sujet_vapid_suit_la_precedence_du_fil() {
     );
 
     env.insert(
-        String::from("HERDR_REMOTE_VAPID_SUBJECT"),
+        String::from("HERDR_CORE_CHAT_VAPID_SUBJECT"),
         String::from("mailto:moi@exemple.test"),
     );
     assert_eq!(
@@ -548,7 +616,7 @@ fn le_sujet_vapid_suit_la_precedence_du_fil() {
 
     // Un sujet explicite VIDE n'est pas signé tel quel.
     env.insert(
-        String::from("HERDR_REMOTE_VAPID_SUBJECT"),
+        String::from("HERDR_CORE_CHAT_VAPID_SUBJECT"),
         String::from("  "),
     );
     assert_eq!(
@@ -557,18 +625,18 @@ fn le_sujet_vapid_suit_la_precedence_du_fil() {
     );
 }
 
-/// Le singulier (`HERDR_REMOTE_PUBLIC_ORIGIN`) n'entre pas dans le sujet :
+/// Le singulier (`HERDR_CORE_CHAT_PUBLIC_ORIGIN`) n'entre pas dans le sujet :
 /// le fil ne lisait que le pluriel.
 #[test]
 fn le_sujet_vapid_ignore_le_singulier() {
     let mut env = env_dep();
     env.insert(
-        String::from("HERDR_REMOTE_PUBLIC_ORIGIN"),
+        String::from("HERDR_CORE_CHAT_PUBLIC_ORIGIN"),
         String::from("https://herdr.exemple.ts.net"),
     );
     assert_eq!(
         configue(&mut env).vapid_sujet_resolu,
-        "mailto:herdr-remote@example.com"
+        "mailto:herdr-core-chat@example.com"
     );
 }
 
@@ -590,7 +658,7 @@ fn le_lanceur_reel_donne_un_terminal_a_tailscale() {
     // Un faux `tailscale` qui, comme le vrai, refuse sans terminal.
     std::fs::write(
         &faux,
-        "#!/bin/sh\n[ \"$TERM_PROGRAM\" = herdrchat ] || { echo 'The Tailscale GUI failed to start'; exit 1; }\necho '{\"TCP\":{}}'\n",
+        "#!/bin/sh\n[ \"$TERM_PROGRAM\" = herdr-core-chat ] || { echo 'The Tailscale GUI failed to start'; exit 1; }\necho '{\"TCP\":{}}'\n",
     )
     .unwrap_or_else(|cause| panic!("{cause}"));
     use std::os::unix::fs::PermissionsExt;

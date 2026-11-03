@@ -169,7 +169,7 @@ async fn un_410_est_une_expiration() {
     let (endpoint, _requetes) = faux_service("410 Gone").await;
     let livraison = LivraisonWebPush::nouvelle(
         genere_clefs_vapid(),
-        String::from("mailto:herdr-remote@example.com"),
+        String::from("mailto:herdr-core-chat@example.com"),
     );
     let abonne = abonnement(&endpoint);
     let issue = tokio::time::timeout(
@@ -186,7 +186,7 @@ async fn un_500_n_est_pas_une_expiration() {
     let (endpoint, _requetes) = faux_service("500 Internal Server Error").await;
     let livraison = LivraisonWebPush::nouvelle(
         genere_clefs_vapid(),
-        String::from("mailto:herdr-remote@example.com"),
+        String::from("mailto:herdr-core-chat@example.com"),
     );
     let abonne = abonnement(&endpoint);
     let issue = tokio::time::timeout(

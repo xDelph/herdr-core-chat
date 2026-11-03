@@ -486,12 +486,12 @@ fn commande(
 ) -> Result<Command, String> {
     let mut commande = match pile {
         "rust" => {
-            let release = options.racine.join("target/release/herdrchat");
-            let debug = options.racine.join("target/debug/herdrchat");
+            let release = options.racine.join("target/release/herdr-core-chat");
+            let debug = options.racine.join("target/debug/herdr-core-chat");
             let binaire = if release.is_file() { release } else { debug };
             if !binaire.is_file() {
                 return Err(format!(
-                    "binaire absent : {} (cargo build -p herdrchat)",
+                    "binaire absent : {} (cargo build -p herdr_core_chat)",
                     binaire.display()
                 ));
             }
@@ -515,18 +515,31 @@ fn commande(
             }
             let mut commande = Command::new("bun");
             commande.arg("run").arg(entree);
+            // Le démon TS d'Herdr Chat lit les noms historiques.
+            commande
+                .env(
+                    "HERDR_SOCKET_PATH",
+                    atelier.racine.join("herdr-fixture.sock"),
+                )
+                .env("HERDR_REMOTE_PORT", port.to_string())
+                .env("HERDR_REMOTE_BIND", "127.0.0.1")
+                .env("HERDR_REMOTE_LOG_PATH", atelier.racine.join("banc.log"))
+                .env("HERDR_REMOTE_PUSH_STORE", atelier.racine.join("push.json"));
             commande
         }
     };
     commande
         .env(
-            "HERDR_SOCKET_PATH",
+            "HERDR_CORE_CHAT_SOCKET",
             atelier.racine.join("herdr-fixture.sock"),
         )
-        .env("HERDR_REMOTE_PORT", port.to_string())
-        .env("HERDR_REMOTE_BIND", "127.0.0.1")
-        .env("HERDR_REMOTE_LOG_PATH", atelier.racine.join("banc.log"))
-        .env("HERDR_REMOTE_PUSH_STORE", atelier.racine.join("push.json"))
+        .env("HERDR_CORE_CHAT_PORT", port.to_string())
+        .env("HERDR_CORE_CHAT_BIND", "127.0.0.1")
+        .env("HERDR_CORE_CHAT_LOG_PATH", atelier.racine.join("banc.log"))
+        .env(
+            "HERDR_CORE_CHAT_PUSH_STORE",
+            atelier.racine.join("push.json"),
+        )
         .env("PI_SESSIONS_ROOT", atelier.racine.join("sessions"))
         .env(
             "OPENCODE_DB",
@@ -686,8 +699,8 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
     Ok(json!({
         "pile": pile,
         "commande": format!(
-            "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT={port} HERDR_REMOTE_BIND=127.0.0.1 {}",
-            if pile == "rust" { "target/{release,debug}/herdrchat" } else { "bun run <ts-root>/apps/server/src/main.ts" }
+            "HERDR_CORE_CHAT_SOCKET=<fixture>/herdr-fixture.sock HERDR_CORE_CHAT_PORT={port} HERDR_CORE_CHAT_BIND=127.0.0.1 {}",
+            if pile == "rust" { "target/{release,debug}/herdr-core-chat" } else { "bun run <ts-root>/apps/server/src/main.ts" }
         ),
         "pret_ms": attente.as_millis(),
         "routes": routes,
@@ -760,7 +773,7 @@ pub fn entree(racine: &Path, arguments: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// `xtask fixture-daemon` — un démon `herdrchat` RÉEL servi par la fausse
+/// `xtask fixture-daemon` — un démon `herdr-core-chat` RÉEL servi par la fausse
 /// Herdr et des sessions synthétiques copiées du bundle (T067/T072).
 ///
 /// ⚠️ **Fixture uniquement.** Le socket est la fausse du banc (elle refuse
@@ -808,11 +821,14 @@ pub fn sert_fixture(racine: &Path, arguments: &[String]) -> Result<(), String> {
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", &maison)
-        .env("HERDR_SOCKET_PATH", fausse.chemin())
-        .env("HERDR_REMOTE_PORT", port.to_string())
-        .env("HERDR_REMOTE_BIND", "127.0.0.1")
-        .env("HERDR_REMOTE_LOG_PATH", atelier.racine.join("banc.log"))
-        .env("HERDR_REMOTE_PUSH_STORE", atelier.racine.join("push.json"))
+        .env("HERDR_CORE_CHAT_SOCKET", fausse.chemin())
+        .env("HERDR_CORE_CHAT_PORT", port.to_string())
+        .env("HERDR_CORE_CHAT_BIND", "127.0.0.1")
+        .env("HERDR_CORE_CHAT_LOG_PATH", atelier.racine.join("banc.log"))
+        .env(
+            "HERDR_CORE_CHAT_PUSH_STORE",
+            atelier.racine.join("push.json"),
+        )
         .env("PI_SESSIONS_ROOT", atelier.racine.join("sessions"))
         .env("CLAUDE_PROJECTS_ROOT", atelier.racine.join("sessions"))
         .env("CODEX_SESSION_ROOT", atelier.racine.join("codex-absent"))

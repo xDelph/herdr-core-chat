@@ -15,8 +15,8 @@
 #   1. `HERDR_CORE_CHAT_BIN` (chemin explicite d'un binaire) ;
 #   2. `target/release/herdr-core-chat` ;
 #   3. `target/debug/herdr-core-chat`.
-# Les variables d'environnement (`HERDR_REMOTE_PORT`, `HERDR_REMOTE_BIND`,
-# `HERDR_SOCKET_PATH`…) sont transmises telles quelles.
+# Les variables d'environnement (`HERDR_CORE_CHAT_PORT`, `HERDR_CORE_CHAT_BIND`,
+# `HERDR_CORE_CHAT_SOCKET`…) sont transmises telles quelles.
 set -euo pipefail
 
 ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

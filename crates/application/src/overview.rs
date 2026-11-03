@@ -27,7 +27,7 @@ use domain::observation::{
 /// La source de session d'un pane, résolue : la décision UNIQUE partagée
 /// par l'accueil, la liste et la lecture (U14) — fournie par `sessions`
 /// (le graphe interdit à `application` d'importer `sessions` : la
-/// résolution est INJECTÉE, composée par herdrchat au T056).
+/// résolution est INJECTÉE, composée par herdr_core_chat au T056).
 pub trait ResoutSessions: Send + Sync {
     /// Résout la source d'un agent — chemin de fichier ou base, identifiant
     /// de session et en-tête (cwd, parent) quand la source les porte.

@@ -29,7 +29,7 @@ use std::sync::Arc;
 /// réel n'est appelé).
 fn config() -> herdr_core_chat::config::Config {
     let mut env = HashMap::new();
-    env.insert(String::from("HERDR_REMOTE_PORT"), String::from("8791"));
+    env.insert(String::from("HERDR_CORE_CHAT_PORT"), String::from("8791"));
     config_depuis_avec(&env, std::path::Path::new("/Users/test"), &AucunServeur)
         .unwrap_or_else(|erreur| panic!("configuration : {}", erreur.detail))
 }

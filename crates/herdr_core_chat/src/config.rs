@@ -3,10 +3,12 @@
 //! environnement n'est lu dans les bibliothèques — seulement ici), le bind
 //! strict, le port strict, les origines Serve normalisées.
 //!
-//! ⚠️ Deux variables aux noms dangereusement proches ne doivent jamais être
-//! confondues (D008, écart E5) : `HERDR_SOCKET_PATH` → la couche A (l'API
-//! socket de Herdr, ce qu'on utilise), `HERDR_SOCKET` → la couche B (le bus
-//! d'agents, hors périmètre). **`HERDR_SOCKET` n'est jamais lue.**
+//! ⚠️ Coexistence avec Herdr Chat (AGENTS §5) : toutes les variables portent
+//! le préfixe `HERDR_CORE_CHAT_`, et les données vivent dans
+//! `~/.herdr-core-chat/`. Les noms d'Herdr Chat (`HERDR_REMOTE_*`,
+//! `HERDR_SOCKET_PATH`) ne sont **jamais lus** : Herdr 0.9.3 exporte
+//! `HERDR_SOCKET_PATH` dans ses panes, et un démon lancé depuis l'un d'eux
+//! viserait son socket. Même chose pour `HERDR_SOCKET` (le bus d'agents).
 
 use serde_json::Value;
 use std::collections::HashMap;
@@ -16,6 +18,17 @@ use std::time::Duration;
 /// Le port local par défaut : différent d'Herdr Chat (8791) pour la
 /// coexistence (`packages/shared/src/port.ts`).
 pub const PORT_DEFAUT: u16 = 8792;
+
+/// Le dossier des données, sous `HOME` : distinct de `~/.herdr-remote/`
+/// (Herdr Chat) — magasin push, clés VAPID, lectures et journal séparés.
+pub const DOSSIER_DONNEES: &str = ".herdr-core-chat";
+
+/// Le socket herdr-core de la session par défaut, sous `HOME`.
+pub const SOCKET_CORE_DEFAUT: &str = ".local/state/herdr-core/default/default.sock";
+
+/// L'état publié par le mod de Herdr.app (noms d'espaces et d'onglets), sous
+/// `HOME`.
+pub const ETAT_HERDR_APP_DEFAUT: &str = ".config/herdr-app/workspace-state.json";
 
 /// La fenêtre de déduplication des envois identiques (D007.2) — la valeur
 /// du contrat partagé.
@@ -54,8 +67,11 @@ pub struct RacinesDeSessions {
 /// lecture. Les 17 variables de CURRENT §8.
 #[derive(Clone, Debug)]
 pub struct Config {
-    /// Chemin du socket de l'API Herdr (couche A).
+    /// Chemin du socket herdr-core (`HERDR_CORE_CHAT_SOCKET`).
     pub herdr_socket_path: PathBuf,
+    /// L'état publié par Herdr.app (`HERDR_CORE_CHAT_HERDR_APP_STATE`) —
+    /// noms calculés des espaces et onglets.
+    pub etat_herdr_app_path: PathBuf,
     /// Racines des sessions — Pi, Codex, Claude, **nommées**. Jamais
     /// devinées par projet : Herdr fournit le chemin.
     ///
@@ -85,24 +101,24 @@ pub struct Config {
     pub codex_home: PathBuf,
     /// `DEVIN_DB` — la base de sessions DeVin.
     pub devin_db_path: PathBuf,
-    /// `HERDR_REMOTE_PUSH_STORE` — clés et abonnements push, indépendant du
+    /// `HERDR_CORE_CHAT_PUSH_STORE` — clés et abonnements push, indépendant du
     /// journal configuré.
     pub push_store_path: PathBuf,
-    /// `HERDR_REMOTE_READS_STORE` — les lectures partagées entre appareils
+    /// `HERDR_CORE_CHAT_READS_STORE` — les lectures partagées entre appareils
     /// (H22) ; par défaut `reads.json` à côté du magasin push.
     pub lectures_store_path: PathBuf,
-    /// `HERDR_REMOTE_VAPID_SUBJECT` — brut ; la dérivation (HTTPS configuré,
+    /// `HERDR_CORE_CHAT_VAPID_SUBJECT` — brut ; la dérivation (HTTPS configuré,
     /// puis mailto) vit dans les abonnements (T052).
     pub vapid_sujet: Option<String>,
     /// Le sujet VAPID **résolu** — le `sub` du JWT de chaque envoi push :
-    /// `HERDR_REMOTE_VAPID_SUBJECT`, sinon la première origine HTTPS de
-    /// `HERDR_REMOTE_PUBLIC_ORIGINS` (le pluriel seul, comme le fil), sinon
-    /// `mailto:herdr-remote@example.com` (CURRENT §6).
+    /// `HERDR_CORE_CHAT_VAPID_SUBJECT`, sinon la première origine HTTPS de
+    /// `HERDR_CORE_CHAT_PUBLIC_ORIGINS` (le pluriel seul, comme le fil), sinon
+    /// `mailto:herdr-core-chat@example.com` (CURRENT §6).
     pub vapid_sujet_resolu: String,
-    /// `HERDR_REMOTE_VAPID_PUBLIC_KEY` — brut ; les deux surcharges doivent
+    /// `HERDR_CORE_CHAT_VAPID_PUBLIC_KEY` — brut ; les deux surcharges doivent
     /// venir ENSEMBLE (une paire partielle est une erreur, T044).
     pub vapid_cle_publique: Option<String>,
-    /// `HERDR_REMOTE_VAPID_PRIVATE_KEY` — brut.
+    /// `HERDR_CORE_CHAT_VAPID_PRIVATE_KEY` — brut.
     pub vapid_cle_privee: Option<String>,
 }
 
@@ -125,14 +141,17 @@ pub fn config_depuis_avec(
     home: &Path,
     lanceur: &dyn LanceStatutServe,
 ) -> Result<Config, ErreurConfig> {
-    let socket_path = env.get("HERDR_SOCKET_PATH").cloned().unwrap_or_else(|| {
-        home.join(".local/state/herdr-core/default/default.sock")
-            .to_string_lossy()
-            .into_owned()
-    });
+    let socket_path = env
+        .get("HERDR_CORE_CHAT_SOCKET")
+        .cloned()
+        .unwrap_or_else(|| home.join(SOCKET_CORE_DEFAUT).to_string_lossy().into_owned());
+    let etat_herdr_app_path = env
+        .get("HERDR_CORE_CHAT_HERDR_APP_STATE")
+        .map_or_else(|| home.join(ETAT_HERDR_APP_DEFAUT), PathBuf::from);
+    let donnees = home.join(DOSSIER_DONNEES);
 
     let brut_port = env
-        .get("HERDR_REMOTE_PORT")
+        .get("HERDR_CORE_CHAT_PORT")
         .cloned()
         .unwrap_or_else(|| PORT_DEFAUT.to_string());
     // Strict décimal (C10) : « 8791abc » est refusé — pas d'`parseInt`
@@ -142,19 +161,19 @@ pub fn config_depuis_avec(
         .ok()
         .filter(|port| *port >= 1)
         .ok_or_else(|| ErreurConfig {
-            detail: format!("HERDR_REMOTE_PORT invalide : « {brut_port} »"),
+            detail: format!("HERDR_CORE_CHAT_PORT invalide : « {brut_port} »"),
         })?;
 
     let bind = env
-        .get("HERDR_REMOTE_BIND")
+        .get("HERDR_CORE_CHAT_BIND")
         .cloned()
         .unwrap_or_else(|| String::from(BIND_DEFAUT));
     valide_bind(&bind).map_err(|detail| ErreurConfig { detail })?;
     let est_tailnet = est_adresse_tailnet(&bind);
 
     let origines_explicites: Vec<String> = env
-        .get("HERDR_REMOTE_PUBLIC_ORIGINS")
-        .or_else(|| env.get("HERDR_REMOTE_PUBLIC_ORIGIN"))
+        .get("HERDR_CORE_CHAT_PUBLIC_ORIGINS")
+        .or_else(|| env.get("HERDR_CORE_CHAT_PUBLIC_ORIGIN"))
         .map(|valeurs| {
             valeurs
                 .split(',')
@@ -165,7 +184,7 @@ pub fn config_depuis_avec(
         .unwrap_or_default();
 
     let racines_fichiers_extra: Vec<PathBuf> = env
-        .get("HERDR_REMOTE_FILES_ROOTS")
+        .get("HERDR_CORE_CHAT_FILES_ROOTS")
         .map(|valeurs| {
             valeurs
                 .split(':')
@@ -189,6 +208,7 @@ pub fn config_depuis_avec(
 
     Ok(Config {
         herdr_socket_path: PathBuf::from(socket_path),
+        etat_herdr_app_path,
         session_roots: RacinesDeSessions {
             pi: PathBuf::from(env.get("PI_SESSIONS_ROOT").cloned().unwrap_or_else(|| {
                 home.join(".pi/agent/sessions")
@@ -214,15 +234,14 @@ pub fn config_depuis_avec(
                 .into_owned()
         })),
         fenetre_deduplication_ms: FENETRE_DEDUPLICATION_MS,
-        log_path: PathBuf::from(
-            env.get("HERDR_REMOTE_LOG_PATH")
-                .cloned()
-                .unwrap_or_else(|| {
-                    home.join(".herdr-remote/herdr-remote.log")
-                        .to_string_lossy()
-                        .into_owned()
-                }),
-        ),
+        log_path: PathBuf::from(env.get("HERDR_CORE_CHAT_LOG_PATH").cloned().unwrap_or_else(
+            || {
+                donnees
+                    .join("herdr-core-chat.log")
+                    .to_string_lossy()
+                    .into_owned()
+            },
+        )),
         origines_publiques,
         racines_fichiers_extra,
         codex_home: PathBuf::from(
@@ -235,37 +254,33 @@ pub fn config_depuis_avec(
                 .to_string_lossy()
                 .into_owned()
         })),
-        push_store_path: PathBuf::from(env.get("HERDR_REMOTE_PUSH_STORE").cloned().unwrap_or_else(
-            || {
-                home.join(".herdr-remote/push.json")
-                    .to_string_lossy()
-                    .into_owned()
-            },
-        )),
-        lectures_store_path: env.get("HERDR_REMOTE_READS_STORE").map_or_else(
+        push_store_path: PathBuf::from(
+            env.get("HERDR_CORE_CHAT_PUSH_STORE")
+                .cloned()
+                .unwrap_or_else(|| donnees.join("push.json").to_string_lossy().into_owned()),
+        ),
+        lectures_store_path: env.get("HERDR_CORE_CHAT_READS_STORE").map_or_else(
             || {
                 PathBuf::from(
-                    env.get("HERDR_REMOTE_PUSH_STORE")
+                    env.get("HERDR_CORE_CHAT_PUSH_STORE")
                         .cloned()
                         .unwrap_or_else(|| {
-                            home.join(".herdr-remote/push.json")
-                                .to_string_lossy()
-                                .into_owned()
+                            donnees.join("push.json").to_string_lossy().into_owned()
                         }),
                 )
                 .with_file_name("reads.json")
             },
             PathBuf::from,
         ),
-        vapid_sujet: env.get("HERDR_REMOTE_VAPID_SUBJECT").cloned(),
+        vapid_sujet: env.get("HERDR_CORE_CHAT_VAPID_SUBJECT").cloned(),
         vapid_sujet_resolu: sujet_vapid(env),
-        vapid_cle_publique: env.get("HERDR_REMOTE_VAPID_PUBLIC_KEY").cloned(),
-        vapid_cle_privee: env.get("HERDR_REMOTE_VAPID_PRIVATE_KEY").cloned(),
+        vapid_cle_publique: env.get("HERDR_CORE_CHAT_VAPID_PUBLIC_KEY").cloned(),
+        vapid_cle_privee: env.get("HERDR_CORE_CHAT_VAPID_PRIVATE_KEY").cloned(),
     })
 }
 
 /// Le sujet VAPID résolu (CURRENT §6) : explicite, puis première origine
-/// HTTPS du pluriel `HERDR_REMOTE_PUBLIC_ORIGINS`, puis le `mailto:` du fil.
+/// HTTPS du pluriel `HERDR_CORE_CHAT_PUBLIC_ORIGINS`, puis le `mailto:` du fil.
 ///
 /// ⚠️ Divergence assumée : un sujet explicite **vide** n'est pas retenu (le
 /// fil l'aurait signé tel quel, un JWT au `sub` vide que les services push
@@ -273,13 +288,13 @@ pub fn config_depuis_avec(
 #[must_use]
 pub fn sujet_vapid(env: &HashMap<String, String>) -> String {
     if let Some(sujet) = env
-        .get("HERDR_REMOTE_VAPID_SUBJECT")
+        .get("HERDR_CORE_CHAT_VAPID_SUBJECT")
         .map(|sujet| sujet.trim())
         .filter(|sujet| !sujet.is_empty())
     {
         return sujet.to_string();
     }
-    env.get("HERDR_REMOTE_PUBLIC_ORIGINS")
+    env.get("HERDR_CORE_CHAT_PUBLIC_ORIGINS")
         .and_then(|origines| {
             origines
                 .split(',')
@@ -299,10 +314,10 @@ fn valide_bind(bind: &str) -> Result<(), String> {
     }
     let ip: std::net::IpAddr = bind
         .parse()
-        .map_err(|_| format!("HERDR_REMOTE_BIND = « {bind} » refusé. {BIND_DEFAUT} ou une adresse du tailnet (100.64.0.0/10 / fd7a:115c:a1e0::/48) sont attendus. Jamais une adresse publique."))?;
+        .map_err(|_| format!("HERDR_CORE_CHAT_BIND = « {bind} » refusé. {BIND_DEFAUT} ou une adresse du tailnet (100.64.0.0/10 / fd7a:115c:a1e0::/48) sont attendus. Jamais une adresse publique."))?;
     if !est_range_tailnet(ip) {
         return Err(format!(
-            "HERDR_REMOTE_BIND = « {bind} » refusé : hors des plages tailnet (100.64.0.0/10, fd7a:115c:a1e0::/48). Jamais une adresse publique."
+            "HERDR_CORE_CHAT_BIND = « {bind} » refusé : hors des plages tailnet (100.64.0.0/10, fd7a:115c:a1e0::/48). Jamais une adresse publique."
         ));
     }
     Ok(())
@@ -468,7 +483,7 @@ impl LanceStatutServe for LanceurServeReel {
         // origine n'était dérivée, et chaque POST de la PWA prenait un 403.
         let mut enfant = std::process::Command::new(&self.chemin)
             .args(argv)
-            .env("TERM_PROGRAM", "herdrchat")
+            .env("TERM_PROGRAM", "herdr-core-chat")
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
             .spawn()

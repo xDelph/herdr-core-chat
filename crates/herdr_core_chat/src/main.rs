@@ -1,4 +1,4 @@
-//! Le démon herdr-remote (T056).
+//! Le démon herdr-core-chat (T056).
 //!
 //! ⚠️ **Ce binaire refuse de démarrer à moitié.** Quatre ports sur cinq sont
 //! composés (contrôle Herdr, catalogues, artefacts, notifications) ; `sessions`
@@ -80,11 +80,10 @@ async fn demarre(config: &Config) -> Result<(), String> {
     );
     // 3) Les artefacts : confinés aux racines de CHAQUE requête.
     let artefacts = Arc::new(files::port::PortArtefacts::nouveau());
-    // 4) Les notifications : le store compatible, à côté du journal —
-    //    rapatriement de l'ancien emplacement (E10) et clés VAPID de
-    //    l'environnement (E08) composés par `assemblage::store_push`.
-    let store_push =
-        herdr_core_chat::assemblage::store_push(config, std::env::current_dir().ok().as_deref())?;
+    // 4) Les notifications : notre store (`~/.herdr-core-chat/push.json`),
+    //    jamais celui d'Herdr Chat, et les clés VAPID de l'environnement
+    //    (E08) composés par `assemblage::store_push`.
+    let store_push = herdr_core_chat::assemblage::store_push(config)?;
     // UNE livraison réelle, partagée par le port (H15/H16) et le notifieur de
     // la veille — le `sub` du JWT est le sujet configuré.
     let livraison =

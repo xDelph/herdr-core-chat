@@ -67,7 +67,7 @@ fn un_fichier_corrompu_est_une_panne_nommee() {
 fn le_chemin_par_defaut_est_a_cote_du_magasin_push() {
     let mut env = HashMap::new();
     env.insert(
-        String::from("HERDR_REMOTE_PUSH_STORE"),
+        String::from("HERDR_CORE_CHAT_PUSH_STORE"),
         String::from("/etat/herdr/push.json"),
     );
     let config = config_depuis_avec(&env, Path::new("/foyer"), &SansTailscale)
@@ -77,7 +77,7 @@ fn le_chemin_par_defaut_est_a_cote_du_magasin_push() {
         PathBuf::from("/etat/herdr/reads.json")
     );
     env.insert(
-        String::from("HERDR_REMOTE_READS_STORE"),
+        String::from("HERDR_CORE_CHAT_READS_STORE"),
         String::from("/ailleurs/lu.json"),
     );
     let config = config_depuis_avec(&env, Path::new("/foyer"), &SansTailscale)

@@ -1,5 +1,5 @@
 //! L'état partagé des handlers (T050) — les services injectés, assemblés par
-//! herdrchat (T056). Le routeur le porte comme State axum ; chaque handler
+//! herdr_core_chat (T056). Le routeur le porte comme State axum ; chaque handler
 //! prend ce qu'il lui faut.
 //!
 //! ⚠️ **Aucun service n'est monté ici** : les lecteurs de session et la

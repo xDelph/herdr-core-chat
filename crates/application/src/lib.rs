@@ -9,14 +9,14 @@ pub mod git;
 pub mod lectures;
 pub mod observation;
 pub mod overview;
-/// Les ports du domaine, réexportés pour l'assembleur : `herdrchat` compose
+/// Les ports du domaine, réexportés pour l'assembleur : `herdr_core_chat` compose
 /// les adaptateurs mais le graphe (TECH §2) ne lui donne pas `domain`.
 pub mod ports {
     pub use domain::ports::*;
 }
 
 /// Le noyau du domaine (identités, observations, erreurs) réexporté pour
-/// l'assembleur : `herdrchat` compose mais le graphe ne lui donne pas
+/// l'assembleur : `herdr_core_chat` compose mais le graphe ne lui donne pas
 /// `domain` directement.
 pub mod noyau {
     pub use domain::errors::{ErreurDomaine, PortError};

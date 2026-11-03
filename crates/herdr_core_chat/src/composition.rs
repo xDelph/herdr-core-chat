@@ -23,7 +23,7 @@ use application::overview::ResoutSessions;
 use application::refresh::{MaintenantReelle, ServiceSnapshots, SourceMaintenant};
 use application::types_installes::InventaireTypes;
 // Les ports du domaine sont nommés par `application` (réexport) : le graphe
-// n'autorise pas `herdrchat → domain`.
+// n'autorise pas `herdr_core_chat → domain`.
 use application::ports::{ArtifactPort, CatalogPort, ControlPort, NotificationPort, SessionPort};
 use http_api::assets::FournisseurAssets;
 use http_api::services::Services;

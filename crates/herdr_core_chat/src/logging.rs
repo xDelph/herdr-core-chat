@@ -7,7 +7,7 @@
 //!
 //! ⚠️ **Le chemin est injecté** (jamais une constante globale) : un test qui
 //! écrivait dans le journal de l'utilisateur est exactement le défaut A03
-//! qu'on ne reproduit pas. Le démon choisit `~/.herdr-remote/herdr-remote.log`.
+//! qu'on ne reproduit pas. Le démon choisit `~/.herdr-core-chat/herdr-core-chat.log`.
 //!
 //! ⚠️ **Borné en taille** (4 MiB) : une génération précédente est gardée
 //! (`.1`), la plus ancienne est écrasée. Un journal ne remplit pas le disque.
@@ -170,13 +170,14 @@ impl SinkDiagnostic for Journal {
     }
 }
 
-/// Le journal par défaut : `~/.herdr-remote/herdr-remote.log` — à côté des
-/// données de l'instance, jamais dans le dossier courant (A03).
+/// Le journal par défaut : `~/.herdr-core-chat/herdr-core-chat.log` — à
+/// côté des données de l'instance, jamais dans le dossier courant (A03), et
+/// jamais celui d'Herdr Chat (`~/.herdr-remote/`).
 #[must_use]
 pub fn journal_par_defaut(dossier_maison: &str) -> PathBuf {
     PathBuf::from(dossier_maison)
-        .join(".herdr-remote")
-        .join("herdr-remote.log")
+        .join(crate::config::DOSSIER_DONNEES)
+        .join("herdr-core-chat.log")
 }
 
 /// L'instant courant en millisecondes depuis l'époque — la seule lecture
