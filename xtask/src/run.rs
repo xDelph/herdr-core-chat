@@ -345,9 +345,9 @@ pub fn final_gate(root: &Path) -> Result<(), String> {
     let binaire = std::fs::read_dir(root.join("dist"))
         .map_err(|e| format!("dist/ : {e}"))?
         .filter_map(Result::ok)
-        .map(|entree| entree.path().join("herdrchat"))
+        .map(|entree| entree.path().join("herdr-core-chat"))
         .find(|chemin| chemin.is_file())
-        .ok_or_else(|| String::from("aucun binaire herdrchat dans dist/"))?;
+        .ok_or_else(|| String::from("aucun binaire herdr-core-chat dans dist/"))?;
     let mut c = Command::new(&binaire);
     c.env_clear().env("PATH", "/usr/bin:/bin").arg("--version");
     spawn_checked(&mut c, "binaire empaqueté --version (PATH réduit)")?;

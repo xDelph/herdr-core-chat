@@ -5,7 +5,7 @@
 //!   cargo run --locked -p xtask -- graph             # member graph door only
 //!   cargo run --locked -p xtask -- coverage          # parity matrix (T064)
 //!   cargo run --locked -p xtask -- final-gate        # verify + bun + release build (T069)
-//!   cargo run --locked -p xtask -- fixture-daemon    # herdrchat on fake Herdr (T067)
+//!   cargo run --locked -p xtask -- fixture-daemon    # herdr-core-chat on fake Herdr (T067)
 //!   cargo run --locked -p xtask -- release [--target <triple>]   # T066
 //!
 //! Optional `--root <dir>` runs the doors against another checkout (used by

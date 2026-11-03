@@ -19,7 +19,8 @@ fn main() {
     // variable existe pour pouvoir PROUVER que la porte échoue (un `cargo
     // build --release` complet est trop lent pour être une preuve courante).
     let profil = std::env::var("PROFILE").unwrap_or_default();
-    let exige = profil == "release" || std::env::var("HERDRCHAT_REQUIRE_PWA").as_deref() == Ok("1");
+    let exige =
+        profil == "release" || std::env::var("HERDR_CORE_CHAT_REQUIRE_PWA").as_deref() == Ok("1");
     if index.exists() {
         println!("cargo:rustc-cfg=pwa_build");
         let fichiers = collecte(&dist);

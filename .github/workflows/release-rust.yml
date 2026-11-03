@@ -1,4 +1,4 @@
-# Publie les binaires Rust de Herdr Chat (T066, T068).
+# Publie les binaires Rust de Herdr Core Chat (T066, T068).
 #
 # ⚠️ **Seul chemin de publication.** L'ancien `release.yml` (tarball du démon
 # TS lancé par Bun) est retiré à T068 : une étiquette `v*` ne produit plus que
@@ -113,7 +113,7 @@ jobs:
 
       - name: le manifeste déclare la PWA embarquée
         run: |
-          manifeste="dist/herdr-chat-${{ matrix.etiquette }}/manifest.json"
+          manifeste="dist/herdr-core-chat-${{ matrix.etiquette }}/manifest.json"
           cat "$manifeste"
           grep -q '"validee": true' "$manifeste"
           if grep -q '"pwa_embarquee": 0' "$manifeste"; then
@@ -126,17 +126,17 @@ jobs:
         # pas échouerait ici — c'est exactement la propriété à prouver.
         run: |
           env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" \
-            ./dist/herdr-chat-${{ matrix.etiquette }}/herdr-core-chat --version
+            ./dist/herdr-core-chat-${{ matrix.etiquette }}/herdr-core-chat --version
 
       - name: il sert HTTP et la PWA quand Herdr est absent
         run: |
           hote="$(printf '%s.%s.%s.%s' 127 0 0 1)"
           env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" \
-            HERDR_SOCKET_PATH="$RUNNER_TEMP/absent.sock" \
-            HERDR_REMOTE_BIND="$hote" HERDR_REMOTE_PORT=8799 \
-            HERDR_REMOTE_LOG_PATH="$RUNNER_TEMP/x.log" \
-            HERDR_REMOTE_PUSH_STORE="$RUNNER_TEMP/p.json" \
-            ./dist/herdr-chat-${{ matrix.etiquette }}/herdr-core-chat &
+            HERDR_CORE_CHAT_SOCKET="$RUNNER_TEMP/absent.sock" \
+            HERDR_CORE_CHAT_BIND="$hote" HERDR_CORE_CHAT_PORT=8799 \
+            HERDR_CORE_CHAT_LOG_PATH="$RUNNER_TEMP/x.log" \
+            HERDR_CORE_CHAT_PUSH_STORE="$RUNNER_TEMP/p.json" \
+            ./dist/herdr-core-chat-${{ matrix.etiquette }}/herdr-core-chat &
           pid=$!
           code=000
           for _ in $(seq 1 30); do
@@ -155,9 +155,9 @@ jobs:
       - name: aucun OpenSSL système dans les liens
         run: |
           if [ "${{ runner.os }}" = "macOS" ]; then
-            liens=$(otool -L dist/herdr-chat-${{ matrix.etiquette }}/herdr-core-chat)
+            liens=$(otool -L dist/herdr-core-chat-${{ matrix.etiquette }}/herdr-core-chat)
           else
-            liens=$(ldd dist/herdr-chat-${{ matrix.etiquette }}/herdr-core-chat)
+            liens=$(ldd dist/herdr-core-chat-${{ matrix.etiquette }}/herdr-core-chat)
           fi
           echo "$liens"
           if echo "$liens" | grep -qE 'libssl|libcrypto'; then
@@ -167,10 +167,10 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: herdr-chat-${{ matrix.etiquette }}
+          name: herdr-core-chat-${{ matrix.etiquette }}
           path: |
-            dist/herdr-chat-${{ matrix.etiquette }}.tar.gz
-            dist/herdr-chat-${{ matrix.etiquette }}.tar.gz.sha256
+            dist/herdr-core-chat-${{ matrix.etiquette }}.tar.gz
+            dist/herdr-core-chat-${{ matrix.etiquette }}.tar.gz.sha256
           if-no-files-found: error
 
   publication:
@@ -185,7 +185,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: herdr-chat-*
+          pattern: herdr-core-chat-*
           path: dist
           merge-multiple: true
 
@@ -194,16 +194,16 @@ jobs:
         run: |
           ls -l
           for etiquette in macos-arm64 macos-x86_64 linux-x86_64 linux-aarch64; do
-            test -f "herdr-chat-$etiquette.tar.gz"
-            sha256sum -c "herdr-chat-$etiquette.tar.gz.sha256"
+            test -f "herdr-core-chat-$etiquette.tar.gz"
+            sha256sum -c "herdr-core-chat-$etiquette.tar.gz.sha256"
           done
-          cat herdr-chat-*.tar.gz.sha256 > SHA256SUMS
+          cat herdr-core-chat-*.tar.gz.sha256 > SHA256SUMS
           cat SHA256SUMS
 
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/herdr-chat-*.tar.gz
-            dist/herdr-chat-*.tar.gz.sha256
+            dist/herdr-core-chat-*.tar.gz
+            dist/herdr-core-chat-*.tar.gz.sha256
             dist/SHA256SUMS
           generate_release_notes: true

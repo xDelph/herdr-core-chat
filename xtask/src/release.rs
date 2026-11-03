@@ -68,20 +68,23 @@ pub fn assemble(racine: &Path, cible: &str, exiger_natif: bool) -> Result<PathBu
         ));
     }
 
-    // 1) Le build : **avec** la PWA. `HERDRCHAT_REQUIRE_PWA=1` fait échouer le
+    // 1) Le build : **avec** la PWA. `HERDR_CORE_CHAT_REQUIRE_PWA=1` fait échouer le
     //    build si `apps/web/dist` manque (porte prouvée capable d'échouer, T054).
     let statut = Command::new("cargo")
         .current_dir(racine)
-        .args(["build", "--release", "--locked", "-p", "herdrchat"])
+        .args(["build", "--release", "--locked", "-p", "herdr_core_chat"])
         .arg("--target")
         .arg(cible)
-        .env("HERDRCHAT_REQUIRE_PWA", "1")
+        .env("HERDR_CORE_CHAT_REQUIRE_PWA", "1")
         .status()
         .map_err(|cause| format!("cargo build : {cause}"))?;
     if !statut.success() {
         return Err(format!("le build de {cible} a échoué"));
     }
-    let binaire = racine.join("target").join(cible).join("release/herdrchat");
+    let binaire = racine
+        .join("target")
+        .join(cible)
+        .join("release/herdr-core-chat");
     if !binaire.is_file() {
         return Err(format!(
             "binaire absent après build : {}",
@@ -103,19 +106,22 @@ pub fn assemble(racine: &Path, cible: &str, exiger_natif: bool) -> Result<PathBu
     // 3) Le dossier de livraison.
     let dist = racine.join("dist");
     std::fs::create_dir_all(&dist).map_err(|cause| format!("dist : {cause}"))?;
-    let dossier = dist.join(format!("herdr-chat-{etiquette}"));
+    let dossier = dist.join(format!("herdr-core-chat-{etiquette}"));
     let _ = std::fs::remove_dir_all(&dossier);
     std::fs::create_dir_all(&dossier).map_err(|cause| format!("dossier de livraison : {cause}"))?;
-    copie(&binaire, &dossier.join("herdrchat"))?;
+    copie(&binaire, &dossier.join("herdr-core-chat"))?;
     copie(&racine.join("LICENSE"), &dossier.join("LICENSE"))?;
     copie(&racine.join("README.md"), &dossier.join("README.md"))?;
     // Le service et la formule sont **préparés**, pas publiés (T066).
     for (source, nom) in [
         (
-            racine.join("packaging/herdr-chat.service"),
-            "herdr-chat.service",
+            racine.join("packaging/herdr-core-chat.service"),
+            "herdr-core-chat.service",
         ),
-        (racine.join("packaging/herdr-chat.rb"), "herdr-chat.rb"),
+        (
+            racine.join("packaging/herdr-core-chat.rb"),
+            "herdr-core-chat.rb",
+        ),
     ] {
         if source.is_file() {
             copie(&source, &dossier.join(nom))?;
@@ -135,8 +141,8 @@ pub fn assemble(racine: &Path, cible: &str, exiger_natif: bool) -> Result<PathBu
         "rustc": sortie("rustc", &["-vV"]),
         "cargo": sortie("cargo", &["--version"]),
         "binaire": {
-            "octets": std::fs::metadata(dossier.join("herdrchat")).map(|m| m.len()).unwrap_or(0),
-            "sha256": std::fs::read(dossier.join("herdrchat")).map(|c| empreinte_sha256(&c)).unwrap_or_default(),
+            "octets": std::fs::metadata(dossier.join("herdr-core-chat")).map(|m| m.len()).unwrap_or(0),
+            "sha256": std::fs::read(dossier.join("herdr-core-chat")).map(|c| empreinte_sha256(&c)).unwrap_or_default(),
         },
         "liens": liens,
         "pwa_embarquee": std::fs::read_dir(racine.join("apps/web/dist"))
@@ -154,7 +160,7 @@ pub fn assemble(racine: &Path, cible: &str, exiger_natif: bool) -> Result<PathBu
     .map_err(|cause| format!("écriture du manifeste : {cause}"))?;
 
     // 5) L'archive et son empreinte.
-    let archive = dist.join(format!("herdr-chat-{etiquette}.tar.gz"));
+    let archive = dist.join(format!("herdr-core-chat-{etiquette}.tar.gz"));
     let statut = Command::new("tar")
         .current_dir(&dossier)
         .args(["-czf"])

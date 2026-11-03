@@ -14,7 +14,7 @@
 //!
 //! - `proven` — au moins une preuve passe par la composition réelle : le
 //!   routeur composé (`crates/http-api/tests/`), le démon assemblé
-//!   (`crates/herdrchat/tests/`) ou, pour les corrections du front, les
+//!   (`crates/herdr_core_chat/tests/`) ou, pour les corrections du front, les
 //!   modules de la PWA (`apps/web/tests/`) ;
 //! - `unit-only` — le code est branché dans le démon, mais seule une preuve
 //!   de composant existe : la composition n'est pas prouvée ;

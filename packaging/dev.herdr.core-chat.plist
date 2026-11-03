@@ -1,28 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  LaunchAgent de Herdr Chat (démon Rust `herdrchat`) — GABARIT, non installé.
+  LaunchAgent de Herdr Core Chat (démon `herdr-core-chat`) — GABARIT, non
+  installé. La distribution cible est `brew services` (AGENTS §1.9) ; ce
+  gabarit ne sert qu'à une installation par archive.
 
-  Destination : ~/Library/LaunchAgents/dev.herdr.chat.plist
-  Procédure, contrôles et retour arrière : docs/BASCULE.md (§5 option B).
+  Destination : ~/Library/LaunchAgents/dev.herdr.core-chat.plist
   Rien ici n'est chargé automatiquement.
 
   ⚠️ Remplacer les trois marqueurs avant usage :
-     __HERDRCHAT_BIN__  chemin absolu du binaire (ex. /Users/<moi>/.local/bin/herdrchat)
+     __BIN__            chemin absolu du binaire (ex. /Users/<moi>/.local/bin/herdr-core-chat)
      __HOME__           le HOME de l'utilisateur (launchd ne développe pas `~`)
-     __LOG_DIR__        ex. /Users/<moi>/Library/Logs/herdr-chat (à créer avant le chargement)
+     __LOG_DIR__        ex. /Users/<moi>/Library/Logs/herdr-core-chat (à créer avant le chargement)
 
   ⚠️ Agent UTILISATEUR (gui/<uid>), jamais un LaunchDaemon système : le démon
-  lit les sessions de l'utilisateur et le socket Herdr de son HOME.
+  lit les sessions de l'utilisateur et le socket herdr-core de son HOME.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>dev.herdr.chat</string>
+  <string>dev.herdr.core-chat</string>
 
   <key>ProgramArguments</key>
   <array>
-    <string>__HERDRCHAT_BIN__</string>
+    <string>__BIN__</string>
   </array>
 
   <key>WorkingDirectory</key>
@@ -36,20 +37,21 @@
          fois au démarrage pour dériver l'origine publique autorisée. -->
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-    <!-- Mêmes noms et mêmes valeurs que l'ancien service TS : seul le binaire change. -->
-    <key>HERDR_REMOTE_BIND</key>
+    <!-- Rien de commun avec Herdr Chat (port 8791, ~/.herdr-remote/) : les deux tournent ensemble. -->
+    <key>HERDR_CORE_CHAT_BIND</key>
     <string>127.0.0.1</string>
-    <key>HERDR_REMOTE_PORT</key>
-    <string>8791</string>
-    <key>HERDR_REMOTE_LOG_PATH</key>
-    <string>__HOME__/.herdr-remote/herdr-remote.log</string>
-    <key>HERDR_REMOTE_PUSH_STORE</key>
-    <string>__HOME__/.herdr-remote/push.json</string>
-    <!-- Facultatifs, à décommenter seulement s'ils étaient définis pour l'ancien service :
-    <key>HERDR_SOCKET_PATH</key>
-    <string>__HOME__/.config/herdr/herdr.sock</string>
-    <key>HERDR_REMOTE_PUBLIC_ORIGINS</key>
-    <string>https://machine.tailnet.ts.net:8790</string>
+    <key>HERDR_CORE_CHAT_PORT</key>
+    <string>8792</string>
+    <key>HERDR_CORE_CHAT_LOG_PATH</key>
+    <string>__HOME__/.herdr-core-chat/herdr-core-chat.log</string>
+    <key>HERDR_CORE_CHAT_PUSH_STORE</key>
+    <string>__HOME__/.herdr-core-chat/push.json</string>
+    <!-- Facultatifs (défauts : la session herdr-core « default », origines lues
+         dans `tailscale serve status`) :
+    <key>HERDR_CORE_CHAT_SOCKET</key>
+    <string>__HOME__/.local/state/herdr-core/default/default.sock</string>
+    <key>HERDR_CORE_CHAT_PUBLIC_ORIGINS</key>
+    <string>https://machine.tailnet.ts.net</string>
     -->
   </dict>
 
