@@ -23,14 +23,15 @@
 import type { AgentStatus, ConversationSummary } from "@herdr-remote/shared";
 import { attenteDeTaches } from "./taches.ts";
 
-export const SECTIONS = ["a-traiter", "en-cours", "recents"] as const;
+export const SECTIONS = ["a-traiter", "en-cours", "done", "idle"] as const;
 export type Section = (typeof SECTIONS)[number];
 
 /** Libellés exacts, utilisés par l'interface. */
 export const SECTION_LABEL: Record<Section, string> = {
   "a-traiter": "Needs you",
   "en-cours": "Working",
-  recents: "Recent",
+  idle: "Idle",
+  done: "Done",
 };
 
 /**
@@ -56,14 +57,14 @@ export const sectionOf = (status: AgentStatus): Section => {
       questions sous des réponses à lire.
     */
     case "done":
-      return "recents";
+      return "done";
     case "idle":
     case "unknown":
-      return "recents";
+      return "idle";
     default:
       // Un statut hors union ne doit pas disparaître de la liste : il rejoint
       // les récents, qui affichent tout.
-      return "recents";
+      return "idle";
   }
 };
 
@@ -76,7 +77,7 @@ export const sectionOf = (status: AgentStatus): Section => {
  */
 export const sectionDe = (conversation: ConversationSummary): Section => {
   const section = sectionOf(conversation.status);
-  return section === "recents" && attenteDeTaches(conversation.tachesDeFond) !== null
+  return (section === "idle" || section === "done") && attenteDeTaches(conversation.tachesDeFond) !== null
     ? "en-cours"
     : section;
 };

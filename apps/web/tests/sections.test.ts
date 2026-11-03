@@ -50,10 +50,10 @@ describe("U04 — un pane apparaît une fois", () => {
   test("chaque statut tombe dans sa section", () => {
     expect(sectionOf("blocked")).toBe("a-traiter");
     expect(sectionOf("working")).toBe("en-cours");
-    expect(sectionOf("idle")).toBe("recents");
+    expect(sectionOf("idle")).toBe("idle");
     // `done` se lit (point « non lu » des récents), il ne se tranche pas.
-    expect(sectionOf("done")).toBe("recents");
-    expect(sectionOf("unknown")).toBe("recents");
+    expect(sectionOf("done")).toBe("done");
+    expect(sectionOf("unknown")).toBe("idle");
   });
 
   test("un agent bloqué n'apparaît qu'une fois, même s'il travaille aussi", () => {
@@ -63,7 +63,7 @@ describe("U04 — un pane apparaît une fois", () => {
     const entrees = sectionConversations([ligne("w1:p1", "blocked", 100)]);
     expect(dans(entrees, "a-traiter")).toEqual(["w1:p1"]);
     expect(dans(entrees, "en-cours")).toEqual([]);
-    expect(dans(entrees, "recents")).toEqual([]);
+    expect(dans(entrees, "idle")).toEqual([]);
   });
 
   test("chaque pane est dans exactement une section", () => {
@@ -76,11 +76,12 @@ describe("U04 — un pane apparaît une fois", () => {
     ]);
     const total = entrees.reduce((somme, entree) => somme + entree.conversations.length, 0);
     expect(total).toBe(5);
-    // `blocked` attend une décision ; `working` progresse ; `idle`, `done` et
-    // `unknown` se lisent dans les récents.
+    // `blocked` attend une décision ; `working` progresse ; `idle` et `unknown`
+    // se lisent dans les idle ; `done` dans done.
     expect(countOf(entrees, "a-traiter")).toBe(1);
     expect(countOf(entrees, "en-cours")).toBe(1);
-    expect(countOf(entrees, "recents")).toBe(3);
+    expect(countOf(entrees, "idle")).toBe(2);
+    expect(countOf(entrees, "done")).toBe(1);
   });
 });
 
@@ -91,7 +92,7 @@ describe("U04 — tri dans chaque section", () => {
       ligne("w1:p2", "idle", 300),
       ligne("w1:p3", "idle", 200),
     ]);
-    expect(dans(entrees, "recents")).toEqual(["w1:p2", "w1:p3", "w1:p1"]);
+    expect(dans(entrees, "idle")).toEqual(["w1:p2", "w1:p3", "w1:p1"]);
   });
 
   /**
@@ -105,7 +106,7 @@ describe("U04 — tri dans chaque section", () => {
       ligne("w1:recent", "idle", 300),
       ligne("w1:moyen", "idle", 200),
     ]);
-    expect(dans(entrees, "recents")).toEqual(["w1:recent", "w1:moyen", "w1:sans-date"]);
+    expect(dans(entrees, "idle")).toEqual(["w1:recent", "w1:moyen", "w1:sans-date"]);
   });
 
   test("deux lignes sans horodatage : paneId croissant", () => {
@@ -114,7 +115,7 @@ describe("U04 — tri dans chaque section", () => {
       ligne("w1:p2", "idle"),
       ligne("w1:p5", "idle"),
     ]);
-    expect(dans(entrees, "recents")).toEqual(["w1:p2", "w1:p5", "w1:p9"]);
+    expect(dans(entrees, "idle")).toEqual(["w1:p2", "w1:p5", "w1:p9"]);
   });
 
   test("à horodatage égal, paneId croissant — donc tri déterministe", () => {
@@ -123,7 +124,7 @@ describe("U04 — tri dans chaque section", () => {
       ligne("w1:p2", "idle", 500),
       ligne("w1:p5", "idle", 500),
     ]);
-    expect(dans(entrees, "recents")).toEqual(["w1:p2", "w1:p5", "w1:p9"]);
+    expect(dans(entrees, "idle")).toEqual(["w1:p2", "w1:p5", "w1:p9"]);
   });
 
   test("le tri ne modifie pas le tableau d'entrée", () => {
@@ -137,8 +138,8 @@ describe("U04 — tri dans chaque section", () => {
 describe("U04 — l'ordre par nom", () => {
   test("le défaut reste le plus récent — on ne change pas la règle en silence", () => {
     const source = [ligne("w1:p1", "idle", 100), ligne("w1:p2", "idle", 300)];
-    expect(dans(sectionConversations(source), "recents")).toEqual(["w1:p2", "w1:p1"]);
-    expect(dans(sectionConversations(source, "recent"), "recents")).toEqual(["w1:p2", "w1:p1"]);
+    expect(dans(sectionConversations(source), "idle")).toEqual(["w1:p2", "w1:p1"]);
+    expect(dans(sectionConversations(source, "recent"), "idle")).toEqual(["w1:p2", "w1:p1"]);
   });
 
   test("par nom : ordre alphabétique, quelle que soit la date", () => {
@@ -147,7 +148,7 @@ describe("U04 — l'ordre par nom", () => {
       ligne("w1:p2", "idle", 100, "alpha"),
       ligne("w1:p3", "idle", 200, "midi"),
     ];
-    expect(dans(sectionConversations(source, "nom"), "recents")).toEqual([
+    expect(dans(sectionConversations(source, "nom"), "idle")).toEqual([
       "w1:p2",
       "w1:p3",
       "w1:p1",
@@ -158,12 +159,12 @@ describe("U04 — l'ordre par nom", () => {
     // « Émile » doit se ranger à « e », pas après « z » : sinon la liste paraît
     // rangée alors qu'elle ne l'est pas.
     const source = [ligne("w1:p1", "idle", 1, "Émile"), ligne("w1:p2", "idle", 1, "zoe")];
-    expect(dans(sectionConversations(source, "nom"), "recents")).toEqual(["w1:p1", "w1:p2"]);
+    expect(dans(sectionConversations(source, "nom"), "idle")).toEqual(["w1:p1", "w1:p2"]);
   });
 
   test("à nom égal, paneId croissant — l'ordre reste déterministe", () => {
     const source = [ligne("w1:p9", "idle", 1), ligne("w1:p2", "idle", 2)];
-    expect(dans(sectionConversations(source, "nom"), "recents")).toEqual(["w1:p2", "w1:p9"]);
+    expect(dans(sectionConversations(source, "nom"), "idle")).toEqual(["w1:p2", "w1:p9"]);
   });
 
   test("changer l'ordre ne change AUCUNE répartition", () => {
@@ -176,7 +177,7 @@ describe("U04 — l'ordre par nom", () => {
     ];
     for (const ordre of ["recent", "nom"] as const) {
       const entrees = sectionConversations(source, ordre);
-      expect(entrees.map((e) => e.cle)).toEqual([...SECTIONS]);
+      expect(entrees.map((e) => e.cle)).toEqual(["a-traiter", "en-cours", "idle"]);
       expect(entrees.map((e) => e.conversations.length)).toEqual([1, 1, 1]);
     }
   });
@@ -213,7 +214,8 @@ describe("U04 — structure et libellés", () => {
   test("chaque section a un libellé exact", () => {
     expect(SECTION_LABEL["a-traiter"]).toBe("Needs you");
     expect(SECTION_LABEL["en-cours"]).toBe("Working");
-    expect(SECTION_LABEL["recents"]).toBe("Recent");
+    expect(SECTION_LABEL["idle"]).toBe("Idle");
+    expect(SECTION_LABEL["done"]).toBe("Done");
   });
 
   test("la réponse est stable à conversation identique", () => {
@@ -232,7 +234,7 @@ describe("une section vide ne s'affiche pas", () => {
     // rien fait chercher ce qui manque, et use le mot pour le jour où il compte.
     const sections = sectionConversations([ligne("w1:p1", "idle", 1_000)], "recent");
 
-    expect(sections.map((entree) => entree.cle)).toEqual(["recents"]);
+    expect(sections.map((entree) => entree.cle)).toEqual(["idle"]);
   });
 
   test("sans agent au travail, « En cours » disparaît", () => {
