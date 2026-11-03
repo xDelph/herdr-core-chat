@@ -195,6 +195,7 @@ fn working_vers_tout_autre_statut_notifie() {
         AgentStatus::Idle,
         AgentStatus::Blocked,
         AgentStatus::Done,
+        AgentStatus::Error,
         AgentStatus::Unknown,
     ] {
         assert!(
@@ -209,6 +210,35 @@ fn working_vers_tout_autre_statut_notifie() {
         ),
         "working → working ne notifie pas"
     );
+}
+
+#[test]
+fn entrer_en_blocked_ou_en_error_notifie_meme_depuis_le_repos() {
+    // herdr-core : une question peut arriver d'un agent `idle` (aucun passage
+    // par `working` observé entre deux tours).
+    for depuis in [AgentStatus::Idle, AgentStatus::Done, AgentStatus::Unknown] {
+        for cible in [AgentStatus::Blocked, AgentStatus::Error] {
+            assert!(
+                faut_notifier(Some(depuis), CibleDeChangement::Statut(cible)),
+                "{depuis} → {cible} doit notifier"
+            );
+        }
+    }
+    // Pas au premier tour (aucun état connu) : pas de rafale au démarrage.
+    assert!(!faut_notifier(
+        None,
+        CibleDeChangement::Statut(AgentStatus::Blocked)
+    ));
+    // Ni en restant dans le même état.
+    assert!(!faut_notifier(
+        Some(AgentStatus::Error),
+        CibleDeChangement::Statut(AgentStatus::Error)
+    ));
+    // Une fin de repos à repos reste silencieuse.
+    assert!(!faut_notifier(
+        Some(AgentStatus::Idle),
+        CibleDeChangement::Statut(AgentStatus::Done)
+    ));
 }
 
 #[test]

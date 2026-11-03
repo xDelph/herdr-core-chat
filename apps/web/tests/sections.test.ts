@@ -49,6 +49,8 @@ const dans = (
 describe("U04 — un pane apparaît une fois", () => {
   test("chaque statut tombe dans sa section", () => {
     expect(sectionOf("blocked")).toBe("a-traiter");
+    // `error` (herdr-core) : le programme attend l'utilisateur.
+    expect(sectionOf("error")).toBe("a-traiter");
     expect(sectionOf("working")).toBe("en-cours");
     expect(sectionOf("idle")).toBe("idle");
     // `done` se lit (point « non lu » des récents), il ne se tranche pas.
@@ -520,5 +522,13 @@ describe("U18 — l'attention passe avant le rangement", () => {
 
   test("une liste vide ne rend aucun groupe", () => {
     expect(grouperAttentionPuisProjet([], "recent", nomDeProjet)).toEqual([]);
+  });
+});
+
+describe("statut error (herdr-core)", () => {
+  test("a son mot, distinct de « Needs you »", async () => {
+    const { LIBELLE_STATUT } = await import("../src/libelles.ts");
+    expect(LIBELLE_STATUT.error).toBe("Error");
+    expect(LIBELLE_STATUT.error).not.toBe(LIBELLE_STATUT.blocked);
   });
 });

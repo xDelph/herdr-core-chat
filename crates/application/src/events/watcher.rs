@@ -329,7 +329,9 @@ impl Veilleur {
 /// Un agent qui `working` ou qui `blocked` disparaît, c'est un travail
 /// interrompu ou une question qui n'attend plus ; `idle`/`done` qu'on ferme
 /// est une fin normale. Un agent qui passe de `working` à autre chose a fini
-/// ou demande de l'attention.
+/// ou demande de l'attention. Un agent qui entre en `blocked` ou en `error`
+/// depuis n'importe quel état demande l'utilisateur (herdr-core : la
+/// question peut arriver d'un agent au repos).
 #[must_use]
 pub fn faut_notifier(de: Option<AgentStatus>, a: CibleDeChangement) -> bool {
     match a {
@@ -337,7 +339,9 @@ pub fn faut_notifier(de: Option<AgentStatus>, a: CibleDeChangement) -> bool {
             matches!(de, Some(AgentStatus::Working | AgentStatus::Blocked))
         }
         CibleDeChangement::Statut(a) => {
-            de == Some(AgentStatus::Working) && a != AgentStatus::Working
+            let attention = matches!(a, AgentStatus::Blocked | AgentStatus::Error);
+            (de == Some(AgentStatus::Working) && a != AgentStatus::Working)
+                || (attention && de.is_some() && de != Some(a))
         }
     }
 }

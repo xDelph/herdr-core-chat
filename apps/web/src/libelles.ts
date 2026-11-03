@@ -9,6 +9,7 @@ import type { AgentStatus } from "@herdr-remote/shared";
 export const LIBELLE_STATUT: Record<AgentStatus, string> = {
   blocked: "Needs you",
   done: "Done",
+  error: "Error",
   idle: "Idle",
   unknown: "Unknown",
   working: "Working",

@@ -26,8 +26,8 @@ export const AgentModel = Schema.Struct({
 });
 export type AgentModel = typeof AgentModel.Type;
 
-/** État d'un agent : `idle | working | blocked | done | unknown`. */
-export const AgentStatus = Schema.Literals(["idle", "working", "blocked", "done", "unknown"]);
+/** État d'un agent : `idle | working | blocked | done | error | unknown`. */
+export const AgentStatus = Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]);
 export type AgentStatus = typeof AgentStatus.Type;
 
 /** Un état d'agent a changé (`event: agent_status`, mesuré — */
@@ -53,7 +53,7 @@ export const AgentView = Schema.Struct({
   "sessionId": Schema.NullOr(Schema.String),
   "sessionKind": Schema.NullOr(Schema.Literals(["id", "path"])),
   "sessionPath": Schema.NullOr(Schema.String),
-  "status": Schema.Literals(["idle", "working", "blocked", "done", "unknown"]),
+  "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
   "tabId": Schema.String,
   "tabLabel": Schema.NullOr(Schema.String),
   "tabNumber": Schema.NullOr(Schema.Number),
@@ -187,7 +187,7 @@ export const ConversationSummary = Schema.Struct({
 })),
   "readAt": Schema.optional(Schema.Number),
   "sessionState": Schema.Literals(["available", "absent", "error"]),
-  "status": Schema.Literals(["idle", "working", "blocked", "done", "unknown"]),
+  "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
   "tabId": Schema.String,
   "tabPaneCount": Schema.Number,
   "tachesDeFond": Schema.optional(Schema.Struct({
@@ -235,7 +235,7 @@ export const ConversationsResponse = Schema.Struct({
 })),
   "readAt": Schema.optional(Schema.Number),
   "sessionState": Schema.Literals(["available", "absent", "error"]),
-  "status": Schema.Literals(["idle", "working", "blocked", "done", "unknown"]),
+  "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
   "tabId": Schema.String,
   "tabPaneCount": Schema.Number,
   "tachesDeFond": Schema.optional(Schema.Struct({
@@ -469,7 +469,7 @@ export const OverviewResponse = Schema.Struct({
   "sessionId": Schema.NullOr(Schema.String),
   "sessionKind": Schema.NullOr(Schema.Literals(["id", "path"])),
   "sessionPath": Schema.NullOr(Schema.String),
-  "status": Schema.Literals(["idle", "working", "blocked", "done", "unknown"]),
+  "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
   "tabId": Schema.String,
   "tabLabel": Schema.NullOr(Schema.String),
   "tabNumber": Schema.NullOr(Schema.Number),
@@ -483,7 +483,7 @@ export const OverviewResponse = Schema.Struct({
   "withoutSession": Schema.Number,
   "workspaces": Schema.Array(Schema.Struct({
   "agentPanes": Schema.Array(Schema.String),
-  "agentStatus": Schema.NullOr(Schema.Literals(["idle", "working", "blocked", "done", "unknown"])),
+  "agentStatus": Schema.NullOr(Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")])),
   "checkoutPath": Schema.NullOr(Schema.String),
   "focused": Schema.Boolean,
   "label": Schema.NullOr(Schema.String),
@@ -766,7 +766,7 @@ export type UnsubscribeRequest = typeof UnsubscribeRequest.Type;
 /** Une ligne de workspace de l'overview (homologue de `WorkspaceViewSchema`). */
 export const WorkspaceView = Schema.Struct({
   "agentPanes": Schema.Array(Schema.String),
-  "agentStatus": Schema.NullOr(Schema.Literals(["idle", "working", "blocked", "done", "unknown"])),
+  "agentStatus": Schema.NullOr(Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")])),
   "checkoutPath": Schema.NullOr(Schema.String),
   "focused": Schema.Boolean,
   "label": Schema.NullOr(Schema.String),

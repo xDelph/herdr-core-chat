@@ -342,3 +342,18 @@ fn un_agent_disparu_en_travail_est_annonce_par_sa_derniere_vue() {
     assert_eq!(payload.tag, "gone-w1:p1");
     assert_eq!(payload.body, "un agent · tab 1 is no longer running.");
 }
+
+#[test]
+fn un_agent_en_erreur_est_annonce_comme_erreur_pas_comme_fini() {
+    use application::noyau::AgentStatus;
+
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![une_vue(AgentStatus::Working)]);
+    let tour = veilleur.tick(vec![une_vue(AgentStatus::Error)]);
+    assert_eq!(tour.changements.len(), 1);
+    let payload = notification_de_changement(&tour.changements[0], &tour.agents)
+        .unwrap_or_else(|| panic!("une erreur doit être annoncée"));
+    assert_eq!(payload.title, "Agent error");
+    assert_eq!(payload.tag, "error-w1:p1");
+    assert_eq!(payload.body, "un agent · tab 1 reported an error.");
+}

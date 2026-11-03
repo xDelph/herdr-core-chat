@@ -38,6 +38,8 @@ export const annonceDeStatut = (
       return "The agent is working.";
     case "blocked":
       return "The agent needs a decision.";
+    case "error":
+      return "The agent reported an error.";
     case "done":
     case "idle": {
       if (avant !== "working") return null;

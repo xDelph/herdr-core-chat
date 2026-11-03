@@ -32,12 +32,14 @@ export interface AgentModel {
 }
 
 /**
- * État d'un agent : `idle | working | blocked | done | unknown`.
+ * État d'un agent : `idle | working | blocked | done | error | unknown`.
  *
- * ⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un
- * fourre-tout local. Déclaré ici avec l'orthographe exacte du fil.
+ * Les cinq premiers sont les mots du programme (OSC 7501, `Status.state` de
+ * herdr-core 0.1.17 : « idle, working, done, blocked or error »).
+ * ⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont
+ * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
  */
-export type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
+export type AgentStatus = ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
 
 /**
  * Un état d'agent a changé (`event: agent_status`, mesuré —
@@ -262,12 +264,14 @@ export interface AgentView {
    */
   sessionPath: string | null;
   /**
-   * État d'un agent : `idle | working | blocked | done | unknown`.
+   * État d'un agent : `idle | working | blocked | done | error | unknown`.
    *
-   * ⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un
-   * fourre-tout local. Déclaré ici avec l'orthographe exacte du fil.
+   * Les cinq premiers sont les mots du programme (OSC 7501, `Status.state` de
+   * herdr-core 0.1.17 : « idle, working, done, blocked or error »).
+   * ⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont
+   * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
    */
-  status: "idle" | "working" | "blocked" | "done" | "unknown";
+  status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
   tabId: string;
   /**
    * Une valeur **présente** qui peut valoir null — l'homologue exact de
@@ -621,12 +625,14 @@ export interface ConversationSummary {
    */
   sessionState: "available" | "absent" | "error";
   /**
-   * État d'un agent : `idle | working | blocked | done | unknown`.
+   * État d'un agent : `idle | working | blocked | done | error | unknown`.
    *
-   * ⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un
-   * fourre-tout local. Déclaré ici avec l'orthographe exacte du fil.
+   * Les cinq premiers sont les mots du programme (OSC 7501, `Status.state` de
+   * herdr-core 0.1.17 : « idle, working, done, blocked or error »).
+   * ⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont
+   * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
    */
-  status: "idle" | "working" | "blocked" | "done" | "unknown";
+  status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
   tabId: string;
   tabPaneCount: number;
   /**
@@ -767,12 +773,14 @@ export interface ConversationsResponse {
      */
     sessionState: "available" | "absent" | "error";
     /**
-     * État d'un agent : `idle | working | blocked | done | unknown`.
+     * État d'un agent : `idle | working | blocked | done | error | unknown`.
      *
-     * ⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un
-     * fourre-tout local. Déclaré ici avec l'orthographe exacte du fil.
+     * Les cinq premiers sont les mots du programme (OSC 7501, `Status.state` de
+     * herdr-core 0.1.17 : « idle, working, done, blocked or error »).
+     * ⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont
+     * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
      */
-    status: "idle" | "working" | "blocked" | "done" | "unknown";
+    status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
     tabId: string;
     tabPaneCount: number;
     /**
@@ -1448,12 +1456,14 @@ export interface OverviewResponse {
      */
     sessionPath: string | null;
     /**
-     * État d'un agent : `idle | working | blocked | done | unknown`.
+     * État d'un agent : `idle | working | blocked | done | error | unknown`.
      *
-     * ⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un
-     * fourre-tout local. Déclaré ici avec l'orthographe exacte du fil.
+     * Les cinq premiers sont les mots du programme (OSC 7501, `Status.state` de
+     * herdr-core 0.1.17 : « idle, working, done, blocked or error »).
+     * ⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont
+     * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
      */
-    status: "idle" | "working" | "blocked" | "done" | "unknown";
+    status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
     tabId: string;
     /**
      * Une valeur **présente** qui peut valoir null — l'homologue exact de
@@ -1560,7 +1570,7 @@ export interface OverviewResponse {
      * serde sont manuels) : le schéma exporté est `anyOf [T, null]` — la
      * représentation réelle, pas la représentation par défaut étiquetée.
      */
-    agentStatus: ("idle" | "working" | "blocked" | "done" | "unknown") | null;
+    agentStatus: (("idle" | "working" | "blocked" | "done" | "unknown") | "error") | null;
     /**
      * Le chemin réel où lancer un agent — absent plutôt qu'inventé (D02).
      */
@@ -2159,7 +2169,7 @@ export interface WorkspaceView {
    * serde sont manuels) : le schéma exporté est `anyOf [T, null]` — la
    * représentation réelle, pas la représentation par défaut étiquetée.
    */
-  agentStatus: ("idle" | "working" | "blocked" | "done" | "unknown") | null;
+  agentStatus: (("idle" | "working" | "blocked" | "done" | "unknown") | "error") | null;
   /**
    * Le chemin réel où lancer un agent — absent plutôt qu'inventé (D02).
    */

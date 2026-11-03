@@ -109,10 +109,9 @@ impl SourceDeVues for SourceMemorisee {
 /// Le payload push d'un changement — `None` quand il n'y a rien à dire (E06 :
 /// on ne prévient que si quelque chose était en cours).
 ///
-/// Les trois profils du fil (`AgentWatcher.ts` → `agentFinished`) :
-/// `blocked` → « Agent needs you » (`waiting-<pane>`), disparu → « Agent
-/// stopped » (`gone-<pane>`), tout le reste → « Agent finished »
-/// (`done-<pane>`). L'agent est nommé par sa vue COURANTE, ou par sa dernière
+/// Les profils : `blocked` → « Agent needs you » (`waiting-<pane>`),
+/// `error` → « Agent error » (`error-<pane>`), disparu → « Agent stopped »
+/// (`gone-<pane>`), tout le reste → « Agent finished » (`done-<pane>`). L'agent est nommé par sa vue COURANTE, ou par sa dernière
 /// vue connue s'il a disparu.
 #[must_use]
 pub fn notification_de_changement(
@@ -125,10 +124,10 @@ pub fn notification_de_changement(
     let (statut, vue) = match changement.a {
         CibleDeChangement::Disparu => (StatutDeFin::Disparu, changement.disparu.as_ref()),
         CibleDeChangement::Statut(statut) => (
-            if statut == AgentStatus::Blocked {
-                StatutDeFin::EnAttente
-            } else {
-                StatutDeFin::Fini
+            match statut {
+                AgentStatus::Blocked => StatutDeFin::EnAttente,
+                AgentStatus::Error => StatutDeFin::Erreur,
+                _ => StatutDeFin::Fini,
             },
             vues.iter().find(|vue| vue.pane_id == changement.pane_id),
         ),

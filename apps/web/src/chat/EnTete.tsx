@@ -185,7 +185,7 @@ export const Voisins = memo(
             >
               <Marque kind={agent.agent} petite />
               <span
-                className={`etat etat--${agent.status === "working" ? "work" : agent.status === "blocked" ? "attn" : "idle"}`}
+                className={`etat etat--${agent.status === "working" ? "work" : agent.status === "blocked" || agent.status === "error" ? "attn" : "idle"}`}
               >
                 <FormeEtat status={agent.status} />
               </span>

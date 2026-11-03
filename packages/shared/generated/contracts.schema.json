@@ -70,16 +70,25 @@
     },
     "AgentStatus": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
-      "enum": [
-        "idle",
-        "working",
-        "blocked",
-        "done",
-        "unknown"
+      "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+      "oneOf": [
+        {
+          "enum": [
+            "idle",
+            "working",
+            "blocked",
+            "done",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+          "type": "string"
+        }
       ],
-      "title": "AgentStatus",
-      "type": "string"
+      "title": "AgentStatus"
     },
     "AgentStatusChanged": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -249,15 +258,24 @@
           "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
         },
         "status": {
-          "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
-          "enum": [
-            "idle",
-            "working",
-            "blocked",
-            "done",
-            "unknown"
-          ],
-          "type": "string"
+          "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+          "oneOf": [
+            {
+              "enum": [
+                "idle",
+                "working",
+                "blocked",
+                "done",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "error",
+              "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+              "type": "string"
+            }
+          ]
         },
         "tabId": {
           "type": "string"
@@ -868,15 +886,24 @@
           "type": "string"
         },
         "status": {
-          "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
-          "enum": [
-            "idle",
-            "working",
-            "blocked",
-            "done",
-            "unknown"
-          ],
-          "type": "string"
+          "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+          "oneOf": [
+            {
+              "enum": [
+                "idle",
+                "working",
+                "blocked",
+                "done",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "error",
+              "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+              "type": "string"
+            }
+          ]
         },
         "tabId": {
           "type": "string"
@@ -1105,15 +1132,24 @@
                 "type": "string"
               },
               "status": {
-                "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
-                "enum": [
-                  "idle",
-                  "working",
-                  "blocked",
-                  "done",
-                  "unknown"
-                ],
-                "type": "string"
+                "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+                "oneOf": [
+                  {
+                    "enum": [
+                      "idle",
+                      "working",
+                      "blocked",
+                      "done",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+                    "type": "string"
+                  }
+                ]
               },
               "tabId": {
                 "type": "string"
@@ -2176,15 +2212,24 @@
                 "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
               },
               "status": {
-                "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
-                "enum": [
-                  "idle",
-                  "working",
-                  "blocked",
-                  "done",
-                  "unknown"
-                ],
-                "type": "string"
+                "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+                "oneOf": [
+                  {
+                    "enum": [
+                      "idle",
+                      "working",
+                      "blocked",
+                      "done",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+                    "type": "string"
+                  }
+                ]
               },
               "tabId": {
                 "type": "string"
@@ -2296,15 +2341,24 @@
               "agentStatus": {
                 "anyOf": [
                   {
-                    "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
-                    "enum": [
-                      "idle",
-                      "working",
-                      "blocked",
-                      "done",
-                      "unknown"
-                    ],
-                    "type": "string"
+                    "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+                    "oneOf": [
+                      {
+                        "enum": [
+                          "idle",
+                          "working",
+                          "blocked",
+                          "done",
+                          "unknown"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "const": "error",
+                        "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+                        "type": "string"
+                      }
+                    ]
                   },
                   {
                     "type": "null"
@@ -3336,15 +3390,24 @@
         "agentStatus": {
           "anyOf": [
             {
-              "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
-              "enum": [
-                "idle",
-                "working",
-                "blocked",
-                "done",
-                "unknown"
-              ],
-              "type": "string"
+              "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+              "oneOf": [
+                {
+                  "enum": [
+                    "idle",
+                    "working",
+                    "blocked",
+                    "done",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "const": "error",
+                  "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+                  "type": "string"
+                }
+              ]
             },
             {
               "type": "null"

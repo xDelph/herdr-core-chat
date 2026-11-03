@@ -61,6 +61,9 @@ pub enum StatutDeFin {
     EnAttente,
     /// `gone` : l'agent n'est plus là — pas « fini ».
     Disparu,
+    /// `error` (herdr-core) : le programme s'est déclaré en erreur — pas
+    /// « fini ».
+    Erreur,
     /// Tout le reste : l'agent a fini de travailler.
     Fini,
 }
@@ -98,6 +101,7 @@ pub fn payload_de_notification(
             "An agent is waiting for your answer.",
         ),
         StatutDeFin::Disparu => corps("is no longer running.", "An agent is no longer running."),
+        StatutDeFin::Erreur => corps("reported an error.", "An agent reported an error."),
         StatutDeFin::Fini => corps("has finished working.", "Your agent has finished working."),
     };
     let tag = match pane_id {
@@ -107,6 +111,7 @@ pub fn payload_de_notification(
             match statut {
                 StatutDeFin::EnAttente => "waiting",
                 StatutDeFin::Disparu => "gone",
+                StatutDeFin::Erreur => "error",
                 StatutDeFin::Fini => "done",
             }
         ),
@@ -114,6 +119,7 @@ pub fn payload_de_notification(
     let title = match statut {
         StatutDeFin::EnAttente => "Agent needs you",
         StatutDeFin::Disparu => "Agent stopped",
+        StatutDeFin::Erreur => "Agent error",
         StatutDeFin::Fini => "Agent finished",
     };
     let url = match pane_id {

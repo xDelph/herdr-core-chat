@@ -9,10 +9,12 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// État d'un agent : `idle | working | blocked | done | unknown`.
+/// État d'un agent : `idle | working | blocked | done | error | unknown`.
 ///
-/// ⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un
-/// fourre-tout local. Déclaré ici avec l'orthographe exacte du fil.
+/// Les cinq premiers sont les mots du programme (OSC 7501, `Status.state` de
+/// herdr-core 0.1.17 : « idle, working, done, blocked or error »).
+/// ⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont
+/// le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum AgentStatus {
@@ -20,6 +22,8 @@ pub enum AgentStatus {
     Working,
     Blocked,
     Done,
+    /// Le programme s'est déclaré en erreur (`error`, herdr-core).
+    Error,
     Unknown,
 }
 
@@ -40,6 +44,7 @@ impl fmt::Display for AgentStatus {
             AgentStatus::Working => "working",
             AgentStatus::Blocked => "blocked",
             AgentStatus::Done => "done",
+            AgentStatus::Error => "error",
             AgentStatus::Unknown => "unknown",
         };
         f.write_str(texte)
@@ -68,6 +73,7 @@ pub fn statut_d_agent(raw: &str) -> Option<AgentStatus> {
         "working" => Some(AgentStatus::Working),
         "blocked" => Some(AgentStatus::Blocked),
         "done" => Some(AgentStatus::Done),
+        "error" => Some(AgentStatus::Error),
         "unknown" => Some(AgentStatus::Unknown),
         _ => None,
     }

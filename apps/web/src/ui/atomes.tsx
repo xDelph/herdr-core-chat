@@ -49,6 +49,7 @@ Marque.displayName = "Marque";
 const TON: Record<AgentStatus, string> = {
   blocked: "attn",
   done: "ok",
+  error: "attn",
   idle: "idle",
   unknown: "unknown",
   working: "work",
@@ -63,6 +64,8 @@ export const FormeEtat = ({ status }: { readonly status: AgentStatus }) => {
       return <span className="losange" aria-hidden="true" />;
     case "done":
       return <Icone nom="check" petite />;
+    case "error":
+      return <Icone nom="x" petite />;
     case "idle":
       return <span className="anneau" aria-hidden="true" />;
     default:

@@ -43,7 +43,10 @@ export const SECTION_LABEL: Record<Section, string> = {
  */
 export const sectionOf = (status: AgentStatus): Section => {
   switch (status) {
+    // `error` (herdr-core) : le programme s'est arrêté en erreur — il attend
+    // l'utilisateur autant qu'une question.
     case "blocked":
+    case "error":
       return "a-traiter";
     case "working":
       return "en-cours";

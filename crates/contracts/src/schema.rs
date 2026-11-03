@@ -18,7 +18,7 @@ use serde_json::{Map, Value, json};
 /// entre deux exports identiques.
 pub const VERSION: &str = "1.0.0";
 
-pub const TITRE: &str = "herdr-remote API";
+pub const TITRE: &str = "herdr-core-chat API";
 
 fn generateur() -> SchemaGenerator {
     let mut reglages = SchemaSettings::draft2020_12();
