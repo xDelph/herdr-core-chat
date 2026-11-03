@@ -258,10 +258,10 @@ describe("la liste suit les tâches de fond et la session", () => {
       tachesDeFond: { enCours: 1, total: 1 },
     });
     expect(sectionDe(attend)).toBe("en-cours");
-    expect(sectionDe(finies)).toBe("recents");
+    expect(sectionDe(finies)).toBe("idle");
     expect(sectionDe(bloque)).toBe("a-traiter");
     const groupes = sectionConversations([attend, finies, bloque]);
-    expect(groupes.map((groupe) => groupe.cle)).toEqual(["a-traiter", "en-cours", "recents"]);
+    expect(groupes.map((groupe) => groupe.cle)).toEqual(["a-traiter", "en-cours", "idle"]);
     expect(attenteDeTaches(attend.tachesDeFond)).toBe("Waiting on 2 background tasks");
     expect(attenteDeTaches(finies.tachesDeFond)).toBeNull();
     expect(nombreDeTaches(1)).toBe("1 background task");

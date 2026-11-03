@@ -148,11 +148,7 @@ describe("U04 — l'ordre par nom", () => {
       ligne("w1:p2", "idle", 100, "alpha"),
       ligne("w1:p3", "idle", 200, "midi"),
     ];
-    expect(dans(sectionConversations(source, "nom"), "idle")).toEqual([
-      "w1:p2",
-      "w1:p3",
-      "w1:p1",
-    ]);
+    expect(dans(sectionConversations(source, "nom"), "idle")).toEqual(["w1:p2", "w1:p3", "w1:p1"]);
   });
 
   test("l'ordre par nom ignore la casse et les accents", () => {
