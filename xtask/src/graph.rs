@@ -18,14 +18,14 @@ pub fn expected_internal_edges() -> Vec<(&'static str, Vec<&'static str>)> {
         ("contracts", vec!["domain"]),
         ("domain", vec![]),
         ("files", vec!["domain"]),
-        ("herdr-client", vec!["domain"]),
+        ("herdr-core-client", vec!["domain"]),
         (
-            "herdrchat",
+            "herdr_core_chat",
             vec![
                 "application",
                 "catalog",
                 "files",
-                "herdr-client",
+                "herdr-core-client",
                 "http-api",
                 "interactions",
                 "notifications",
