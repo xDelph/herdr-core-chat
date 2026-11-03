@@ -307,6 +307,54 @@ pub fn session_claude_par_pid(racines: &Racines, pid: u32) -> Option<String> {
     Some(session_id.to_string())
 }
 
+/// Le titre de session qu'opencode publie dans le titre du terminal :
+/// `OC | <titre>`, éventuellement précédé d'un glyphe (spinner).
+#[must_use]
+pub fn titre_de_session_opencode(titre_terminal: &str) -> Option<&str> {
+    let debut = titre_terminal.find("OC | ")?;
+    if titre_terminal[..debut].chars().any(char::is_alphanumeric) {
+        return None;
+    }
+    let titre = titre_terminal[debut + 5..].trim();
+    (!titre.is_empty()).then_some(titre)
+}
+
+/// L'identifiant de la session opencode que le terminal affiche : titre
+/// EXACT et dossier EXACT, session principale (`parent_id` nul), non
+/// archivée — et **une seule**. Deux sessions du même titre dans le même
+/// dossier : aucun fil (ambigu), jamais la plus récente.
+#[must_use]
+pub fn session_opencode_par_titre(
+    racines: &Racines,
+    titre_terminal: &str,
+    cwd: &str,
+) -> Option<String> {
+    let titre = titre_de_session_opencode(titre_terminal)?;
+    if cwd.trim().is_empty() {
+        return None;
+    }
+    let base = rusqlite::Connection::open_with_flags(
+        &racines.opencode_db,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .ok()?;
+    let mut requete = base
+        .prepare(
+            "SELECT id FROM session_v2 WHERE directory = ?1 AND title = ?2 \
+             AND parent_id IS NULL AND time_archived IS NULL LIMIT 2",
+        )
+        .ok()?;
+    let ids: Vec<String> = requete
+        .query_map(rusqlite::params![cwd, titre], |ligne| ligne.get(0))
+        .ok()?
+        .filter_map(Result::ok)
+        .collect();
+    match ids.as_slice() {
+        [id] if !id.trim().is_empty() => Some(id.clone()),
+        _ => None,
+    }
+}
+
 /// Résout un identifiant claude en chemin — cherché dans le nom du fichier
 /// (le dossier intermédiaire est le chemin de travail encodé, qui ne se
 /// déduit pas d'un identifiant : on cherche, on ne compose pas).
@@ -476,10 +524,18 @@ pub fn source_session_de(
         let id = session_claude_par_pid(&resolveur.racines, pid?)?;
         return source_session(resolveur, kind, Some(&Emplacement::nouveau("id", &id)));
     }
-    // Pi, opencode, devin : aucune preuve de lien entre un terminal et sa
-    // session sous herdr-core (AGENTS §3.6). « La plus récente du dossier »
-    // serait un fil DEVINÉ — deux agents du même dossier liraient le même :
-    // l'agent reste « sans fil » tant qu'un lien n'est pas prouvé.
+    // opencode : son titre de terminal (`OC | <titre de session>`) ET son
+    // dossier doivent désigner UNE seule session principale de sa base —
+    // deux faits indépendants qui concordent (EXÉCUTÉ : le titre + dossier de
+    // `opencode -s ses_…` rend exactement cet identifiant).
+    if kind == Some("opencode") {
+        let id = session_opencode_par_titre(&resolveur.racines, titre?, cwd?)?;
+        return source_session(resolveur, kind, Some(&Emplacement::nouveau("id", &id)));
+    }
+    // Pi, devin : aucune preuve de lien entre un terminal et sa session sous
+    // herdr-core (AGENTS §3.6). « La plus récente du dossier » serait un fil
+    // DEVINÉ — deux agents du même dossier liraient le même : l'agent reste
+    // « sans fil » tant qu'un lien n'est pas prouvé.
     if kind != Some("codex") {
         return None;
     }

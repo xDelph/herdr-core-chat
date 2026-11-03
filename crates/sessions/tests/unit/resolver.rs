@@ -514,3 +514,65 @@ fn pi_opencode_devin_restent_sans_fil_meme_avec_une_session_dans_le_dossier() {
         );
     }
 }
+
+fn base_opencode(racines: &Racines, lignes: &str) {
+    let base = match rusqlite::Connection::open(&racines.opencode_db) {
+        Ok(base) => base,
+        Err(cause) => panic!("base opencode refusée : {cause}"),
+    };
+    if let Err(cause) = base.execute_batch(&format!(
+        "CREATE TABLE session_v2 (id TEXT PRIMARY KEY, directory TEXT, title TEXT,
+                                  parent_id TEXT, time_archived INTEGER, time_updated INTEGER);
+         {lignes}"
+    )) {
+        panic!("schéma opencode refusé : {cause}");
+    }
+}
+
+fn opencode(resolveur: &Resolveur, titre: &str, cwd: &str) -> Option<String> {
+    match source_session_de(
+        resolveur,
+        Some("opencode"),
+        None,
+        Some(titre),
+        Some(cwd),
+        Some(1),
+    ) {
+        Some(sessions::resolver::SourceSession::Sqlite { session_id, .. }) => Some(session_id),
+        Some(autre) => panic!("opencode hors base : {autre:?}"),
+        None => None,
+    }
+}
+
+#[test]
+fn opencode_se_resout_par_son_titre_et_son_dossier_si_une_seule_session_concorde() {
+    let racines = racines_fake();
+    base_opencode(
+        &racines,
+        "INSERT INTO session_v2 VALUES ('ses_a', '/p', 'Fix the tests', NULL, NULL, 1);
+         INSERT INTO session_v2 VALUES ('ses_b', '/p', 'Autre chose', NULL, NULL, 9);
+         INSERT INTO session_v2 VALUES ('ses_enfant', '/p', 'Fix the tests', 'ses_a', NULL, 5);
+         INSERT INTO session_v2 VALUES ('ses_archive', '/p', 'Fix the tests', NULL, 7, 8);
+         INSERT INTO session_v2 VALUES ('ses_x', '/ailleurs', 'Fix the tests', NULL, NULL, 9);
+         INSERT INTO session_v2 VALUES ('ses_d1', '/p', 'Doublon', NULL, NULL, 1);
+         INSERT INTO session_v2 VALUES ('ses_d2', '/p', 'Doublon', NULL, NULL, 2);",
+    );
+    let resolveur = Resolveur::nouveau(racines);
+    // Le titre ET le dossier concordent, sous-session et archive écartées.
+    assert_eq!(
+        opencode(&resolveur, "OC | Fix the tests", "/p").as_deref(),
+        Some("ses_a")
+    );
+    // Un glyphe devant (spinner) est toléré, pas un mot.
+    assert_eq!(
+        opencode(&resolveur, "⠋ OC | Fix the tests", "/p").as_deref(),
+        Some("ses_a")
+    );
+    assert_eq!(opencode(&resolveur, "Note OC | Fix the tests", "/p"), None);
+    // Deux sessions du même titre : ambigu, aucun fil (jamais la plus récente).
+    assert_eq!(opencode(&resolveur, "OC | Doublon", "/p"), None);
+    // Pas le format d'opencode, autre dossier, titre inconnu : aucun fil.
+    assert_eq!(opencode(&resolveur, "Fix the tests", "/p"), None);
+    assert_eq!(opencode(&resolveur, "OC | Fix the tests", "/autre"), None);
+    assert_eq!(opencode(&resolveur, "OC | Rien", "/p"), None);
+}
