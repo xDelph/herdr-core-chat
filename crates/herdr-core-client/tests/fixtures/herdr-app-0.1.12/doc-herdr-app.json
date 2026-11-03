@@ -1,0 +1,103 @@
+{
+  "spaces": [
+    {
+      "id": "spaa71a172977601c68423a56c57e37cc0",
+      "name": "",
+      "folder": "/Users/moi/projets/projet-1",
+      "tabs": [
+        {
+          "id": "tbe426d4d62ff662aef438bf1080513c6f",
+          "name": "",
+          "root": {
+            "children": [
+              {
+                "content": {
+                  "terminal": "t1"
+                },
+                "id": "p85733eba23cdaba0811eb7bad7fb1a63",
+                "type": "block"
+              }
+            ],
+            "id": "tbe426d4d62ff662aef438bf1080513c6f",
+            "type": "row"
+          }
+        },
+        {
+          "id": "tbd1dd1c486e8cfca63ac07862933b277b",
+          "name": "",
+          "root": {
+            "children": [
+              {
+                "content": {
+                  "terminal": "t2"
+                },
+                "id": "p35f9c0dd5f3c2830223ef1a905b135f6",
+                "type": "block"
+              }
+            ],
+            "id": "tbd1dd1c486e8cfca63ac07862933b277b",
+            "type": "row"
+          }
+        },
+        {
+          "id": "tb4c8320d8dd1885c130fd234f34aeb91c",
+          "name": "",
+          "root": {
+            "children": [
+              {
+                "content": {
+                  "terminal": "t3"
+                },
+                "id": "p13a221e3bdb3a5a9963d63b91dee866d",
+                "type": "block"
+              }
+            ],
+            "id": "tb4c8320d8dd1885c130fd234f34aeb91c",
+            "type": "row"
+          }
+        }
+      ]
+    },
+    {
+      "id": "spad8a9596e52f22a78ffcbed04b655422",
+      "name": "",
+      "folder": "/Users/moi/projets/projet-2",
+      "tabs": [
+        {
+          "id": "tbd3e3cc3c9e4012d3a352a3fcab38c3ee",
+          "name": "",
+          "root": {
+            "children": [
+              {
+                "content": {
+                  "terminal": "t4"
+                },
+                "id": "pf0061975a413887fe18eea165001ec77",
+                "type": "block"
+              }
+            ],
+            "id": "tbd3e3cc3c9e4012d3a352a3fcab38c3ee",
+            "type": "row"
+          }
+        },
+        {
+          "id": "tb853acf0335da6631236c71fd4e918ff6",
+          "name": "",
+          "root": {
+            "children": [
+              {
+                "content": {
+                  "terminal": "t5"
+                },
+                "id": "p85fd0d0cfd798ecf46eb7b595ad83514",
+                "type": "block"
+              }
+            ],
+            "id": "tb853acf0335da6631236c71fd4e918ff6",
+            "type": "row"
+          }
+        }
+      ]
+    }
+  ]
+}

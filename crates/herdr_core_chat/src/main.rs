@@ -60,12 +60,12 @@ async fn main() {
 /// Le refus est **nomme** : il dit exactement quels ports manquent, et il ne
 /// cree aucun socket, n'ecrit aucun journal, ne lance aucun worker.
 async fn demarre(config: &Config) -> Result<(), String> {
-    // 1) Le contrôle : un socket absent est une cause RÉELLE, dite.
-    // 1) Le contrôle : adaptateur herdr-core (stub P0 — implémentation réelle
-    //    en P2). Aucune connexion réelle n'est tentée au démarrage.
+    // 1) Le contrôle : l'adaptateur herdr-core (une connexion par demande)
+    //    et l'état publié par Herdr.app pour les noms d'espaces et d'onglets.
     let socket_path = config.herdr_socket_path.clone();
     let controle = Arc::new(herdr_core_client::port::PortCore::nouveau(
         herdr_core_client::client::ClientCore::nouveau(&socket_path),
+        &config.etat_herdr_app_path,
     ));
     // Le port de contrôle vu par les handlers : le même objet, derrière son trait.
     let controle_port: Arc<dyn application::ports::ControlPort> = Arc::clone(&controle) as _;

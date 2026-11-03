@@ -1,5 +1,8 @@
 //! Lecture tolérante de la disposition Herdr.app (`doc` nommé `herdr-app`).
 //!
+//! ⚠️ Les causes sont **affichées** dans la PWA (espace « layout
+//! unavailable ») : elles sont en anglais (AGENTS §1.8).
+//!
 //! Le format du doc appartient à Herdr.app : on lit ce qu'on connaît, et on
 //! renvoie une cause nommée (jamais une reconstruction au hasard) si la
 //! structure est inconnue. Les noms affichés viennent du label `where` des
@@ -79,10 +82,10 @@ fn collecter_terminaux(v: &Value, out: &mut Vec<String>) {
 /// reconstruction au hasard.
 pub fn disposition_depuis(value: &Value) -> Result<Disposition, ErreurDisposition> {
     let spaces_val = value.get("spaces").ok_or_else(|| ErreurDisposition {
-        detail: "champ 'spaces' absent".into(),
+        detail: "no `spaces` field".into(),
     })?;
     let spaces_arr = spaces_val.as_array().ok_or_else(|| ErreurDisposition {
-        detail: "'spaces' n'est pas un tableau".into(),
+        detail: "`spaces` is not an array".into(),
     })?;
 
     let mut spaces = Vec::new();
@@ -91,7 +94,7 @@ pub fn disposition_depuis(value: &Value) -> Result<Disposition, ErreurDispositio
             .get("id")
             .and_then(Value::as_str)
             .ok_or_else(|| ErreurDisposition {
-                detail: format!("espace #{i} sans 'id'"),
+                detail: format!("space #{i} has no `id`"),
             })?
             .to_string();
         let name = sp
@@ -106,10 +109,10 @@ pub fn disposition_depuis(value: &Value) -> Result<Disposition, ErreurDispositio
             .to_string();
 
         let tabs_val = sp.get("tabs").ok_or_else(|| ErreurDisposition {
-            detail: format!("espace {id} sans 'tabs'"),
+            detail: format!("space {id} has no `tabs`"),
         })?;
         let tabs_arr = tabs_val.as_array().ok_or_else(|| ErreurDisposition {
-            detail: format!("'tabs' de {id} n'est pas un tableau"),
+            detail: format!("`tabs` of {id} is not an array"),
         })?;
 
         let mut onglets = Vec::new();
@@ -118,7 +121,7 @@ pub fn disposition_depuis(value: &Value) -> Result<Disposition, ErreurDispositio
                 .get("id")
                 .and_then(Value::as_str)
                 .ok_or_else(|| ErreurDisposition {
-                    detail: format!("onglet #{j} de {id} sans 'id'"),
+                    detail: format!("tab #{j} of {id} has no `id`"),
                 })?
                 .to_string();
             let tname = tb

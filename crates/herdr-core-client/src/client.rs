@@ -31,6 +31,20 @@ pub struct Terminal {
     pub parent: Option<String>,
     pub foreground_pid: Option<u32>,
     pub foreground_cwd: Option<String>,
+    /// Le nom du programme au premier plan (`foreground.name`).
+    pub foreground_name: Option<String>,
+}
+
+/// La réponse de `terminal.send` (`SendResult`, schéma 0.1.17).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnvoiCore {
+    /// Le tour au moment de l'insertion.
+    pub turn: u64,
+    /// Le mot de statut du programme à l'insertion (`null` : il n'a rien dit).
+    pub status: Option<String>,
+    /// Passé `working` dans les secondes qui suivent ; `None` : programme
+    /// sans statut, personne ne peut le dire.
+    pub started: Option<bool>,
 }
 
 #[derive(Clone, Debug)]
@@ -167,32 +181,44 @@ impl ClientCore {
                     .and_then(|f| f.get("cwd"))
                     .and_then(Value::as_str)
                     .map(String::from),
+                foreground_name: t
+                    .get("foreground")
+                    .and_then(|f| f.get("name"))
+                    .and_then(Value::as_str)
+                    .map(String::from),
             });
         }
         Ok(TerminalList { terminals: out })
     }
 
+    /// `terminal.send` : colle le texte **puis appuie sur Entrée** (il n'existe
+    /// pas d'écriture sans Entrée). Refusé (`blocked`) sur un programme
+    /// bloqué, sauf `force`.
     pub fn terminal_send(
         &mut self,
         terminal: &str,
         text: &str,
         if_state: Option<&str>,
-    ) -> Result<(u64, Option<String>, Option<bool>), ErreurTransport> {
+        force: bool,
+    ) -> Result<EnvoiCore, ErreurTransport> {
         let mut params = json!({"terminal": terminal, "text": text});
         if let Some(s) = if_state {
             params["if"] = json!(s);
         }
+        if force {
+            params["force"] = json!(true);
+        }
         let r = self.transport.appelle("terminal.send", params)?;
-        let turn = r.get("turn").and_then(Value::as_u64).unwrap_or(0);
-        let status = r.get("status").and_then(|v| {
-            if v.is_null() {
-                None
-            } else {
-                v.get("state").and_then(Value::as_str).map(String::from)
-            }
-        });
-        let started = r.get("started").and_then(Value::as_bool);
-        Ok((turn, status, started))
+        let turn = r
+            .get("turn")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| ErreurTransport::EnveloppeInvalide("terminal.send sans turn".into()))?;
+        Ok(EnvoiCore {
+            turn,
+            // `status` est un MOT (`"idle"`), pas l'objet 7501 du terminal.
+            status: r.get("status").and_then(Value::as_str).map(String::from),
+            started: r.get("started").and_then(Value::as_bool),
+        })
     }
 
     pub fn terminal_keys(
@@ -205,42 +231,20 @@ impl ClientCore {
         Ok(())
     }
 
-    pub fn terminal_run(
-        &mut self,
-        argv: &[String],
-        cwd: Option<&str>,
-        name: Option<&str>,
-        labels: &std::collections::BTreeMap<String, String>,
-        no_parent: bool,
-        no_notify: bool,
-    ) -> Result<String, ErreurTransport> {
-        let mut params = json!({"argv": argv});
-        if let Some(c) = cwd {
-            params["cwd"] = json!(c);
-        }
-        if let Some(n) = name {
-            params["name"] = json!(n);
-        }
-        if !labels.is_empty() {
-            params["labels"] = json!(labels);
-        }
-        params["no_parent"] = json!(no_parent);
-        params["no_notify"] = json!(no_notify);
-        let r = self.transport.appelle("terminal.run", params)?;
-        Ok(r.get("address")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string())
-    }
-
+    /// `terminal.interrupt` : la touche d'arrêt, puis ce qui a été observé
+    /// (`stopped`, `exited`, `still_working`, `unknown`). Surveille au plus
+    /// 5 s (le transport attend 15 s).
     pub fn terminal_interrupt(&mut self, terminal: &str) -> Result<String, ErreurTransport> {
-        let r = self
-            .transport
-            .appelle("terminal.interrupt", json!({"terminal": terminal}))?;
-        Ok(r.get("outcome")
+        let r = self.transport.appelle(
+            "terminal.interrupt",
+            json!({"terminal": terminal, "timeout": 5}),
+        )?;
+        r.get("outcome")
             .and_then(Value::as_str)
-            .unwrap_or("unknown")
-            .to_string())
+            .map(String::from)
+            .ok_or_else(|| {
+                ErreurTransport::EnveloppeInvalide("terminal.interrupt sans outcome".into())
+            })
     }
 
     pub fn terminal_read(&mut self, terminal: &str, lines: u32) -> Result<String, ErreurTransport> {

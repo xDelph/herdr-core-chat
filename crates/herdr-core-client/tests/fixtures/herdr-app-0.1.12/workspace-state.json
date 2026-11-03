@@ -1,0 +1,221 @@
+{
+  "saved_at": "2026-11-03T16:00:00Z",
+  "version": 1,
+  "layout": "main",
+  "focused": {
+    "space": "spaa71a172977601c68423a56c57e37cc0",
+    "tab": "tbe426d4d62ff662aef438bf1080513c6f",
+    "pane": "p",
+    "terminal": "t1"
+  },
+  "spaces": [
+    {
+      "id": "spaa71a172977601c68423a56c57e37cc0",
+      "index": 0,
+      "name": "projet-1",
+      "named": false,
+      "machine": null,
+      "folder": "/Users/moi/projets/projet-1",
+      "branch": null,
+      "active": true,
+      "status": "idle",
+      "tabs": [
+        {
+          "id": "tbe426d4d62ff662aef438bf1080513c6f",
+          "index": 0,
+          "name": "1",
+          "named": false,
+          "active": true,
+          "status": "idle",
+          "zoomed": false,
+          "settled": true,
+          "panes": []
+        },
+        {
+          "id": "tbd1dd1c486e8cfca63ac07862933b277b",
+          "index": 1,
+          "name": "2",
+          "named": false,
+          "active": false,
+          "status": "idle",
+          "zoomed": false,
+          "settled": true,
+          "panes": []
+        },
+        {
+          "id": "tb4c8320d8dd1885c130fd234f34aeb91c",
+          "index": 2,
+          "name": "3",
+          "named": false,
+          "active": false,
+          "status": "idle",
+          "zoomed": false,
+          "settled": true,
+          "panes": []
+        }
+      ]
+    },
+    {
+      "id": "spad8a9596e52f22a78ffcbed04b655422",
+      "index": 1,
+      "name": "projet-2",
+      "named": false,
+      "machine": null,
+      "folder": "/Users/moi/projets/projet-2",
+      "branch": null,
+      "active": false,
+      "status": "idle",
+      "tabs": [
+        {
+          "id": "tbd3e3cc3c9e4012d3a352a3fcab38c3ee",
+          "index": 0,
+          "name": "1",
+          "named": false,
+          "active": true,
+          "status": "idle",
+          "zoomed": false,
+          "settled": true,
+          "panes": []
+        },
+        {
+          "id": "tb853acf0335da6631236c71fd4e918ff6",
+          "index": 1,
+          "name": "2",
+          "named": false,
+          "active": false,
+          "status": "idle",
+          "zoomed": false,
+          "settled": true,
+          "panes": []
+        }
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "address": "t1",
+      "app": "claude",
+      "program": "claude",
+      "status": "idle",
+      "title": "",
+      "pinned": false,
+      "space": {
+        "id": "spaa71a172977601c68423a56c57e37cc0",
+        "name": "projet-1"
+      },
+      "tab": {
+        "id": "tbe426d4d62ff662aef438bf1080513c6f",
+        "index": 0,
+        "name": "1"
+      },
+      "pane": "p",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 24
+      },
+      "cwd": "/Users/moi/projets/projet-1"
+    },
+    {
+      "address": "t2",
+      "app": "claude",
+      "program": "claude",
+      "status": "idle",
+      "title": "",
+      "pinned": false,
+      "space": {
+        "id": "spaa71a172977601c68423a56c57e37cc0",
+        "name": "projet-1"
+      },
+      "tab": {
+        "id": "tbd1dd1c486e8cfca63ac07862933b277b",
+        "index": 1,
+        "name": "2"
+      },
+      "pane": "p",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 24
+      },
+      "cwd": "/Users/moi/projets/projet-1"
+    },
+    {
+      "address": "t3",
+      "app": "claude",
+      "program": "claude",
+      "status": "idle",
+      "title": "",
+      "pinned": false,
+      "space": {
+        "id": "spaa71a172977601c68423a56c57e37cc0",
+        "name": "projet-1"
+      },
+      "tab": {
+        "id": "tb4c8320d8dd1885c130fd234f34aeb91c",
+        "index": 2,
+        "name": "3"
+      },
+      "pane": "p",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 24
+      },
+      "cwd": "/Users/moi/projets/projet-1"
+    },
+    {
+      "address": "t4",
+      "app": "claude",
+      "program": "claude",
+      "status": "idle",
+      "title": "",
+      "pinned": false,
+      "space": {
+        "id": "spad8a9596e52f22a78ffcbed04b655422",
+        "name": "projet-2"
+      },
+      "tab": {
+        "id": "tbd3e3cc3c9e4012d3a352a3fcab38c3ee",
+        "index": 0,
+        "name": "1"
+      },
+      "pane": "p",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 24
+      },
+      "cwd": "/Users/moi/projets/projet-2"
+    },
+    {
+      "address": "t5",
+      "app": "claude",
+      "program": "claude",
+      "status": "idle",
+      "title": "",
+      "pinned": false,
+      "space": {
+        "id": "spad8a9596e52f22a78ffcbed04b655422",
+        "name": "projet-2"
+      },
+      "tab": {
+        "id": "tb853acf0335da6631236c71fd4e918ff6",
+        "index": 1,
+        "name": "2"
+      },
+      "pane": "p",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 24
+      },
+      "cwd": "/Users/moi/projets/projet-2"
+    }
+  ]
+}

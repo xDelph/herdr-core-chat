@@ -1,15 +1,19 @@
-//! Lecture optionnelle de `~/.config/herdr-app/workspace-state.json`.
+//! Lecture de `~/.config/herdr-app/workspace-state.json` (chemin injecté
+//! par la configuration, `HERDR_CORE_CHAT_HERDR_APP_STATE`).
 //!
 //! Fichier produit par un **mod** de Herdr.app : il porte les noms calculés
-//! par l'app (espaces/onglets) et l'état courant des agents. On l'utilise
-//! comme **enrichissement** (noms affichés) — jamais comme source de vérité
-//! pour le statut (qui reste celui de l'agent via OSC 7501). Absent ou
-//! illisible → aucune erreur, on retombe sur les labels `where` et les noms
-//! vides du doc `herdr-app`.
+//! par l'app (espaces/onglets). C'est la seule source de ces noms (décision
+//! de l'utilisateur, 2026-11-03 : le doc `herdr-app` du core les laisse vides
+//! quand ils ne sont pas choisis). On l'utilise pour les **noms** — jamais
+//! pour le statut, qui reste celui de l'agent (OSC 7501).
+//!
+//! ⚠️ Absent → `Ok(None)` (Herdr.app ou son mod ne tourne pas : état
+//! normal). Illisible ou de version inconnue → `Err(cause)` : l'appelant la
+//! dit (journal) et retombe sur les noms du doc — jamais un nom inventé.
 
 use serde_json::Value;
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Clone, Debug, Default)]
 pub struct EtatEspace {
@@ -49,12 +53,25 @@ pub struct WorkspaceState {
 }
 
 impl WorkspaceState {
-    pub fn charger(chemin: &Path) -> Option<Self> {
-        let contenu = std::fs::read_to_string(chemin).ok()?;
-        let json: Value = serde_json::from_str(&contenu).ok()?;
-        let version = json.get("version").and_then(Value::as_u64).unwrap_or(0);
-        if version != 1 {
-            return None;
+    /// # Errors
+    /// Le fichier existe mais ne se lit pas, n'est pas du JSON, ou porte une
+    /// `version` autre que 1 — la cause exacte.
+    pub fn charger(chemin: &Path) -> Result<Option<Self>, String> {
+        let contenu = match std::fs::read_to_string(chemin) {
+            Ok(contenu) => contenu,
+            Err(cause) if cause.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(cause) => return Err(format!("{} : {cause}", chemin.display())),
+        };
+        let json: Value = serde_json::from_str(&contenu)
+            .map_err(|cause| format!("{} : JSON invalide ({cause})", chemin.display()))?;
+        match json.get("version").and_then(Value::as_u64) {
+            Some(1) => {}
+            autre => {
+                return Err(format!(
+                    "{} : version {autre:?} inconnue (attendue : 1)",
+                    chemin.display()
+                ));
+            }
         }
         let mut etat = WorkspaceState::default();
 
@@ -156,12 +173,6 @@ impl WorkspaceState {
             }
         }
 
-        Some(etat)
-    }
-
-    /// Chemin par défaut, dérivé de `HOME`.
-    pub fn chemin_par_defaut() -> PathBuf {
-        let home = std::env::var("HOME").unwrap_or_else(|_| String::from("/"));
-        PathBuf::from(home).join(".config/herdr-app/workspace-state.json")
+        Ok(Some(etat))
     }
 }
