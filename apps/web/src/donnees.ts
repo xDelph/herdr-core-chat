@@ -19,7 +19,7 @@
  *
  * Le module ne connaît ni React ni le réseau : tout est injecté.
  */
-import type { ConversationSummary, InstalledKind } from "@herdr-remote/shared";
+import type { ConversationSummary, InstalledKind } from "@herdr-core-chat/shared";
 import type { Health, Overview } from "./api.ts";
 import {
   cadence,

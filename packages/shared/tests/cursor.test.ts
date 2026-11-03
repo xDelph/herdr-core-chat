@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { decodeCursor, encodeCursor } from "@herdr-remote/shared";
+import { decodeCursor, encodeCursor } from "@herdr-core-chat/shared";
 
 let dir = "";
 

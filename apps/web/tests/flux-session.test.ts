@@ -13,7 +13,7 @@
  * - après `ferme()`, plus rien ne s'applique.
  */
 import { describe, expect, test } from "bun:test";
-import type { SessionEntry, SessionResponse } from "@herdr-remote/shared";
+import type { SessionEntry, SessionResponse } from "@herdr-core-chat/shared";
 import {
   creeSuiviSession,
   FERME,

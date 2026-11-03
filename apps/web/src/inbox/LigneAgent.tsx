@@ -12,7 +12,7 @@
  * chat montre l'action exacte.
  */
 import { memo } from "react";
-import type { ConversationSummary } from "@herdr-remote/shared";
+import type { ConversationSummary } from "@herdr-core-chat/shared";
 import { apercuTexte, chrono, libelleReflexion, quand } from "../libelles.ts";
 import { attenteDeTaches } from "../taches.ts";
 import { routeToHash } from "../routing.ts";

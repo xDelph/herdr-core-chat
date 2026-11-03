@@ -5,7 +5,7 @@
  * n'existe pas (capacité absente ou aucune tâche) ; rien n'est deviné.
  */
 import { memo } from "react";
-import type { BackgroundTaskCount } from "@herdr-remote/shared";
+import type { BackgroundTaskCount } from "@herdr-core-chat/shared";
 import { nombreDeTaches } from "../taches.ts";
 import { Icone } from "../ui/Icone.tsx";
 

@@ -7,7 +7,7 @@
  * accompagne chaque forme pour un lecteur d'écran.
  */
 import { memo, type ReactNode } from "react";
-import type { AgentStatus } from "@herdr-remote/shared";
+import type { AgentStatus } from "@herdr-core-chat/shared";
 import { LIBELLE_STATUT, marqueAgent } from "../libelles.ts";
 import { LOGOS } from "../logos.tsx";
 import { Icone } from "./Icone.tsx";

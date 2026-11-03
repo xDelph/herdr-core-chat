@@ -3,7 +3,7 @@
  * regroupées, une cadence relue à chaque tour.
  */
 import { describe, expect, test } from "bun:test";
-import type { ConversationSummary } from "@herdr-remote/shared";
+import type { ConversationSummary } from "@herdr-core-chat/shared";
 import { creeMagasinDonnees, type Lectures, type OuvreEvenements } from "../src/donnees.ts";
 import type { Health, Overview } from "../src/api.ts";
 import { CADENCE_SECOURS_VISIBLE_MS, CADENCE_VISIBLE_MS } from "../src/rafraichissement.ts";

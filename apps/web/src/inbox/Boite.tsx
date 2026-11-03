@@ -9,7 +9,7 @@
  * ```
  */
 import { memo, useDeferredValue, useMemo, useState } from "react";
-import type { ConversationSummary } from "@herdr-remote/shared";
+import type { ConversationSummary } from "@herdr-core-chat/shared";
 import { useEnLigne, useMaintenant } from "../app/hooks.ts";
 import { etatConnexion, LIBELLE_CONNEXION } from "../connexion.ts";
 import type { EtatDonnees } from "../donnees.ts";

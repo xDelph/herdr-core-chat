@@ -589,7 +589,7 @@ Deux définitions libres de diverger, **et aucun test ne couvrait la branche suc
 Le contrat devient **unique** — `packages/shared/src/api.ts` — et les deux côtés l'utilisent :
 
 1. **Le serveur valide ses propres réponses sortantes** avant de les émettre (`respond(decoderOf(Schema), body)`). Une réponse hors contrat devient un **500 explicite** nommant le fichier du contrat, au lieu d'un objet silencieusement incomplet.
-2. **Le client décode avec les mêmes schémas** importés de `@herdr-remote/shared`.
+2. **Le client décode avec les mêmes schémas** importés de `@herdr-core-chat/shared`.
 3. **Un test de contrat** (`apps/server/src/http/Api.test.ts`, 11 tests) valide chaque réponse émise contre le contrat partagé.
 
 ### Preuve que le garde-fou fonctionne

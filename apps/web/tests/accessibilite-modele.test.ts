@@ -5,7 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ModelCatalogResponse } from "@herdr-remote/shared";
+import type { ModelCatalogResponse } from "@herdr-core-chat/shared";
 import { toMessages } from "../src/blocks.ts";
 import { annonceDeStatut } from "../src/chat/Annonces.tsx";
 import { Fil } from "../src/chat/Fil.tsx";

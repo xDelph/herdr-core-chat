@@ -14,7 +14,7 @@
 import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { BackgroundTask, ConversationSummary } from "@herdr-remote/shared";
+import type { BackgroundTask, ConversationSummary } from "@herdr-core-chat/shared";
 import { toItems, toMessages } from "../src/blocks.ts";
 import { CarteRapport, InfosTaches } from "../src/chat/CarteRapport.tsx";
 import { ElementFil } from "../src/chat/Elements.tsx";

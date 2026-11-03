@@ -5,7 +5,7 @@
  * conversation à droite.
  */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import type { AgentView } from "@herdr-remote/shared";
+import type { AgentView } from "@herdr-core-chat/shared";
 import { Boite } from "../inbox/Boite.tsx";
 import { ecritLectures, litLectures, noteLecture, type Lectures } from "../lectures.ts";
 import { dossierDe, premierNonVide } from "../libelles.ts";

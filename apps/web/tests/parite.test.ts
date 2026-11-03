@@ -5,7 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ConversationSummary } from "@herdr-remote/shared";
+import type { ConversationSummary } from "@herdr-core-chat/shared";
 import type { EtatDonnees } from "../src/donnees.ts";
 import { Boite } from "../src/inbox/Boite.tsx";
 import { LigneAgent } from "../src/inbox/LigneAgent.tsx";

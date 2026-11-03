@@ -12,7 +12,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ConversationSummary } from "@herdr-remote/shared";
+import type { ConversationSummary } from "@herdr-core-chat/shared";
 import { ecrireBrouillon } from "../src/brouillons.ts";
 import { toMessages } from "../src/blocks.ts";
 import type { Envoi } from "../src/envois.ts";

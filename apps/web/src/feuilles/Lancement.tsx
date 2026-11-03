@@ -10,7 +10,7 @@
  * `trust-required`) : elle s'affiche ici, et se tranche ici.
  */
 import { useEffect, useState } from "react";
-import type { InstalledKind, WorkspaceView } from "@herdr-remote/shared";
+import type { InstalledKind, WorkspaceView } from "@herdr-core-chat/shared";
 import {
   fetchModelCatalog,
   launchAgent,

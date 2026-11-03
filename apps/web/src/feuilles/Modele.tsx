@@ -21,7 +21,7 @@
  * le type.
  */
 import { useEffect, useState } from "react";
-import type { ModelCatalogResponse } from "@herdr-remote/shared";
+import type { ModelCatalogResponse } from "@herdr-core-chat/shared";
 import { fetchModelCatalog, reportError, sendPrompt, type SendResult } from "../api.ts";
 import { expliquerEchec, expliquerEnvoi, expliquerSuppression } from "../etats-envoi.ts";
 import { libelleReflexion } from "../libelles.ts";

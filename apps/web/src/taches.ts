@@ -21,9 +21,9 @@ import {
   SessionResponse,
   type BackgroundTask,
   type BackgroundTaskStatus,
-} from "@herdr-remote/shared";
+} from "@herdr-core-chat/shared";
 
-export type { BackgroundTask, BackgroundTaskStatus } from "@herdr-remote/shared";
+export type { BackgroundTask, BackgroundTaskStatus } from "@herdr-core-chat/shared";
 
 // ---------------------------------------------------------------------------
 // Réseau

@@ -15,7 +15,7 @@ import { AgentStatus } from "../generated/schemas.ts";
   `AgentStatus` et `ReadSource` ont été RETIRÉS d'ici (T057) : ils sont dans le
   contrat Rust (types du domaine réexportés par le bundle), et une seule
   définition doit exister (C01). Ils restent accessibles par le paquet
-  (`@herdr-remote/shared`), qui réexporte la façade `api.ts`.
+  (`@herdr-core-chat/shared`), qui réexporte la façade `api.ts`.
 */
 
 /** `id` ou `path` — `path` est le seul cas observé en pratique (4 agents sur 4). */

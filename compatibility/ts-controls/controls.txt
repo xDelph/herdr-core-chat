@@ -8,7 +8,7 @@ git rev-parse HEAD at capture: d19f98d23b02cacf7d6d9d97facf8d6360b0546b
 - bun 1.4.2 (npm packageManager bun@1.4.2)
 - node v24.21.0 (engines)
 - oxfmt 0.72.0 / oxlint 1.87.0 / typescript 7.0.2 (bun install in worktree)
-- effect 4.0.2 (workspace dependency of @herdr-remote/shared and server)
+- effect 4.0.2 (workspace dependency of @herdr-core-chat/shared and server)
 
 ## Commands and results (baseline state, before any migration change)
 

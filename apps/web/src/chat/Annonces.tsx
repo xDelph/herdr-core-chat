@@ -10,7 +10,7 @@
  * dit les changements d'état et la réponse terminée.
  */
 import { memo, useEffect, useRef, useState } from "react";
-import type { AgentStatus } from "@herdr-remote/shared";
+import type { AgentStatus } from "@herdr-core-chat/shared";
 import type { Item } from "../blocks.ts";
 import { apercuTexte } from "../libelles.ts";
 

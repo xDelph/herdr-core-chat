@@ -1,5 +1,5 @@
 import react from "@vitejs/plugin-react";
-import { backendPort } from "@herdr-remote/shared";
+import { backendPort } from "@herdr-core-chat/shared";
 import { defineConfig } from "vite";
 import { visualizer } from "rollup-plugin-visualizer";
 import { readFileSync } from "node:fs";

@@ -16,7 +16,7 @@ import { Option, Schema } from "effect";
 import { erreurLisible, estRouteInconnue } from "./erreurs-demon.ts";
 import { delaiDeReprise, SOURCE_OUVERTE } from "./reprise.ts";
 // Import **local** : `export type { X } from "…"` ne crée aucune liaison ici.
-import type { InstalledKind, RecentImage } from "@herdr-remote/shared";
+import type { InstalledKind, RecentImage } from "@herdr-core-chat/shared";
 import {
   AgentFocusedResponse,
   ApiErrorResponse,
@@ -36,10 +36,10 @@ import {
   TrustRequiredResponse,
   TrustResolvedResponse,
   StopAgentResponse,
-} from "@herdr-remote/shared";
+} from "@herdr-core-chat/shared";
 
 /**
- * Le contrat vient de `@herdr-remote/shared` : **une seule définition**,
+ * Le contrat vient de `@herdr-core-chat/shared` : **une seule définition**,
  * partagée avec le serveur. C'est ce qui empêche la divergence qui a produit le
  * bug « Forme de réponse inattendue : health ».
  */
@@ -67,7 +67,7 @@ export type {
   TrustResolvedResponse as TrustResolved,
   StopAgentResponse,
   WorkspaceView,
-} from "@herdr-remote/shared";
+} from "@herdr-core-chat/shared";
 
 /**
  * Répond à une invite de confiance.

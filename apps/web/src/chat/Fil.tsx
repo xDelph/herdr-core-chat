@@ -40,7 +40,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { AgentStatus } from "@herdr-remote/shared";
+import type { AgentStatus } from "@herdr-core-chat/shared";
 import type { Item } from "../blocks.ts";
 import {
   ancrage,

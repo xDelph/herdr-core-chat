@@ -7,8 +7,8 @@
  * explicite, avec son issue affichée.
  */
 import { memo, useEffect, useId, useRef, useState } from "react";
-import type { AgentStatus, AgentView, BackgroundTaskCount } from "@herdr-remote/shared";
-import { etiquetteDePane } from "@herdr-remote/shared";
+import type { AgentStatus, AgentView, BackgroundTaskCount } from "@herdr-core-chat/shared";
+import { etiquetteDePane } from "@herdr-core-chat/shared";
 import type { Transport } from "../flux-session.ts";
 import { libelleReflexion } from "../libelles.ts";
 import { routeToHash } from "../routing.ts";

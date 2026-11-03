@@ -7,7 +7,7 @@
  * de fin n'est pas dans la fenêtre lue du fil.
  */
 import { useEffect, useState } from "react";
-import type { BackgroundTaskCount } from "@herdr-remote/shared";
+import type { BackgroundTaskCount } from "@herdr-core-chat/shared";
 import { reportError } from "../api.ts";
 import { fetchTaches, type BackgroundTask } from "../taches.ts";
 

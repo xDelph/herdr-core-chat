@@ -35,8 +35,8 @@
  * injecté, donc vérifiable avec des doubles.
  */
 import { Option, Schema } from "effect";
-import type { SessionEntry } from "@herdr-remote/shared";
-import { SessionResponse, SessionStreamEntries, SessionStreamGone } from "@herdr-remote/shared";
+import type { SessionEntry } from "@herdr-core-chat/shared";
+import { SessionResponse, SessionStreamEntries, SessionStreamGone } from "@herdr-core-chat/shared";
 import { fusionnerEntrees } from "./messages.ts";
 import { delaiDeReprise } from "./reprise.ts";
 import { decideAffichage, mentionLecturePartielle } from "./session-vue.ts";

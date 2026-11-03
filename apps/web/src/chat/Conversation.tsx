@@ -8,7 +8,7 @@
  * magasins de l'application, **rangé sous sa cible**.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { AgentView, ConversationSummary } from "@herdr-remote/shared";
+import type { AgentView, ConversationSummary } from "@herdr-core-chat/shared";
 import { cleAction } from "../actions-locales.ts";
 import { envoisApparus } from "../apparition-envois.ts";
 import { touchedFilesOf, type Block } from "../blocks.ts";

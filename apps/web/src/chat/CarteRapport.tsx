@@ -12,7 +12,7 @@
  * démon et les notifications du fil, réunies par la conversation.
  */
 import { createContext, memo, useContext, useState } from "react";
-import type { BackgroundTaskStatus } from "@herdr-remote/shared";
+import type { BackgroundTaskStatus } from "@herdr-core-chat/shared";
 import type { RenderedMessage } from "../blocks.ts";
 import { dureeLongue, heureDe } from "../libelles.ts";
 import { Markdown } from "../Markdown.tsx";

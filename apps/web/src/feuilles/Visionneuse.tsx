@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Option, Schema } from "effect";
-import { ApiErrorResponse } from "@herdr-remote/shared";
+import { ApiErrorResponse } from "@herdr-core-chat/shared";
 import { baseName, fileUrl, isImagePath } from "../api.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Feuille } from "../ui/Feuille.tsx";

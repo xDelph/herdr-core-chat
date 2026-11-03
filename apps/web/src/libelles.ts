@@ -4,7 +4,7 @@
  * Couleur = état : chaque statut a un mot, une forme et une couleur, et les
  * trois sont décidés ici et dans `ui/atomes.tsx`, nulle part ailleurs.
  */
-import type { AgentStatus } from "@herdr-remote/shared";
+import type { AgentStatus } from "@herdr-core-chat/shared";
 
 export const LIBELLE_STATUT: Record<AgentStatus, string> = {
   blocked: "Needs you",

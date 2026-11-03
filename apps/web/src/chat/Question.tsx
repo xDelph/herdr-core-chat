@@ -12,8 +12,8 @@
  * La provenance est écrite : lue sur l'écran de l'agent, à telle heure.
  */
 import { memo, useId, useState } from "react";
-import type { ConversationSummary } from "@herdr-remote/shared";
-import { estOptionSaisieLibre } from "@herdr-remote/shared";
+import type { ConversationSummary } from "@herdr-core-chat/shared";
+import { estOptionSaisieLibre } from "@herdr-core-chat/shared";
 import { cleAction } from "../actions-locales.ts";
 import { libelleRefus } from "../etats-envoi.ts";
 import { faireConfiance, repondre } from "../app/gestes.ts";

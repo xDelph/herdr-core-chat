@@ -20,7 +20,7 @@
  * pas « la plus ancienne », elle est **hors classement**, donc en bas. La
  * confondre avec une date à zéro la remonterait en tête de liste.
  */
-import type { AgentStatus, ConversationSummary } from "@herdr-remote/shared";
+import type { AgentStatus, ConversationSummary } from "@herdr-core-chat/shared";
 import { attenteDeTaches } from "./taches.ts";
 
 export const SECTIONS = ["a-traiter", "en-cours", "done", "idle"] as const;

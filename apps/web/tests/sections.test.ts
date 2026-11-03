@@ -5,7 +5,7 @@
  * change, un de ces tests tombe : c'est le but.
  */
 import { describe, expect, test } from "bun:test";
-import type { AgentStatus, ConversationSummary } from "@herdr-remote/shared";
+import type { AgentStatus, ConversationSummary } from "@herdr-core-chat/shared";
 import {
   countOf,
   grouperAttentionPuisProjet,

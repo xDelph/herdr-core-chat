@@ -10,7 +10,7 @@
  * Le présenter « en cours » serait affirmer ce qu'on ne sait pas.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { SessionEntry } from "@herdr-remote/shared";
+import type { SessionEntry } from "@herdr-core-chat/shared";
 import { fusionnerEntrees } from "../messages.ts";
 import {
   STATUT_TACHE,
