@@ -237,7 +237,7 @@ fn les_valeurs_par_defaut_sont_exactes() {
     let config = configue(&mut env_dep());
     assert_eq!(
         config.herdr_socket_path,
-        Path::new("/foyer/.config/herdr/herdr.sock")
+        Path::new("/foyer/.local/state/herdr-core/default/default.sock")
     );
     assert_eq!(
         config.session_roots.pi,

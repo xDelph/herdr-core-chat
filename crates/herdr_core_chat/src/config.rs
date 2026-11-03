@@ -126,7 +126,7 @@ pub fn config_depuis_avec(
     lanceur: &dyn LanceStatutServe,
 ) -> Result<Config, ErreurConfig> {
     let socket_path = env.get("HERDR_SOCKET_PATH").cloned().unwrap_or_else(|| {
-        home.join(".config/herdr/herdr.sock")
+        home.join(".local/state/herdr-core/default/default.sock")
             .to_string_lossy()
             .into_owned()
     });

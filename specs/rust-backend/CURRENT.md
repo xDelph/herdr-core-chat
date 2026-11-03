@@ -289,7 +289,7 @@ Ignored scan directory names: node_modules, dist, build, target, vendor, coverag
 
 | Environment key | Default / precedence | Consumer |
 |---|---|---|
-| `HERDR_SOCKET_PATH` | `~/.config/herdr/herdr.sock` | Control socket; `HERDR_SOCKET` deliberately unused |
+| `HERDR_SOCKET_PATH` | `~/.local/state/herdr-core/default/default.sock` | Control socket; `HERDR_SOCKET` deliberately unused |
 | `HERDR_REMOTE_BIND` | `127.0.0.1` | Current check also permits string prefixes 100. / fd7a:; rejects others |
 | `HERDR_REMOTE_PORT` | 8791 | parseInt then 1..65535; shared frontend proxy helper falls back on invalid value |
 | `HERDR_REMOTE_PUBLIC_ORIGINS` | comma-separated, preferred over singular alias | Explicit mutation origins / VAPID subject fallback |

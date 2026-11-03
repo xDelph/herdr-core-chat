@@ -56,7 +56,7 @@ l'URL et `herdrchat`, cohérent avec `devcli` (sans tiret).
    la release publie un artefact incluant `dist`.
 5. **Bloc `service` (launchd) dans la formule** — `devcli` n'en a pas, `herdrchat` en a
    besoin. C'est aussi ce qui réglera le serveur qui meurt avec le shell.
-6. **Caveat** : la formule dépend d'**Herdr qui tourne** (`~/.config/herdr/herdr.sock`),
+6. **Caveat** : la formule dépend d'**Herdr qui tourne** (`~/.local/state/herdr-core/default/default.sock`),
    dépendance externe non empaquetée — le dire à l'installation plutôt que de laisser
    un échec muet.
 7. **Dépendances de la formule** : `bun` ; `node` seulement si le build de la PWA en a

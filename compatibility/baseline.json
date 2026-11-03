@@ -1129,7 +1129,7 @@
   "envKeys": [
     {
       "key": "HERDR_SOCKET_PATH",
-      "default": "~/.config/herdr/herdr.sock",
+      "default": "~/.local/state/herdr-core/default/default.sock",
       "consumer": "Control socket; HERDR_SOCKET deliberately unused"
     },
     {

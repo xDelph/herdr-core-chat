@@ -220,7 +220,7 @@ const injoignable = (): string =>
           overview: "transport: No such file or directory (os error 2)",
         },
         health: {
-          herdr: { reachable: false, socket: "/Users/x/.config/herdr/herdr.sock" },
+          herdr: { reachable: false, socket: "/Users/x/.local/state/herdr-core/default/default.sock" },
           ok: false,
           uptimeMs: 1_000,
         },
@@ -244,7 +244,7 @@ describe("Herdr injoignable : une seule explication, la vraie", () => {
     const html = injoignable();
     expect(html).toContain("Can't reach Herdr on the Mac.");
     expect(html).toContain("No such file or directory");
-    expect(html).toContain("/Users/x/.config/herdr/herdr.sock");
+    expect(html).toContain("/Users/x/.local/state/herdr-core/default/default.sock");
     expect(html).toContain("Herdr offline");
     expect(html).not.toContain("Connecting");
     expect(html).not.toContain("Unreadable");
