@@ -19,10 +19,13 @@ use domain::status::AgentStatus;
 const TYPES_A_SESSION_LISIBLE: [&str; 5] = ["pi", "codex", "opencode", "devin", "claude"];
 
 /// L'état demande-t-il l'attention — que la session soit lue ou non ?
-/// `blocked` et `working` exigent l'œil, quoi qu'il y ait sur le disque.
+/// `blocked`, `working` et `error` exigent l'œil, quoi qu'il y ait sur le disque.
 #[must_use]
 pub fn attire_le_regard(status: AgentStatus) -> bool {
-    matches!(status, AgentStatus::Blocked | AgentStatus::Working)
+    matches!(
+        status,
+        AgentStatus::Blocked | AgentStatus::Working | AgentStatus::Error
+    )
 }
 
 /// Un type dont nous savons LIRE la session (le lecteur existe et a été

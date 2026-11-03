@@ -75,6 +75,7 @@ fn l_etat_demande_l_attention_avec_ou_sans_session() {
     assert!(est(&vue("p2", Some("claude"), None, AgentStatus::Working)));
     assert!(attire_le_regard(AgentStatus::Blocked));
     assert!(attire_le_regard(AgentStatus::Working));
+    assert!(attire_le_regard(AgentStatus::Error));
 }
 
 #[test]
