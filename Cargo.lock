@@ -1054,6 +1054,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "herdr-core-client"
+version = "0.2.6"
+dependencies = [
+ "domain",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "herdr_core_chat"
 version = "0.2.6"
 dependencies = [

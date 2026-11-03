@@ -11,6 +11,7 @@ members = [
   "crates/notifications",
   "crates/application",
   "crates/http-api",
+  "crates/herdr-core-client",
   "crates/herdr_core_chat",
   "crates/test-support",
   "xtask",
