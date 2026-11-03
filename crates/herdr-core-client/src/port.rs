@@ -210,7 +210,7 @@ impl PortCore {
                 workspace_id: Some(WorkspaceId::from(ws_id.clone())),
                 cwd: Some(t.cwd.clone()),
             });
-            if t.status.is_some() {
+            if t.status.as_ref().map(|v| !v.is_null()).unwrap_or(false) {
                 agents.push(AgentObservation {
                     pane_id: PaneId::from(t.address.clone()),
                     tab_id: TabId::from(tab_id.clone()),
