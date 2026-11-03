@@ -2,8 +2,8 @@
  * Le travail d'un tour : des **lignes**, pas des blocs encadrés.
  *
  * ```
- * ▤ Lu        herdrchat/src/main.rs         176 l.
- * ✎ Modifié   herdrchat/src/main.rs         +4 −5   ← le diff s'ouvre sur place
+ * ▤ Lu        herdr_core_chat/src/main.rs         176 l.
+ * ✎ Modifié   herdr_core_chat/src/main.rs         +4 −5   ← le diff s'ouvre sur place
  * ▸ Lancé     cargo test -p sessions        ✓
  * ```
  *

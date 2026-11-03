@@ -10,7 +10,7 @@
     <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Herdr Chat" />
+    <meta name="apple-mobile-web-app-title" content="Herdr Core Chat" />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <!--
       ⚠️ iOS n'utilise PAS le manifest pour l'icône d'accueil : sans cette
@@ -284,7 +284,7 @@
     />
     <!-- ecrans-demarrage:fin -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>Herdr Chat</title>
+    <title>Herdr Core Chat</title>
     <!--
       ⚠️ L'écran de démarrage, AVANT le JavaScript : le même dessin que les
       écrans de lancement iOS (scripts/ecrans-demarrage.sh) — fond de l'app,
@@ -295,7 +295,7 @@
     -->
     <script>
       try {
-        var theme = localStorage.getItem("herdr-chat.theme");
+        var theme = localStorage.getItem("herdr-core-chat.theme");
         if (theme === "clair") document.documentElement.dataset.theme = "light";
         if (theme === "sombre") document.documentElement.dataset.theme = "dark";
       } catch (erreur) {}

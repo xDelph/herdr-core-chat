@@ -1,5 +1,5 @@
 /*
-  Service worker de Herdr Chat — **notifications push uniquement**.
+  Service worker de Herdr Core Chat — **notifications push uniquement**.
 
   ⚠️ Il ne met aucune RÉPONSE en cache et n'intercepte aucune requête (pas de
   `fetch`) — seule exception, une entrée de quelques octets : la conversation
@@ -14,7 +14,7 @@
   comme une mise à jour du même enregistrement, et l'abonnement est conservé.
 */
 
-const TITRE_PAR_DEFAUT = "Herdr Chat";
+const TITRE_PAR_DEFAUT = "Herdr Core Chat";
 const CORPS_PAR_DEFAUT = "An agent has an update.";
 const TAG_PAR_DEFAUT = "herdr-agent";
 
@@ -41,7 +41,7 @@ const signale = async (message, cause) => {
   la page la reprend en revenant au premier plan (`navigation-worker.ts`),
   moins d'une minute après, puis l'efface.
 */
-const CACHE_NAVIGATION = "herdr-navigation";
+const CACHE_NAVIGATION = "herdr-core-chat-navigation";
 const CLE_NAVIGATION = "/__herdr/navigation-en-attente";
 
 const retiensNavigation = async (cible) => {

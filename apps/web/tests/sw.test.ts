@@ -173,7 +173,7 @@ describe("service worker — clic sur une notification", () => {
     });
     // La cible est retenue (sans retarder le focus : fenêtre d'activation).
     expect(journal).toContain(
-      "retient herdr-navigation /__herdr/navigation-en-attente #/agent/w1%3Ap1",
+      "retient herdr-core-chat-navigation /__herdr/navigation-en-attente #/agent/w1%3Ap1",
     );
     expect(journal.filter((ligne) => !ligne.startsWith("retient"))).toEqual([
       "ferme",
@@ -202,7 +202,7 @@ describe("service worker — clic sur une notification", () => {
       notification: { close: () => undefined, data: { url: "/#/agent/w1%3Ap1" } },
     });
     expect(journal).toContain(
-      "retient herdr-navigation /__herdr/navigation-en-attente #/agent/w1%3Ap1",
+      "retient herdr-core-chat-navigation /__herdr/navigation-en-attente #/agent/w1%3Ap1",
     );
     const sansReserve = journal.filter((ligne) => !ligne.startsWith("retient"));
     expect(sansReserve[0]).toBe("focus");
@@ -219,7 +219,7 @@ describe("service worker — clic sur une notification", () => {
     });
     expect(journal[0]).toBe(`ouvre ${ORIGINE}/#/agent/w1%3Ap1`);
     expect(journal).toContain(
-      "retient herdr-navigation /__herdr/navigation-en-attente #/agent/w1%3Ap1",
+      "retient herdr-core-chat-navigation /__herdr/navigation-en-attente #/agent/w1%3Ap1",
     );
   });
 });

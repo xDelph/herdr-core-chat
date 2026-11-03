@@ -72,7 +72,7 @@ describe("lectures locales", () => {
     const s = stockage();
     ecritLectures(s, noteLecture(new Map(), "w1:p1", 42));
     expect(litLectures(s).get("w1:p1")).toBe(42);
-    s.ecrit("herdr-chat.lectures", "{pas du json");
+    s.ecrit("herdr-core-chat.lectures", "{pas du json");
     expect(litLectures(s).size).toBe(0);
   });
 });

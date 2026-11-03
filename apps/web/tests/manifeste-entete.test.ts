@@ -37,7 +37,10 @@ describe("manifeste", () => {
   });
 
   test("un identifiant stable, l'adresse de départ gardée, un fond pour le mode sombre", () => {
-    expect(Reflect.get(Object(manifeste), "id")).toBe("/");
+    // Un identifiant propre : sur une origine qui a servi Herdr Chat (`id: "/"`),
+    // le navigateur doit voir une AUTRE application, pas une mise à jour.
+    expect(Reflect.get(Object(manifeste), "id")).toBe("/herdr-core-chat");
+    expect(Reflect.get(Object(manifeste), "name")).toBe("Herdr Core Chat");
     expect(Reflect.get(Object(manifeste), "start_url")).toBe("/");
     expect(Reflect.get(Object(manifeste), "scope")).toBe("/");
     const sombre: unknown = Reflect.get(

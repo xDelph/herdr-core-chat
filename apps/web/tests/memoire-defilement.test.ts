@@ -84,7 +84,7 @@ describe("le stockage", () => {
   test("les anciennes positions par ratio sont purgées de localStorage", () => {
     const contenu = new Map<string, string>([
       ["herdr:defilement:w1:p1", "{}"],
-      ["herdr-chat.theme", "auto"],
+      ["herdr-core-chat.theme", "auto"],
     ]);
     const faux = {
       key: (index: number) => [...contenu.keys()][index] ?? null,
@@ -96,6 +96,6 @@ describe("le stockage", () => {
       },
     };
     purgeAnciennesPositions(faux);
-    expect([...contenu.keys()]).toEqual(["herdr-chat.theme"]);
+    expect([...contenu.keys()]).toEqual(["herdr-core-chat.theme"]);
   });
 });

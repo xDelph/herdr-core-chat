@@ -1,8 +1,8 @@
 {
-  "id": "/",
-  "name": "Herdr Chat",
-  "short_name": "Herdr Chat",
-  "description": "Drive Herdr and its agents from your phone",
+  "id": "/herdr-core-chat",
+  "name": "Herdr Core Chat",
+  "short_name": "Core Chat",
+  "description": "Drive Herdr.app and its agents from your phone",
   "lang": "en",
   "start_url": "/",
   "scope": "/",

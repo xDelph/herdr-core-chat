@@ -86,8 +86,8 @@ const Notifications = () => {
   if (!pushSupported) {
     return (
       <p className="discret">
-        This browser does not support push notifications. On iPhone, first add Herdr Chat to the
-        Home Screen (Share menu).
+        This browser does not support push notifications. On iPhone, first add Herdr Core Chat to
+        the Home Screen (Share menu).
       </p>
     );
   }

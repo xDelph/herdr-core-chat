@@ -34,7 +34,7 @@ export const ecouteNavigationWorker = (
 };
 
 /** Le cache et la clé que le worker partage avec la page (`sw.js`). */
-export const CACHE_NAVIGATION = "herdr-navigation";
+export const CACHE_NAVIGATION = "herdr-core-chat-navigation";
 export const CLE_NAVIGATION = "/__herdr/navigation-en-attente";
 /** Au-delà, une cible retenue est trop vieille pour être l'appui qu'on vient de faire. */
 export const FRAICHEUR_NAVIGATION_MS = 60_000;

@@ -16,7 +16,7 @@
  */
 import type { Stockage } from "./memoire-defilement.ts";
 
-const CLE = "herdr-chat.lectures";
+const CLE = "herdr-core-chat.lectures";
 /** Au-delà, les plus anciennes lectures sont oubliées. */
 const MAXIMUM = 200;
 

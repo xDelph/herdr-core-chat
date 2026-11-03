@@ -28,10 +28,10 @@ export const THEME_LABEL: Record<Theme, string> = {
   sombre: "Dark",
 };
 
-const CLE_THEME = "herdr-chat.theme";
-const CLE_GROUPEMENT = "herdr-chat.groupement";
-const CLE_ORDRE = "herdr-chat.ordre";
-const CLE_MARQUES = "herdr-chat.marques";
+const CLE_THEME = "herdr-core-chat.theme";
+const CLE_GROUPEMENT = "herdr-core-chat.groupement";
+const CLE_ORDRE = "herdr-core-chat.ordre";
+const CLE_MARQUES = "herdr-core-chat.marques";
 
 export const estTheme = (valeur: string | null | undefined): valeur is Theme =>
   valeur !== null && valeur !== undefined && (THEMES as ReadonlyArray<string>).includes(valeur);
