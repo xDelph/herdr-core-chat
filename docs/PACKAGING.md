@@ -32,6 +32,6 @@ plus de catalogue. Le bloc `service` donne donc un `PATH` (Homebrew,
 ## À décider avant publication
 
 - Dépôt et tap (`xDelph/herdr-core-chat` ? même tap qu'Herdr Chat ?).
-- Icône et nom courts de la PWA (l'icône est encore celle d'Herdr Chat).
+- Nom court de la PWA (« Core Chat ») et icône ambre : à valider.
 - Version minimale de herdr-core supportée (seule la génération de protocole
   `1`, herdr-core 0.1.17, est vérifiée ; une autre génération est refusée).

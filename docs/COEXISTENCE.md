@@ -16,7 +16,7 @@
 | Données | `~/.herdr-remote/` (`push.json`, `reads.json`, journal) | `~/.herdr-core-chat/` — le store d'Herdr Chat n'est **jamais importé** (`tests/unit/store_push.rs`) |
 | Clés VAPID | celles de `~/.herdr-remote/push.json` | générées au premier lancement, à part |
 | Sujet VAPID par défaut | `mailto:herdr-remote@example.com` | `mailto:herdr-core-chat@example.com` |
-| PWA | « Herdr Chat », `id: "/"` | « Herdr Core Chat », `id: "/herdr-core-chat"` |
+| PWA | « Herdr Chat », `id: "/"`, icône bleue | « Herdr Core Chat », `id: "/herdr-core-chat"`, icône ambre |
 | Stockage navigateur | `herdr-chat.*`, cache `herdr-navigation` | `herdr-core-chat.*`, cache `herdr-core-chat-navigation` |
 | Formule / service | `herdr-chat` | `herdr-core-chat` (gabarits `packaging/`, non publiés) |
 
@@ -30,6 +30,8 @@
   confondre les deux, mais l'abonnement push d'Herdr Chat reste lié à ses
   propres clés : réinstaller la PWA depuis l'origine de herdr-core-chat et y
   réactiver les notifications.
-- **L'icône est encore celle d'Herdr Chat** : à remplacer (décision de design).
+- **Icône** : la même invite qu'Herdr Chat, en **ambre** (Herdr Chat : bleu), avec
+  un « cœur » à la place du curseur — sources `apps/web/icones/*.svg`,
+  `scripts/icones.sh` puis `scripts/ecrans-demarrage.sh`.
 - Aucun service, Homebrew, Tailscale ni launchd n'est touché par ce dépôt
   (AGENTS §1.9).

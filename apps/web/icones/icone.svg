@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Herdr Core Chat : l'invite d'Herdr Chat, en ambre, et un « cœur »
+       (le core) à la place du curseur — distinct d'Herdr Chat (bleu). -->
+  <rect width="512" height="512" fill="#0f1a2e"/>
+  <rect width="512" height="8" fill="#f5a524"/>
+  <path d="M150 168 L248 256 L150 344" fill="none" stroke="#f5a524" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="334" cy="322" r="34" fill="#e8eefb"/>
+    <circle cx="334" cy="322" r="12" fill="#0f1a2e"/>
+</svg>
