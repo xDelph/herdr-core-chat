@@ -1,7 +1,6 @@
 //! Le démon herdr-remote : la composition des crates (T048+).
 //! Le binaire ne fait que monter la configuration et les services.
 
-pub mod adaptateur_herdr_core;
 pub mod assemblage;
 pub mod assets;
 /// Le module généré par `build.rs` : `include!` (et non `mod`) pour que les

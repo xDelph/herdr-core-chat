@@ -2,6 +2,7 @@
 
 pub mod client;
 pub mod disposition;
+pub mod port;
 pub mod transport;
 
 pub use client::*;

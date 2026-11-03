@@ -1073,6 +1073,7 @@ dependencies = [
  "catalog",
  "domain",
  "files",
+ "herdr-core-client",
  "http-api",
  "interactions",
  "notifications",

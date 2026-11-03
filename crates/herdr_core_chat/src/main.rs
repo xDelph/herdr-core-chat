@@ -63,7 +63,10 @@ async fn demarre(config: &Config) -> Result<(), String> {
     // 1) Le contrôle : un socket absent est une cause RÉELLE, dite.
     // 1) Le contrôle : adaptateur herdr-core (stub P0 — implémentation réelle
     //    en P2). Aucune connexion réelle n'est tentée au démarrage.
-    let controle = Arc::new(herdr_core_chat::adaptateur_herdr_core::AdaptateurHerdrCoreStub);
+    let socket_path = config.herdr_socket_path.clone();
+    let controle = Arc::new(herdr_core_client::port::PortCore::nouveau(
+        herdr_core_client::client::ClientCore::nouveau(&socket_path),
+    ));
     // Le port de contrôle vu par les handlers : le même objet, derrière son trait.
     let controle_port: Arc<dyn application::ports::ControlPort> = Arc::clone(&controle) as _;
     // Adaptateur herdr-core non implémenté (P0/P2) : aucune intégration amont.

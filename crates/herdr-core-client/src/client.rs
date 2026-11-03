@@ -160,6 +160,60 @@ impl ClientCore {
         Ok(TerminalList { terminals: out })
     }
 
+    pub fn terminal_send(
+        &mut self,
+        terminal: &str,
+        text: &str,
+        if_state: Option<&str>,
+    ) -> Result<(u64, Option<String>, Option<bool>), ErreurTransport> {
+        let mut params = json!({"terminal": terminal, "text": text});
+        if let Some(s) = if_state {
+            params["if"] = json!(s);
+        }
+        let r = self.transport.appelle("terminal.send", params)?;
+        let turn = r.get("turn").and_then(Value::as_u64).unwrap_or(0);
+        let status = r.get("status").and_then(|v| {
+            if v.is_null() {
+                None
+            } else {
+                v.get("state").and_then(Value::as_str).map(String::from)
+            }
+        });
+        let started = r.get("started").and_then(Value::as_bool);
+        Ok((turn, status, started))
+    }
+
+    pub fn terminal_keys(
+        &mut self,
+        terminal: &str,
+        keys: &[String],
+    ) -> Result<(), ErreurTransport> {
+        self.transport
+            .appelle("terminal.keys", json!({"terminal": terminal, "keys": keys}))?;
+        Ok(())
+    }
+
+    pub fn terminal_interrupt(&mut self, terminal: &str) -> Result<String, ErreurTransport> {
+        let r = self
+            .transport
+            .appelle("terminal.interrupt", json!({"terminal": terminal}))?;
+        Ok(r.get("outcome")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string())
+    }
+
+    pub fn terminal_read(&mut self, terminal: &str, lines: u32) -> Result<String, ErreurTransport> {
+        let r = self.transport.appelle(
+            "terminal.read",
+            json!({"terminal": terminal, "lines": lines}),
+        )?;
+        Ok(r.get("text")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string())
+    }
+
     pub fn doc_get(&mut self, name: &str) -> Result<DocResult, ErreurTransport> {
         let r = self.transport.appelle("doc.get", json!({"name": name}))?;
         Ok(DocResult {
