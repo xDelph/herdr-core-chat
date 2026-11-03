@@ -33,6 +33,8 @@ pub struct Terminal {
     pub foreground_cwd: Option<String>,
     /// Le nom du programme au premier plan (`foreground.name`).
     pub foreground_name: Option<String>,
+    /// L'argv du programme au premier plan (`foreground.argv`).
+    pub foreground_argv: Vec<String>,
 }
 
 /// La réponse de `terminal.send` (`SendResult`, schéma 0.1.17).
@@ -186,6 +188,17 @@ impl ClientCore {
                     .and_then(|f| f.get("name"))
                     .and_then(Value::as_str)
                     .map(String::from),
+                foreground_argv: t
+                    .get("foreground")
+                    .and_then(|f| f.get("argv"))
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(String::from)
+                            .collect()
+                    })
+                    .unwrap_or_default(),
             });
         }
         Ok(TerminalList { terminals: out })

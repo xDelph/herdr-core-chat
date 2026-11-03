@@ -47,6 +47,7 @@ fn terminal(adresse: &str, cwd: &str) -> Terminal {
         foreground_pid: Some(1),
         foreground_cwd: Some(cwd.to_string()),
         foreground_name: Some(String::from("claude")),
+        foreground_argv: vec![String::from("claude")],
     }
 }
 

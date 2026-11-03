@@ -168,8 +168,9 @@ impl PortCore {
     }
 
     /// Le type d'agent : `status.app` (le programme le dit), sinon le
-    /// programme au premier plan s'il est un agent connu. Jamais `argv[0]`
-    /// (c'est le shell du terminal).
+    /// programme au premier plan s'il est un agent connu — par son nom ou par
+    /// le `argv[0]` du premier plan (cursor-agent tourne sous `node`). Jamais
+    /// l'`argv` du terminal (c'est son shell).
     #[must_use]
     pub fn kind_depuis(term: &Terminal) -> Option<AgentKind> {
         let app = term
@@ -182,12 +183,17 @@ impl PortCore {
             // herdr-core reporte « claude-code » ; le type du domaine est « claude ».
             Some("claude-code") => "claude",
             Some(app) => app,
-            None => term
-                .foreground_name
-                .as_deref()
-                .map(|nom| nom.rsplit('/').next().unwrap_or(nom))
-                .filter(|nom| AGENTS_CONNUS.contains(nom))?,
+            None => [
+                term.foreground_name.as_deref(),
+                term.foreground_argv.first().map(String::as_str),
+            ]
+            .into_iter()
+            .flatten()
+            .map(|nom| nom.rsplit('/').next().unwrap_or(nom))
+            .find(|nom| AGENTS_CONNUS.contains(nom))?,
         };
+        // La commande de Cursor est `cursor-agent`, son type `cursor`.
+        let nom = if nom == "cursor-agent" { "cursor" } else { nom };
         Some(AgentKind::from(nom.to_string()))
     }
 

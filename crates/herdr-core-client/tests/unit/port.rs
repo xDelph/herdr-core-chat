@@ -103,6 +103,9 @@ fn chaque_mot_de_statut_a_son_etat_y_compris_error() {
 
 #[test]
 fn le_type_vient_du_programme_jamais_du_shell() {
+    // Cursor tourne sous `node` : reconnu par l'argv du premier plan.
+    let mut cursor = terminal("t4", Value::Null, "node", "/p");
+    cursor["foreground"]["argv"] = json!(["/Users/moi/.local/bin/cursor-agent", "index.js"]);
     let terms = json!([
         terminal(
             "t1",
@@ -114,6 +117,7 @@ fn le_type_vient_du_programme_jamais_du_shell() {
         terminal("t2", Value::Null, "pi", "/p"),
         // Un shell nu n'est pas un agent (argv = /bin/zsh).
         terminal("t3", Value::Null, "zsh", "/p"),
+        cursor,
     ]);
     let (port, _) = port_sur(terms, sans_doc(), rien);
     let snapshot = snapshot(&port);
@@ -141,9 +145,14 @@ fn le_type_vient_du_programme_jamais_du_shell() {
                 Some(String::from("pi")),
                 AgentStatus::Unknown
             ),
+            (
+                String::from("t4"),
+                Some(String::from("cursor")),
+                AgentStatus::Unknown
+            ),
         ]
     );
-    assert_eq!(snapshot.panes.len(), 3, "le shell reste un pane visible");
+    assert_eq!(snapshot.panes.len(), 4, "le shell reste un pane visible");
 }
 
 #[test]
