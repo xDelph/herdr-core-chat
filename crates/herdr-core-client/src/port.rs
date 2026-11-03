@@ -10,8 +10,8 @@ use crate::disposition::disposition_depuis;
 use domain::errors::PortError;
 use domain::ids::{AgentKind, PaneId, TabId, WorkspaceId};
 use domain::observation::{
-    AgentObservation, ReadSource, ScreenObservation, SituatedPane, Snapshot, TabObservation,
-    UpstreamPing, WorkspaceObservation,
+    AgentObservation, ReadSource, ScreenObservation, SituatedPane, Snapshot, SnapshotProvenance,
+    TabObservation, UpstreamPing, WorkspaceObservation,
 };
 use domain::ports::{
     ControlPort, CreateTab, CreatedTab, FocusEvidence, PartialStep, PortFuture, PromptEvidence,
@@ -67,6 +67,7 @@ impl PortCore {
 
     fn construire_snapshot(&self) -> Result<Snapshot, PortError> {
         let mut client = self.verrouiller()?;
+        let hello = client.hello().ok();
         let terms = client.terminal_list().map_err(|e| PortError::Transport {
             detail: e.to_string(),
         })?;
@@ -75,6 +76,10 @@ impl PortCore {
             .map_err(|e| PortError::Transport {
                 detail: e.to_string(),
             })?;
+        let provenance = hello.map(|h| domain::observation::SnapshotProvenance {
+            protocol: h.generation as u64,
+            version: h.version,
+        });
         drop(client);
 
         let disposition = doc.value.as_ref().and_then(|v| disposition_depuis(v).ok());
@@ -239,7 +244,7 @@ impl PortCore {
             focused_pane: None,
             focused_tab: None,
             focused_workspace: None,
-            provenance: None,
+            provenance,
             panes,
         })
     }
