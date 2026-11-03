@@ -170,11 +170,26 @@ Résolution **par agent**, sans repli d'un profil vers un autre :
   3 terminaux `claude-code` du core de l'utilisateur, fichier présent pour
   chaque `foreground.pid`, champ `pid` du fichier = ce PID). Le démon exige
   cette égalité (PID recyclé → aucun fil).
-- **Pi, opencode, devin** : aucun lien prouvé. « La session la plus récente du
-  dossier » a été retirée (fil DEVINÉ : deux agents du même dossier liraient le
-  même) — l'agent est affiché « sans fil ». `[INCONNU]`
-- **codex** : garde la recherche par titre confirmée par son index ;
-  non revérifiée sous herdr-core. `[INCONNU]`
+- **opencode** : titre de terminal `OC | <titre de session>` + dossier
+  (`foreground.cwd`) → **une seule** session principale non archivée de
+  `session_v2` (`directory`, `title`, `parent_id IS NULL`). `[EXÉCUTÉ]`
+  (lecture seule, 2026-11-03 : `t18`, lancé `opencode -s
+  ses_e5e4196c…`, titre `OC | AGENTS.md explanation request` → exactement
+  `ses_e5e4196c…` ; `t7` → une session). Deux sessions du même titre dans le
+  même dossier → aucun fil.
+- **codex** : titre `<nom du fil> | <dossier>` + dossier → fil de son index
+  (`threads.name` + `cwd`, rollout existant). `[EXÉCUTÉ]` (lecture seule :
+  `t1f` « Test | herdr-core-chat » → un fil `Test` dans ce dossier).
+- **Pi** : publie bien OSC 7501 sous herdr-core (`status.app = "pi"`,
+  premier plan `node`, argv `pi`) `[EXÉCUTÉ]`, mais aucun lien vers sa
+  session : titre `π - <dossier>` seulement, aucun fichier de session ouvert
+  (`lsof`), et l'extension `herdr-agent-state.ts` (Herdr 0.9.3) ne parle
+  qu'à `HERDR_SOCKET_PATH`. → « sans fil ». `[INCONNU]`
+- **devin** : non observé sous herdr-core → « sans fil ». `[INCONNU]`
+- « La session la plus récente du dossier » a été retirée pour tous : c'est
+  un fil DEVINÉ (deux agents du même dossier liraient le même).
+- `cursor-agent` tourne sous `node` (premier plan `node`, argv[0]
+  `…/cursor-agent`, pas de statut) : type reconnu par l'argv du premier plan.
 
 ---
 
@@ -256,7 +271,7 @@ Résolution **par agent**, sans repli d'un profil vers un autre :
   bloqué sous le core de test)
 - `terminal.read` : champs `complete`/`how`/`why`. `[SCHÉMA]`
 - OSC 7501 sous herdr-core pour Pi. `[INCONNU]`
-- Résolution de session pour Pi/opencode/codex/devin. `[INCONNU]`
+- Résolution de session pour Pi et devin. `[INCONNU]`
 - Lancement (P7) : l'**apparition dans Herdr.app** d'un terminal labellisé
   `herdr.space`/`herdr.tab` est documentée par le guide de Herdr.app
   (`~/.config/herdr-app/AGENTS.md` : « a terminal with those labels shows up

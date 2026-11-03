@@ -29,10 +29,10 @@ No SSH. No terminal on the phone. Nothing is copied out of your machine.
 
 - **Conversations are resolved per agent.** herdr-core does not say which
   session file belongs to a terminal. Claude Code is resolved from its process
-  (`~/.claude/sessions/<pid>.json`, proven); codex keeps its title lookup
-  confirmed by its own index (not yet re-checked under herdr-core). Pi, opencode
-  and devin are listed **without a conversation** until a reliable link is
-  proven — never with a guessed one.
+  (`~/.claude/sessions/<pid>.json`); codex and opencode from the session title
+  they show in the terminal title, confirmed by their own index for that
+  folder (exactly one match). Pi and devin are listed **without a
+  conversation** until a reliable link is proven — never with a guessed one.
 - **Launching agents** opens a new tab in a Herdr.app space: your machine's
   shell in the project folder, labelled so Herdr.app shows it, with the agent
   command typed in — as Herdr.app does itself. The installed agents are the
