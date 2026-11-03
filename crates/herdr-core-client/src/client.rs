@@ -30,6 +30,7 @@ pub struct Terminal {
     pub labels: std::collections::BTreeMap<String, String>,
     pub parent: Option<String>,
     pub foreground_pid: Option<u32>,
+    pub foreground_cwd: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -161,6 +162,11 @@ impl ClientCore {
                     .and_then(|f| f.get("pid"))
                     .and_then(Value::as_u64)
                     .map(|p| p as u32),
+                foreground_cwd: t
+                    .get("foreground")
+                    .and_then(|f| f.get("cwd"))
+                    .and_then(Value::as_str)
+                    .map(String::from),
             });
         }
         Ok(TerminalList { terminals: out })

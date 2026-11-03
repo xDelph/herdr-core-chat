@@ -231,7 +231,7 @@ impl PortCore {
             panes.push(SituatedPane {
                 pane_id: PaneId::from(t.address.clone()),
                 workspace_id: Some(WorkspaceId::from(ws_id.clone())),
-                cwd: Some(t.cwd.clone()),
+                cwd: t.foreground_cwd.clone().or_else(|| Some(t.cwd.clone())),
             });
             if t.status.as_ref().map(|v| !v.is_null()).unwrap_or(false) {
                 agents.push(AgentObservation {
@@ -249,7 +249,7 @@ impl PortCore {
                     } else {
                         Some(t.title.clone())
                     },
-                    cwd: Some(t.cwd.clone()),
+                    cwd: t.foreground_cwd.clone().or_else(|| Some(t.cwd.clone())),
                     foreground_pid: t.foreground_pid,
                     foreground_cwd: None,
                     completion_seq: None,
