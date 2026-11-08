@@ -30,6 +30,7 @@ fn agent(pane: &str, status: AgentStatus) -> AgentObservation {
         completion_seq: None,
         state_change_seq: None,
         session: None,
+        seen_at: None,
     }
 }
 

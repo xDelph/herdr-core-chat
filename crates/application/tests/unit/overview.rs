@@ -73,6 +73,7 @@ fn agent(pane: &str, tab: &str, workspace: &str, kind: &str) -> AgentObservation
         completion_seq: None,
         state_change_seq: None,
         session: None,
+        seen_at: None,
     }
 }
 

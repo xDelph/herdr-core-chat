@@ -39,6 +39,9 @@ pub enum Op {
     /// La fermeture d'onglet — capturée pour prouver que le nettoyage
     /// possédé vise EXACTEMENT l'onglet créé (et seulement lui).
     FermetureOnglet,
+    /// Le « vu » partagé avec l'amont (`herdr.seen`) — capturé pour prouver
+    /// qu'une lecture le transmet, avec l'instant lu.
+    MarqueVu,
 }
 
 /// Une action capturée : quoi (opération), sur qui (cible), quel fait.
@@ -84,6 +87,8 @@ struct Reglages {
     /// file épuisée.
     dernier_lancement: Option<StartEvidence>,
     arret: Option<StopEvidence>,
+    /// Le tour noté vu que rend `marque_vu` (défaut : rien à noter).
+    vu: Option<u64>,
     actions: Vec<ActionCapturee>,
 }
 
@@ -184,6 +189,11 @@ impl HerdrFaux {
 
     pub fn repond_arret(&self, preuve: StopEvidence) {
         self.verrou().arret = Some(preuve);
+    }
+
+    /// Le tour que `marque_vu` dira noté vu.
+    pub fn repond_vu(&self, tour: Option<u64>) {
+        self.verrou().vu = tour;
     }
 
     /// Panne **globale** : chaque opération renverra exactement cette panne,
@@ -482,6 +492,20 @@ impl ControlPort for HerdrFaux {
                 // jamais ici.
                 None => Ok(StopEvidence::InterruptSent),
             }
+        })
+    }
+
+    fn marque_vu(&self, pane: PaneId, vu_a: u64) -> PortFuture<'_, Option<u64>> {
+        let cible = pane.as_str().to_string();
+        Box::pin(async move {
+            let mut interieur = self.verrou();
+            interieur.actions.push(ActionCapturee {
+                op: Op::MarqueVu,
+                cible,
+                detail: format!("vu jusqu'à {vu_a}"),
+            });
+            Self::note_panne(&interieur, Op::MarqueVu)?;
+            Ok(interieur.vu)
         })
     }
 

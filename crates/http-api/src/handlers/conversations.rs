@@ -23,8 +23,17 @@ async fn conversations_sur_place(
                 .lignes(services.port.as_ref(), &borne);
             (
                 axum::http::StatusCode::OK,
+                // La lecture la plus récente : celle d'un appareil (H22), ou
+                // le « vu » de Herdr.app (`seen_at`) — regardé sur le Mac,
+                // lu partout.
                 axum::Json(convertir::liste_conversations(&lignes, |pane| {
-                    services.lectures.lue_a(pane)
+                    let vu_amont = borne
+                        .snapshot
+                        .agents
+                        .iter()
+                        .find(|agent| agent.pane_id.as_str() == pane)
+                        .and_then(|agent| agent.seen_at);
+                    services.lectures.lue_a(pane).max(vu_amont)
                 })),
             )
                 .into_response()

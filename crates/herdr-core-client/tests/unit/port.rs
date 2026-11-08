@@ -466,3 +466,110 @@ fn l_arret_est_envoye_quel_que_soit_l_effet_observe() {
         autre => panic!("{autre:?}"),
     }
 }
+
+/// Un agent `done`, son tour, le tour vu (`herdr.seen`) et la fin du tour.
+fn fini(tour: u64, vu: Option<&str>, fin_ms: u64) -> Value {
+    let mut term = terminal(
+        "t1",
+        json!({"app":"claude-code","state":"done"}),
+        "claude",
+        "/p",
+    );
+    term["turn"] = json!(tour);
+    term["status_ms"] = json!(fin_ms);
+    if let Some(vu) = vu {
+        term["labels"] = json!({"herdr.seen": vu});
+    }
+    term
+}
+
+/// Comme Herdr.app : `done` regardé (`herdr.seen >= turn`) s'affiche `idle`,
+/// et dit jusqu'où il a été vu ; un tour pas encore vu reste `done`.
+#[test]
+fn un_done_vu_dans_herdr_app_devient_idle_et_porte_son_instant() {
+    for (vu, statut, vu_a) in [
+        (Some("7"), AgentStatus::Idle, Some(1_000)),
+        (Some("8"), AgentStatus::Idle, Some(1_000)),
+        (Some("6"), AgentStatus::Done, None),
+        (Some("pas un tour"), AgentStatus::Done, None),
+        (None, AgentStatus::Done, None),
+    ] {
+        let (port, _) = port_sur(json!([fini(7, vu, 1_000)]), sans_doc(), rien);
+        let agent = &snapshot(&port).agents[0];
+        assert_eq!(agent.status, statut, "herdr.seen = {vu:?}");
+        assert_eq!(agent.seen_at, vu_a, "herdr.seen = {vu:?}");
+    }
+}
+
+/// Un agent au travail n'a jamais de « vu » : son tour n'est pas fini.
+#[test]
+fn un_agent_au_travail_n_est_jamais_vu() {
+    let mut term = terminal(
+        "t1",
+        json!({"app":"claude-code","state":"working"}),
+        "claude",
+        "/p",
+    );
+    term["labels"] = json!({"herdr.seen": "3"});
+    term["status_ms"] = json!(1_000);
+    let (port, _) = port_sur(json!([term]), sans_doc(), rien);
+    let agent = &snapshot(&port).agents[0];
+    assert_eq!(agent.status, AgentStatus::Working);
+    assert_eq!(agent.seen_at, None);
+}
+
+fn marque_vu(port: &PortCore, vu_a: u64) -> Option<u64> {
+    attends(port.marque_vu(PaneId::from(String::from("t1")), vu_a))
+        .unwrap_or_else(|erreur| panic!("marque_vu : {erreur}"))
+}
+
+/// Lu sur le téléphone → `herdr.seen = turn`, seulement pour un `done`
+/// fini AVANT la lecture et pas encore vu. Jamais un tour lu après coup,
+/// jamais un label en arrière, jamais un agent au travail.
+#[test]
+fn une_lecture_note_le_vu_dans_herdr_app_sans_jamais_l_inventer() {
+    for (term, vu_a, attendu) in [
+        (fini(7, Some("6"), 1_000), 1_500, Some(7)),
+        (fini(7, None, 1_000), 1_000, Some(7)),
+        (fini(7, Some("6"), 2_000), 1_500, None),
+        (fini(7, Some("7"), 1_000), 1_500, None),
+        (fini(7, Some("9"), 1_000), 1_500, None),
+        (
+            terminal(
+                "t1",
+                json!({"app":"claude-code","state":"working"}),
+                "claude",
+                "/p",
+            ),
+            9_999_999,
+            None,
+        ),
+    ] {
+        let (port, demandes) = port_sur(json!([term.clone()]), sans_doc(), rien);
+        assert_eq!(marque_vu(&port, vu_a), attendu, "{term}");
+        let poses = demandes_de(&demandes, "terminal.label");
+        match attendu {
+            Some(tour) => {
+                assert_eq!(poses.len(), 1);
+                assert_eq!(poses[0]["terminal"], "t1");
+                assert_eq!(poses[0]["labels"], json!({"herdr.seen": tour.to_string()}));
+            }
+            None => assert!(poses.is_empty(), "label posé sans preuve : {poses:?}"),
+        }
+    }
+}
+
+/// Un refus du core remonte avec sa cause.
+#[test]
+fn un_vu_refuse_par_le_core_remonte() {
+    let (port, _) = port_sur(json!([fini(7, None, 1_000)]), sans_doc(), |_, _| {
+        Reponse::Erreur {
+            message: String::from("terminal t1 not found"),
+            kind: String::from("not_found"),
+        }
+    });
+    match attends(port.marque_vu(PaneId::from(String::from("t1")), 2_000)) {
+        Err(erreur) => assert!(erreur.description().contains("not_found"), "{erreur}"),
+        Ok(issue) => panic!("refus masqué : {issue:?}"),
+    }
+}

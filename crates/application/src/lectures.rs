@@ -11,9 +11,16 @@
 //!   lectures sont oubliées (un pane oublié retombe sur la règle sans lecture).
 //! - La persistance est un port : une panne d'écriture est **rendue** à
 //!   l'appelant (qui la journalise), la lecture reste notée en mémoire.
-//! - Ce n'est pas du contenu : un instant par pane. Lire ne touche jamais
-//!   Herdr — le focus du Mac reste un geste explicite.
+//! - Ce n'est pas du contenu : un instant par pane. Lire ne vole jamais le
+//!   focus du Mac (geste explicite).
+//! - ⚠️ **Le « vu » est partagé avec Herdr.app** ([`partage_vu`], retour du
+//!   2026-11-08) : une conversation lue ici éteint aussi le `done` de
+//!   Herdr.app (label `herdr.seen`, que ses fenêtres et son app téléphone
+//!   partagent déjà) — et l'adaptateur relit ce label dans l'autre sens.
 
+use domain::errors::PortError;
+use domain::ids::PaneId;
+use domain::ports::ControlPort;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -123,4 +130,16 @@ fn borne(lectures: HashMap<String, u64>) -> HashMap<String, u64> {
     triees.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     triees.truncate(MAXIMUM_LECTURES);
     triees.into_iter().collect()
+}
+
+/// Dit à l'amont que la conversation de `pane` a été vue jusqu'à `vu_a` :
+/// `Some(tour)` quand un tour `done` vient d'être noté vu, `None` quand il
+/// n'y avait rien à noter. Le port décide de ce qui est prouvé (un tour fini
+/// après la lecture n'est jamais marqué).
+///
+/// # Errors
+/// La cause réelle d'un amont qui refuse ou ne répond pas.
+pub fn partage_vu(port: &dyn ControlPort, pane: &str, vu_a: u64) -> Result<Option<u64>, PortError> {
+    let mut demande = port.marque_vu(PaneId::from(pane.to_string()), vu_a);
+    crate::commands::pousse(&mut demande)
 }

@@ -158,6 +158,7 @@ fn l_agent_sans_champs_est_bien_un_agent() {
         completion_seq: None,
         state_change_seq: None,
         session: None,
+        seen_at: None,
     };
     assert!(type_lisible(agent.agent.as_ref()));
     assert!(agent.cwd.as_deref() == Some("/projets/atelier"));

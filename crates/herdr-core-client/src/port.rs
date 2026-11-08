@@ -221,6 +221,45 @@ impl PortCore {
         }
     }
 
+    /// Le label de Herdr.app qui partage le « vu » entre ses fenêtres et
+    /// son app téléphone : le dernier tour vu (`herdr.seen = "<turn>"`).
+    pub const LABEL_VU: &'static str = "herdr.seen";
+
+    /// Le tour vu, tel que Herdr.app l'a noté ; illisible ou absent : `None`.
+    #[must_use]
+    pub fn tour_vu(term: &Terminal) -> Option<u64> {
+        term.labels.get(Self::LABEL_VU)?.trim().parse().ok()
+    }
+
+    /// L'état affiché, **comme Herdr.app** : `done` = « fini pendant que
+    /// l'utilisateur ne regardait pas — devient `idle` une fois regardé »
+    /// (guide de Herdr.app). Le core garde le mot `done` ; c'est
+    /// `herdr.seen >= turn` qui dit « regardé ». Sans ce label, un agent vu
+    /// sur le Mac restait « done, non lu » sur le téléphone.
+    #[must_use]
+    pub fn statut_affiche(term: &Terminal) -> AgentStatus {
+        match Self::agent_status_depuis(term.status.as_ref()) {
+            AgentStatus::Done if Self::tour_vu(term).is_some_and(|vu| vu >= term.turn) => {
+                AgentStatus::Idle
+            }
+            statut => statut,
+        }
+    }
+
+    /// Jusqu'où Herdr.app a vu l'agent : la fin de son dernier tour
+    /// (`status_ms`), quand `herdr.seen` couvre ce tour et que l'agent ne
+    /// travaille pas. Mesuré le 2026-11-08 : `status_ms` suit de 10 à 14 ms
+    /// la dernière activité de la session — tout ce qu'elle montre est vu.
+    #[must_use]
+    pub fn vu_a(term: &Terminal) -> Option<u64> {
+        let au_repos = matches!(
+            Self::agent_status_depuis(term.status.as_ref()),
+            AgentStatus::Done | AgentStatus::Idle
+        );
+        let vu = Self::tour_vu(term).is_some_and(|vu| vu >= term.turn);
+        if au_repos && vu { term.status_ms } else { None }
+    }
+
     /// Le type d'agent : `status.app` (le programme le dit), sinon le
     /// programme au premier plan s'il est un agent connu — par son nom ou par
     /// le `argv[0]` du premier plan (cursor-agent tourne sous `node`). Jamais
@@ -394,7 +433,7 @@ fn agent_de(term: &Terminal, espace: &str, onglet: &str) -> AgentObservation {
         workspace_id: WorkspaceId::from(espace.to_string()),
         terminal_id: term.address.clone(),
         revision: term.turn,
-        status: PortCore::agent_status_depuis(term.status.as_ref()),
+        status: PortCore::statut_affiche(term),
         focused: false,
         agent: PortCore::kind_depuis(term),
         name: term
@@ -409,6 +448,7 @@ fn agent_de(term: &Terminal, espace: &str, onglet: &str) -> AgentObservation {
         completion_seq: None,
         state_change_seq: None,
         session: None,
+        seen_at: PortCore::vu_a(term),
     }
 }
 
@@ -579,7 +619,7 @@ pub fn snapshot_depuis(
                 if let Some(term) = connus.get(adresse.as_str())
                     && PortCore::est_agent(term)
                 {
-                    statut = agrege(statut, PortCore::agent_status_depuis(term.status.as_ref()));
+                    statut = agrege(statut, PortCore::statut_affiche(term));
                 }
             }
             if let Some(tabs) = snapshot.tabs.as_mut() {
@@ -903,6 +943,35 @@ impl ControlPort for PortCore {
             }
         });
         pret(resultat)
+    }
+
+    /// Le « vu » partagé avec Herdr.app (`herdr.seen`), seulement pour un
+    /// agent `done` dont le tour n'est pas encore vu, **et** fini avant la
+    /// lecture (`status_ms <= vu_a`) : un tour terminé après que la
+    /// conversation a été regardée reste « non vu ». Jamais un label en
+    /// arrière.
+    fn marque_vu(&self, pane: PaneId, vu_a: u64) -> PortFuture<'_, Option<u64>> {
+        let adresse = pane.to_string();
+        let terminal = match self.terminal(&adresse) {
+            Ok(terminal) => terminal,
+            Err(erreur) => return pret(Err(erreur)),
+        };
+        let fini = Self::agent_status_depuis(terminal.status.as_ref()) == AgentStatus::Done;
+        let deja = Self::tour_vu(&terminal).is_some_and(|vu| vu >= terminal.turn);
+        let avant_lecture = terminal.status_ms.is_some_and(|instant| instant <= vu_a);
+        if !fini || deja || !avant_lecture {
+            return pret(Ok(None));
+        }
+        let labels: BTreeMap<String, String> =
+            [(String::from(Self::LABEL_VU), terminal.turn.to_string())]
+                .into_iter()
+                .collect();
+        let resultat = self.verrouiller().and_then(|mut client| {
+            client
+                .terminal_label(&adresse, &labels)
+                .map_err(erreur_port)
+        });
+        pret(resultat.map(|()| Some(terminal.turn)))
     }
 
     fn focus(&self, _pane: PaneId) -> PortFuture<'_, FocusEvidence> {

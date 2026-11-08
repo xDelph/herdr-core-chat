@@ -132,6 +132,10 @@ pub struct AgentObservation {
     pub state_change_seq: Option<u64>,
     /// Le chemin que Herdr expose pour la session, tel quel.
     pub session: Option<AgentSessionRef>,
+    /// Jusqu'où l'amont dit le dernier tour **vu** (ms UTC) — Herdr.app le
+    /// note (`herdr.seen`) quand on regarde l'agent sur le Mac. `None` : pas
+    /// vu, ou l'amont ne le dit pas.
+    pub seen_at: Option<u64>,
 }
 
 /// Dossier de travail d'un projet, tel que le workspace le porte.

@@ -92,6 +92,7 @@ pub(crate) fn agent(
             kind,
             value: String::from(valeur),
         }),
+        seen_at: None,
     }
 }
 

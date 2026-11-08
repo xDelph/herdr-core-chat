@@ -26,6 +26,9 @@ pub struct Terminal {
     pub state: String,
     pub status: Option<Value>,
     pub turn: u64,
+    /// Quand le mot de statut a changé pour la dernière fois (ms UTC) ;
+    /// `None` : le programme n'a jamais rien dit.
+    pub status_ms: Option<u64>,
     pub title: String,
     pub labels: std::collections::BTreeMap<String, String>,
     pub parent: Option<String>,
@@ -164,6 +167,7 @@ impl ClientCore {
                     .to_string(),
                 status: t.get("status").cloned(),
                 turn: t.get("turn").and_then(Value::as_u64).unwrap_or(0),
+                status_ms: t.get("status_ms").and_then(Value::as_u64),
                 title: t
                     .get("title")
                     .and_then(Value::as_str)
@@ -238,6 +242,19 @@ impl ClientCore {
             status: r.get("status").and_then(Value::as_str).map(String::from),
             started: r.get("started").and_then(Value::as_bool),
         })
+    }
+
+    /// Pose des labels (`terminal.label`) ; `clé = ""` en retire un.
+    pub fn terminal_label(
+        &mut self,
+        terminal: &str,
+        labels: &std::collections::BTreeMap<String, String>,
+    ) -> Result<(), ErreurTransport> {
+        self.transport.appelle(
+            "terminal.label",
+            json!({"terminal": terminal, "labels": labels}),
+        )?;
+        Ok(())
     }
 
     pub fn terminal_keys(

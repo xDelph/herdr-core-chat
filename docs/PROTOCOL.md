@@ -115,6 +115,21 @@ de test — à vérifier en charge)
   `started: true` en 0,2 s. L'adaptateur relit le terminal 6 s de plus
   (`working` ou tour qui avance = confirmé) et journalise chaque envoi. `[EXÉCUTÉ]`
 
+### 4.1bis « Vu » partagé : label `herdr.seen` `[EXÉCUTÉ]`
+
+Herdr.app note le dernier tour regardé dans le label `herdr.seen = "<turn>"`
+du terminal (partagé entre ses fenêtres et son app téléphone). Le core garde
+le mot `done` ; Herdr.app l'affiche `idle` quand `herdr.seen >= turn` (son
+guide : « done = finished while the user wasn't looking; it becomes idle once
+they look »). Relevé sur le core de l'utilisateur, lecture seule : `view.json`
+« seen: false » ⇔ `herdr.seen < turn` (t13, t1g), et `status_ms` suit de 10 à
+14 ms la dernière activité de la session.
+- Mac → téléphone : `done` + `herdr.seen >= turn` → affiché `idle`, et
+  `seen_at = status_ms` alimente `readAt`.
+- Téléphone → Mac : une lecture (`POST /read`) pose `herdr.seen = turn`
+  (`terminal.label`) sur un `done` fini **avant** l'instant lu. Vérifié sur
+  core isolé : lecture antérieure → rien ; lecture courante → `herdr.seen=1`.
+
 ### 4.2 `terminal.keys` `[SCHÉMA]`
 
 Touches nommées (`enter`, `esc`, `tab`, `up`, `ctrl+c`, …).

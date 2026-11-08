@@ -146,6 +146,7 @@ pub fn snapshot_de_base() -> Snapshot {
                 kind: SessionRefKind::Path,
                 value: String::from("/fixtures-fausses/pi/atelier-un.jsonl"),
             }),
+            seen_at: None,
         },
         AgentObservation {
             pane_id: PaneId::from(String::from("p2")),
@@ -164,6 +165,7 @@ pub fn snapshot_de_base() -> Snapshot {
             completion_seq: None,
             state_change_seq: None,
             session: None,
+            seen_at: None,
         },
         AgentObservation {
             pane_id: PaneId::from(String::from("p3")),
@@ -185,6 +187,7 @@ pub fn snapshot_de_base() -> Snapshot {
                 kind: SessionRefKind::Path,
                 value: String::from("/fixtures-fausses/pi/atelier-deux.jsonl"),
             }),
+            seen_at: None,
         },
     ];
 
@@ -428,6 +431,7 @@ pub fn charges_snapshot(quantite: usize) -> Snapshot {
             } else {
                 None
             },
+            seen_at: None,
         });
     }
     snap

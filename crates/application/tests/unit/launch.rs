@@ -96,6 +96,7 @@ fn agent_nomme(pane: &str, nom: &str) -> AgentObservation {
         completion_seq: None,
         state_change_seq: None,
         session: None,
+        seen_at: None,
     }
 }
 

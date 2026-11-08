@@ -136,6 +136,7 @@ impl ControlPort for FauxPort {
                     completion_seq: None,
                     state_change_seq: None,
                     session: None,
+                    seen_at: None,
                 }]
             } else {
                 Vec::new()

@@ -267,6 +267,15 @@ pub trait ControlPort: Send + Sync {
     fn fermer_onglet(&self, tab: TabId) -> PortFuture<'_, ()>;
     /// Demande l'interruption d'un agent courant.
     fn stop(&self, pane: PaneId) -> PortFuture<'_, StopEvidence>;
+    /// La conversation de `pane` a été lue jusqu'à `vu_a` (ms UTC) : le dire
+    /// à l'amont, pour que « fini, pas encore vu » s'éteigne partout.
+    /// `Some(tour)` : le tour noté vu ; `None` : rien à noter (pas `done`,
+    /// déjà vu, ou fini **après** la lecture — un tour jamais lu n'est
+    /// jamais marqué vu). Par défaut, un amont qui ne partage pas le « vu ».
+    fn marque_vu(&self, pane: PaneId, vu_a: u64) -> PortFuture<'_, Option<u64>> {
+        let _ = (pane, vu_a);
+        Box::pin(std::future::ready(Ok(None)))
+    }
 }
 
 /// Le port de sessions : résoudre, paginer, décrire des réglages.

@@ -41,6 +41,7 @@ fn terminal(adresse: &str, cwd: &str) -> Terminal {
         state: String::from("live"),
         status: Some(json!({"app":"claude-code","state":"idle"})),
         turn: 1,
+        status_ms: None,
         title: String::new(),
         labels: std::collections::BTreeMap::new(),
         parent: None,
