@@ -104,11 +104,20 @@ export type TrustAnswer =
 export type TrustState = "transmise" | "acceptee" | "refusee" | "non-applicable" | "inconnu";
 
 export const answerTrust = async (paneId: string, accept: boolean): Promise<TrustAnswer> => {
-  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/trust`, {
-    body: JSON.stringify({ accept }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  let response: Response;
+  try {
+    response = await envoieAction(
+      `/api/agents/${encodeURIComponent(paneId)}/trust`,
+      { accept },
+      DELAIS_ACTION_MS.reponse,
+    );
+  } catch (cause) {
+    return {
+      accepted: false,
+      detail: cause instanceof Error ? cause.message : String(cause),
+      state: "inconnu",
+    };
+  }
   const payload = await readJson(response);
   if (!response.ok) {
     const failure = decodeError(payload);
@@ -178,11 +187,11 @@ export const launchAgent = async (
     s'afficherait comme un échec rouge et l'agent resterait bloqué sans issue.
     On lit donc le corps **avant** de décider de l'échec.
   */
-  const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/agents`, {
-    body: JSON.stringify(body),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  const response = await envoieAction(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/agents`,
+    body,
+    DELAIS_ACTION_MS.lancement,
+  );
   const payload = await readJson(response);
 
   if (response.status === 409) {
@@ -257,6 +266,66 @@ export const horsLigne = (): boolean =>
 const erreurDe = (payload: unknown, statut: number): string => {
   const failure = decodeError(payload);
   return failure === undefined ? `failed (${String(statut)})` : erreurLisible(failure.error);
+};
+
+/**
+ * Une action qui n'a pas abouti côté réseau. `envoyee` : la requête a pu
+ * partir (délai dépassé, connexion coupée) — l'action a PEUT-ÊTRE été
+ * appliquée ; `false` : hors ligne, rien n'a quitté l'appareil.
+ */
+export class ActionSansReponse extends Error {
+  readonly envoyee: boolean;
+
+  constructor(message: string, envoyee: boolean, cause: unknown) {
+    super(message, { cause });
+    this.name = "ActionSansReponse";
+    this.envoyee = envoyee;
+  }
+}
+
+/** Les délais des actions — au-delà de ce que le démon prend légitimement. */
+export const DELAIS_ACTION_MS = {
+  /** Le démon borne un lancement à 160 s (onglet, shell, démarrage). */
+  lancement: 180_000,
+  /** Lecture d'écran, touches et relecture : quelques secondes. */
+  reponse: 30_000,
+  /** L'interruption observe jusqu'à 5 s. */
+  arret: 30_000,
+  /** Un label posé, un fichier écrit. */
+  court: 10_000,
+} as const;
+
+/**
+ * ⚠️ **Une action DOIT finir, et dire ce qu'on en sait.** Sans délai, un
+ * lancement pouvait rester « en cours » pour toujours ; une réponse coupée par
+ * le passage en arrière-plan s'affichait « Load failed » (brut), alors que la
+ * touche était peut-être déjà partie.
+ */
+const envoieAction = async (chemin: string, corps: unknown, delaiMs: number): Promise<Response> => {
+  try {
+    return await fetch(chemin, {
+      body: JSON.stringify(corps),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+      signal: AbortSignal.timeout(delaiMs),
+    });
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === "TimeoutError") {
+      throw new ActionSansReponse(
+        `The daemon did not answer within ${String(delaiMs / 1000)}s: the action may have been applied — check before retrying.`,
+        true,
+        cause,
+      );
+    }
+    if (horsLigne()) {
+      throw new ActionSansReponse("Offline: nothing was sent.", false, cause);
+    }
+    throw new ActionSansReponse(
+      `Connection to the daemon interrupted (${erreurLisible(cause instanceof Error ? cause.message : String(cause))}): the action may have been applied — check before retrying.`,
+      true,
+      cause,
+    );
+  }
 };
 
 /** Lit le corps une seule fois et le renvoie analysé, ou lève une erreur lisible. */
@@ -528,11 +597,11 @@ export const stopAgent = async (paneId: string): Promise<StopAgentResponse> => {
     route » et Stop n'a jamais pu fonctionner. La route exige aussi un
     Content-Type JSON (corps ignoré, comme `/focus`).
   */
-  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/stop`, {
-    body: JSON.stringify({}),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  const response = await envoieAction(
+    `/api/agents/${encodeURIComponent(paneId)}/stop`,
+    {},
+    DELAIS_ACTION_MS.arret,
+  );
   const payload = await readJson(response);
   if (!response.ok) {
     throw new Error(erreurDe(payload, response.status));
@@ -836,15 +905,23 @@ export const answerQuestion = async (
   numero: number,
   texte?: string,
 ): Promise<AnswerResult> => {
-  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/answer`, {
-    // ⚠️ `texte` n'est pas un ornement : l'option de saisie libre d'opencode
-    // ouvre un champ, et le choix **seul** le laisserait vide.
-    body: JSON.stringify(
+  let response: Response;
+  try {
+    response = await envoieAction(
+      `/api/agents/${encodeURIComponent(paneId)}/answer`,
+      // ⚠️ `texte` n'est pas un ornement : l'option de saisie libre d'opencode
+      // ouvre un champ, et le choix **seul** le laisserait vide.
       texte === undefined || texte.length === 0 ? { numero } : { numero, texte },
-    ),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+      DELAIS_ACTION_MS.reponse,
+    );
+  } catch (cause) {
+    // Partie ou non : `transmise` (peut-être appliquée) n'est pas `refusee`.
+    const envoyee = cause instanceof ActionSansReponse ? cause.envoyee : true;
+    return {
+      detail: cause instanceof Error ? cause.message : String(cause),
+      state: envoyee ? "transmise" : "refusee",
+    };
+  }
 
   let payload: unknown;
   try {
@@ -912,11 +989,11 @@ export const signalePresence = async (endpoint: string, visible: boolean): Promi
  * jamais Herdr.
  */
 export const markRead = async (paneId: string, at: number): Promise<MarkReadResponse> => {
-  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/read`, {
-    body: JSON.stringify({ at: Math.floor(at) }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  const response = await envoieAction(
+    `/api/agents/${encodeURIComponent(paneId)}/read`,
+    { at: Math.floor(at) },
+    DELAIS_ACTION_MS.court,
+  );
   const payload = await readJson(response);
   if (!response.ok) {
     throw new Error(erreurDe(payload, response.status));
@@ -927,11 +1004,11 @@ export const markRead = async (paneId: string, at: number): Promise<MarkReadResp
 };
 
 export const focusAgent = async (paneId: string): Promise<AgentFocusedResponse> => {
-  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/focus`, {
-    body: JSON.stringify({}),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  const response = await envoieAction(
+    `/api/agents/${encodeURIComponent(paneId)}/focus`,
+    {},
+    DELAIS_ACTION_MS.court,
+  );
   const payload = await readJson(response);
   if (!response.ok) {
     throw new Error(erreurDe(payload, response.status));

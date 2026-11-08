@@ -380,6 +380,33 @@ describe("repli : le démon ne sert pas encore le flux", () => {
     expect(flux).toHaveLength(0);
     expect(suivi.vue().transport).toBe("repli");
   });
+
+  test("un curseur refusé (session changée) repart de la queue, une fois, sans erreur", async () => {
+    // Le défaut : le repli gardait le curseur et échouait à chaque essai, avec
+    // « the conversation will be reloaded » — un rechargement qui ne venait pas.
+    const appels: unknown[] = [];
+    const { suivi } = monte({
+      flux: false,
+      lit: async (_pane, options) => {
+        appels.push(options);
+        if (appels.length === 1) return page({ cursor: "ancien", entries: [demande("u1")] });
+        if ("cursor" in options) {
+          throw new Error(
+            "Stale read position: the conversation will be reloaded\nCause: invalid cursor",
+          );
+        }
+        return page({ cursor: "neuf", entries: [demande("n1"), entree("n2")] });
+      },
+    });
+    suivi.demarre();
+    await attend();
+    suivi.signale();
+    await attend();
+    await attend();
+    expect(appels).toEqual([{ tail: 256 * 1024 }, { cursor: "ancien" }, { tail: 256 * 1024 }]);
+    expect(suivi.vue().erreur).toBeNull();
+    expect(suivi.vue().entries.map((e) => e.id)).toEqual(["n1", "n2"]);
+  });
 });
 
 describe("un flux muet n'est pas un flux vivant", () => {

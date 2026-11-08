@@ -6,7 +6,14 @@
  * - les erreurs connues du démon sont traduites, la cause brute reste.
  */
 import { afterEach, describe, expect, test } from "bun:test";
-import { fetchHealth, fetchSession, sendPrompt, sondeFluxSession } from "../src/api.ts";
+import {
+  answerQuestion,
+  fetchHealth,
+  fetchSession,
+  launchAgent,
+  sendPrompt,
+  sondeFluxSession,
+} from "../src/api.ts";
 import { erreurLisible } from "../src/erreurs-demon.ts";
 
 const original = globalThis.fetch;
@@ -184,6 +191,38 @@ describe("un envoi refusé avant toute action est une erreur, pas un « inconnu 
     expect(appels).toBe(0);
     expect(issue.kind === "failed" ? issue.state : undefined).toBe("erreur");
     expect(issue.kind === "failed" ? issue.message : "").toContain("nothing was sent");
+  });
+});
+
+/** `fetch` rejette avec `cause` (délai, connexion coupée). */
+const leve = (cause: unknown) => {
+  globalThis.fetch = Object.assign(
+    async () => {
+      throw cause;
+    },
+    { preconnect: original.preconnect },
+  );
+};
+
+describe("une action sans réponse dit ce qu'on en sait", () => {
+  test("une réponse coupée par un délai est « transmise », pas « refusée »", async () => {
+    leve(new DOMException("timed out", "TimeoutError"));
+    const issue = await answerQuestion("w1:p1", 2);
+    expect(issue.state).toBe("transmise");
+    expect(issue.detail).toContain("may have been applied");
+  });
+
+  test("une réponse coupée par l'arrière-plan n'affiche pas « Load failed » brut", async () => {
+    leve(new TypeError("Load failed"));
+    const issue = await answerQuestion("w1:p1", 2);
+    expect(issue.state).toBe("transmise");
+    expect(issue.detail).toContain("Connection to the daemon interrupted");
+  });
+
+  test("un lancement sans réponse le dit — il a peut-être démarré", async () => {
+    leve(new DOMException("timed out", "TimeoutError"));
+    const erreur = await launchAgent("sp1", "claude").catch((cause: unknown) => cause);
+    expect(erreur instanceof Error ? erreur.message : "").toContain("may have been applied");
   });
 });
 

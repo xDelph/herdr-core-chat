@@ -59,3 +59,28 @@ fn le_statut_de_send_est_un_mot() {
     assert_eq!(envoyes[0]["if"], "idle");
     assert!(envoyes[0].get("force").is_none(), "jamais force par défaut");
 }
+
+/// Un délai de socket écoulé (`WouldBlock` sous macOS, `TimedOut` ailleurs)
+/// est un délai SANS verdict — l'envoi est « en attente », jamais « inconnu ».
+#[test]
+fn un_delai_de_socket_est_un_delai_pas_une_panne() {
+    use herdr_core_client::transport::erreur_d_attente;
+    use std::io::{Error, ErrorKind};
+    for genre in [ErrorKind::WouldBlock, ErrorKind::TimedOut] {
+        assert!(
+            matches!(
+                erreur_d_attente(Error::from(genre)),
+                ErreurTransport::DelaiDepasse
+            ),
+            "{genre:?}"
+        );
+    }
+    assert!(matches!(
+        erreur_d_attente(Error::from(ErrorKind::BrokenPipe)),
+        ErreurTransport::Socket(_)
+    ));
+    assert!(matches!(
+        herdr_core_client::port::erreur_port(ErreurTransport::DelaiDepasse),
+        domain::errors::PortError::Timeout
+    ));
+}

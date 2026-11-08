@@ -63,6 +63,23 @@ impl std::fmt::Display for ErreurTransport {
 
 impl std::error::Error for ErreurTransport {}
 
+/// Une erreur d'E/S pendant l'échange : un délai écoulé (`WouldBlock` sous
+/// macOS, `TimedOut` ailleurs) est **un délai sans verdict**, pas une panne.
+///
+/// ⚠️ Rangé en `Socket("Resource temporarily unavailable")`, un
+/// `terminal.send` trop long s'affichait « inconnu » : le texte arrivait
+/// quand même, et un renvoi le doublait. En `DelaiDepasse`, l'envoi est en
+/// `attente`.
+#[must_use]
+pub fn erreur_d_attente(erreur: std::io::Error) -> ErreurTransport {
+    match erreur.kind() {
+        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => {
+            ErreurTransport::DelaiDepasse
+        }
+        _ => ErreurTransport::Socket(erreur.to_string()),
+    }
+}
+
 pub fn delai_de(methode: &str) -> Duration {
     match methode {
         "terminal.run" => Duration::from_secs(125),
@@ -113,7 +130,7 @@ impl TransportCore {
         ligne.push('\n');
         stream
             .write_all(ligne.as_bytes())
-            .map_err(|e| ErreurTransport::Socket(e.to_string()))?;
+            .map_err(erreur_d_attente)?;
         stream
             .flush()
             .map_err(|e| ErreurTransport::Socket(e.to_string()))?;
@@ -123,7 +140,7 @@ impl TransportCore {
         let mut reponse_ligne = String::new();
         let n = reader
             .read_line(&mut reponse_ligne)
-            .map_err(|e| ErreurTransport::Socket(e.to_string()))?;
+            .map_err(erreur_d_attente)?;
         if n == 0 {
             return Err(ErreurTransport::Ferme);
         }

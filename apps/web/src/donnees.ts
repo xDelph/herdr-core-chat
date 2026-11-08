@@ -27,6 +27,7 @@ import {
   creeRegroupement,
   EVENEMENTS_RAFRAICHISSANTS,
 } from "./rafraichissement.ts";
+import { estInterruption } from "./interruption.ts";
 import type { Resultat } from "./rafraichissement.ts";
 
 export type Direct = "live" | "down" | "inconnu";
@@ -147,28 +148,44 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
       Health,
       { readonly conversations: ReadonlyArray<ConversationSummary> }
     >,
+    /** La page a été cachée pendant la lecture : un échec n'y prouve rien. */
+    cachee: boolean,
   ): void => {
     // ⚠️ Une réponse plus ancienne que celle déjà appliquée est ignorée : la
     // liste ne revient jamais en arrière.
     if (resultat.generation <= generationAppliquee) return;
     generationAppliquee = resultat.generation;
+    // ⚠️ Un échec INTERROMPU (page cachée, requête coupée par iOS) n'est ni
+    // journalisé ni affiché : l'erreur précédente reste ce qu'elle était, et
+    // le retour au premier plan relit (`interruption.ts`).
+    const echec = (issue: { readonly ok: false; readonly cause: string }) =>
+      cachee || estInterruption(issue.cause) ? "interrompu" : "panne";
     // Une barre rouge disparaît au rechargement ; le journal du démon, non.
     for (const [ressource, issue] of [
       ["overview", resultat.overview],
       ["health", resultat.health],
       ["conversations", resultat.conversations],
     ] as const) {
-      if (!issue.ok) deps.signale?.(`failed to read ${ressource}`, { cause: issue.cause });
+      if (!issue.ok && echec(issue) === "panne") {
+        deps.signale?.(`failed to read ${ressource}`, { cause: issue.cause });
+      }
     }
+    const erreurDe = (
+      issue: { readonly ok: true } | { readonly ok: false; readonly cause: string },
+      precedente: string | null,
+    ): string | null => {
+      if (issue.ok) return null;
+      return echec(issue) === "panne" ? issue.cause : precedente;
+    };
     publie({
       conversations: resultat.conversations.ok
         ? resultat.conversations.valeur.conversations
         : etat.conversations,
       dernierSucces: resultat.conversations.ok ? deps.maintenant() : etat.dernierSucces,
       erreurs: {
-        conversations: resultat.conversations.ok ? null : resultat.conversations.cause,
-        health: resultat.health.ok ? null : resultat.health.cause,
-        overview: resultat.overview.ok ? null : resultat.overview.cause,
+        conversations: erreurDe(resultat.conversations, etat.erreurs.conversations),
+        health: erreurDe(resultat.health, etat.erreurs.health),
+        overview: erreurDe(resultat.overview, etat.erreurs.overview),
       },
       health: resultat.health.ok ? resultat.health.valeur : etat.health,
       overview: resultat.overview.ok ? resultat.overview.valeur : etat.overview,
@@ -177,8 +194,10 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
 
   const rafraichit = async (frais = false): Promise<void> => {
     publie({ chargement: true });
+    const visibleAuDepart = deps.visible();
     try {
-      applique(await (frais ? client.litFrais() : client.lit()));
+      const resultat = await (frais ? client.litFrais() : client.lit());
+      applique(resultat, !visibleAuDepart || !deps.visible());
     } finally {
       publie({ chargement: client.enVol() });
     }

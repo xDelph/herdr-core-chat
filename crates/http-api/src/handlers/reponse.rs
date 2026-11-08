@@ -59,6 +59,21 @@ async fn reponse_sur_place(
             }),
         )
             .into_response(),
+        // ⚠️ Un délai sans verdict n'est PAS un refus : des touches ont pu
+        // partir. « Answer rejected » faisait répondre une seconde fois à
+        // une question peut-être déjà validée.
+        Err(domain::errors::PortError::Timeout) => (
+            axum::http::StatusCode::OK,
+            axum::Json(QuestionAnsweredResponse {
+                detail: String::from(
+                    "Herdr did not answer in time: the answer may have been applied — \
+                     check the screen before answering again",
+                ),
+                state: AnswerState::Transmise,
+                status: AnsweredStatus::QuestionAnswered,
+            }),
+        )
+            .into_response(),
         // L'échec Herdr est un 502 : le corps porte la cause réelle.
         Err(cause) => crate::handlers::repondre_erreur(
             RouteId::ReponseQuestion,

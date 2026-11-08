@@ -34,7 +34,13 @@ async fn lecture_sur_place(
     }
     // Le « vu » de Herdr.app : un échec n'annule pas la lecture notée ici,
     // mais sa cause part au journal (jamais masquée).
-    match application::lectures::partage_vu(services.port.as_ref(), &pane_id, notee.lue_a) {
+    //
+    // ⚠️ **L'instant vu se compare à l'horloge du Mac** (`status_ms`) : un
+    // téléphone en retard de quelques secondes ne partageait jamais son
+    // « vu ». La PWA poste la lecture à l'instant où l'écran la montre — la
+    // réception ici EST cet instant, à l'horloge du Mac.
+    let vu_a = notee.lue_a.max(maintenant_ms());
+    match application::lectures::partage_vu(services.port.as_ref(), &pane_id, vu_a) {
         Ok(Some(tour)) => {
             tracing::info!(pane = %pane_id, tour, "vu partagé avec Herdr.app (herdr.seen)");
         }
@@ -51,6 +57,15 @@ async fn lecture_sur_place(
         }),
     )
         .into_response()
+}
+
+/// L'instant présent, en millisecondes UTC (horloge du Mac).
+fn maintenant_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |duree| {
+            u64::try_from(duree.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 /// Le handler `lecture`, exécuté hors des workers du runtime

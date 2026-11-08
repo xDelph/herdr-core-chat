@@ -162,6 +162,29 @@ async fn reponse_502_echec_herdr() {
     assert!(corps["error"].is_string());
 }
 
+/// Un délai sans verdict n'est pas un refus : la réponse est « transmise »
+/// (peut-être appliquée), jamais « rejected » — sinon on répond deux fois.
+#[tokio::test(flavor = "multi_thread")]
+async fn reponse_delai_depasse_est_transmise_pas_refusee() {
+    let faux = HerdrFaux::nouveau();
+    faux.panne_sur(Op::LectureEcran, PortError::Timeout);
+    let (services, _) = services(faux, Default::default(), Default::default());
+    let (statut, corps) = envoie_post(
+        routeur(services, vec![]),
+        "/api/agents/w1:p1/answer",
+        corps(1, None),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::OK);
+    assert_eq!(corps["state"], "transmise");
+    assert!(
+        corps["detail"]
+            .as_str()
+            .is_some_and(|detail| detail.contains("may have been applied")),
+        "{corps}"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn reponse_saisie_libre_ecrit_apres_le_choix() {
     let faux = HerdrFaux::nouveau();

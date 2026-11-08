@@ -38,6 +38,7 @@ import { Option, Schema } from "effect";
 import type { SessionEntry } from "@herdr-core-chat/shared";
 import { SessionResponse, SessionStreamEntries, SessionStreamGone } from "@herdr-core-chat/shared";
 import { fusionnerEntrees } from "./messages.ts";
+import { estInterruption } from "./interruption.ts";
 import { delaiDeReprise } from "./reprise.ts";
 import { decideAffichage, mentionLecturePartielle } from "./session-vue.ts";
 
@@ -174,6 +175,12 @@ export const RETOUR_FLUX_MS = 30_000;
 const message = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
+/** Le démon a-t-il refusé le curseur (session changée) ? */
+const curseurRefuse = (cause: unknown): boolean =>
+  /invalid (previous-page )?cursor|cursor rejected|curseur refus.|stale read position/i.test(
+    message(cause),
+  );
+
 const lireJson = (donnees: unknown): unknown => {
   if (typeof donnees !== "string") return donnees;
   try {
@@ -214,6 +221,8 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
   let echecsFlux = 0;
   let lectureEnCours = false;
   let relireEnsuite = false;
+  /** La prochaine page lue REMPLACE la vue (après un curseur refusé). */
+  let remplacerEnsuite = false;
   let annuleSignal: (() => void) | null = null;
   let annuleFilet: (() => void) | null = null;
   let annuleReouverture: (() => void) | null = null;
@@ -279,6 +288,9 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
 
   const echecDeLecture = (cause: unknown): void => {
     const texte = message(cause);
+    // ⚠️ Une lecture coupée par le passage en arrière-plan n'est pas une
+    // panne : ni journal, ni bandeau — le réveil relit (`interruption.ts`).
+    if (estInterruption(texte)) return;
     deps.signale?.("session read failed", { cause: texte, paneId: deps.paneId });
     // Un fil déjà affiché reste affiché : l'erreur dit qu'on n'a pas pu lire
     // *maintenant*, pas que la conversation n'existe plus (session-vue.ts).
@@ -307,13 +319,28 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
         curseur === undefined ? { tail: fenetre } : { cursor: curseur },
       );
       if (ferme) return false;
+      const lue = remplacerEnsuite ? { ...page, reset: true } : page;
+      remplacerEnsuite = false;
       // ⚠️ Une page lue avant un `reset` décrit l'ANCIENNE vue : on la jette.
-      if (mienne !== epoque && !page.reset) return false;
+      if (mienne !== epoque && !lue.reset) return false;
       dernierSigne = maintenant();
       const avant = vue.entries;
-      appliquePage(page);
+      appliquePage(lue);
       return vue.entries !== avant;
     } catch (cause) {
+      /*
+        ⚠️ **Un curseur refusé se reprend par la queue — une fois.** La session
+        a changé (nouvelle session de l'agent) : le démon répond 400 « invalid
+        cursor ». Le flux SSE repart de la queue tout seul ; la lecture HTTP de
+        repli gardait le curseur et échouait à chaque essai, avec un message
+        qui promettait un rechargement qui n'arrivait jamais.
+      */
+      if (!ferme && curseur !== undefined && curseurRefuse(cause)) {
+        curseur = undefined;
+        remplacerEnsuite = true;
+        relireEnsuite = true;
+        return false;
+      }
       if (!ferme) echecDeLecture(cause);
       return false;
     } finally {

@@ -7,7 +7,7 @@ use crate::unit::support::{agent, borne, envoie_post, requete_get, services};
 use axum::http::StatusCode;
 use domain::observation::SessionRefKind;
 use http_api::router::routeur;
-use test_support::fake_herdr::{ActionCapturee, HerdrFaux, Op};
+use test_support::fake_herdr::{HerdrFaux, Op};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn la_lecture_est_partagee_et_ne_recule_jamais() {
@@ -39,23 +39,31 @@ async fn la_lecture_est_partagee_et_ne_recule_jamais() {
     )
     .await;
     assert_eq!(corps["readAt"], 1000);
-    // Lire ne vole jamais le focus : la seule action est le « vu » partagé,
-    // avec l'instant RETENU (1000), pas celui de l'appareil en retard.
-    assert_eq!(
-        faux.actions(),
-        vec![
-            ActionCapturee {
-                op: Op::MarqueVu,
-                cible: String::from("w1:p1"),
-                detail: String::from("vu jusqu'à 1000"),
-            },
-            ActionCapturee {
-                op: Op::MarqueVu,
-                cible: String::from("w1:p1"),
-                detail: String::from("vu jusqu'à 1000"),
-            },
-        ]
-    );
+    // Lire ne vole jamais le focus : la seule action est le « vu » partagé.
+    // ⚠️ Son instant est celui du MAC (la réception) quand l'appareil est en
+    // retard : `status_ms` est à l'horloge du Mac — un téléphone en retard
+    // ne partageait jamais son « vu ».
+    let actions = faux.actions();
+    assert_eq!(actions.len(), 2, "{actions:?}");
+    let maintenant = u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |duree| duree.as_millis()),
+    )
+    .unwrap_or(u64::MAX);
+    for action in &actions {
+        assert_eq!(action.op, Op::MarqueVu);
+        assert_eq!(action.cible, "w1:p1");
+        let vu_a: u64 = action
+            .detail
+            .trim_start_matches("vu jusqu'à ")
+            .parse()
+            .unwrap_or_else(|cause| panic!("{}: {cause}", action.detail));
+        assert!(
+            vu_a > 1000 && vu_a <= maintenant,
+            "l'horloge du Mac, pas celle de l'appareil : {vu_a}"
+        );
+    }
 
     // La liste la porte, pour tous les appareils.
     let (_, liste) = requete_get(routeur(services, vec![]), "/api/conversations").await;

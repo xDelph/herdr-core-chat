@@ -41,8 +41,8 @@ use domain::status::AgentStatus;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 /// La seule génération de protocole herdr-core vérifiée (`hello`, 0.1.17).
@@ -95,8 +95,7 @@ struct Lance {
 }
 
 pub struct PortCore {
-    client: Mutex<ClientCore>,
-    /// Le socket du core : l'envoi y ouvre son propre client.
+    /// Le socket du core : CHAQUE appel y ouvre son propre client.
     socket: PathBuf,
     etat_herdr_app: PathBuf,
     /// Dernières causes journalisées — une cause n'est dite qu'à son
@@ -118,7 +117,6 @@ impl PortCore {
     pub fn nouveau(client: ClientCore, etat_herdr_app: impl AsRef<Path>) -> Self {
         Self {
             socket: client.chemin().to_path_buf(),
-            client: Mutex::new(client),
             etat_herdr_app: etat_herdr_app.as_ref().to_path_buf(),
             causes_dites: Mutex::new(BTreeMap::new()),
             dernier_texte: Mutex::new(None),
@@ -181,10 +179,15 @@ impl PortCore {
             .cloned()
     }
 
-    fn verrouiller(&self) -> Result<MutexGuard<'_, ClientCore>, PortError> {
-        self.client.lock().map_err(|_| PortError::Transport {
-            detail: "herdr-core client lock poisoned".into(),
-        })
+    /// Un client pour CET appel.
+    ///
+    /// ⚠️ **Plus de client partagé sous verrou.** Le transport ouvre de toute
+    /// façon une connexion par appel ; tenir un `Mutex<ClientCore>` pendant un
+    /// `terminal.send` (≈3 à 8 s), une interruption (5 s) ou un démarrage
+    /// figeait l'accueil, la santé, la veille des statuts et la pré-lecture
+    /// des envois pendant tout ce temps.
+    fn verrouiller(&self) -> Result<ClientCore, PortError> {
+        Ok(ClientCore::nouveau(&self.socket))
     }
 
     /// Journalise une cause à son apparition (et sa disparition).

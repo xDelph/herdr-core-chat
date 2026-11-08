@@ -53,7 +53,10 @@ const horloge = () => {
 
 const attend = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-const monte = (lectures: Partial<Lectures> = {}) => {
+const monte = (
+  lectures: Partial<Lectures> = {},
+  options: { readonly visible?: () => boolean; readonly signale?: (m: string) => void } = {},
+) => {
   const compteurs = { conversations: 0, flux: 0, health: 0, overview: 0 };
   let gestionnaires: Parameters<OuvreEvenements>[0] | null = null;
   const h = horloge();
@@ -81,7 +84,8 @@ const monte = (lectures: Partial<Lectures> = {}) => {
       return () => undefined;
     },
     planifie: h.planifie,
-    visible: () => true,
+    signale: options.signale,
+    visible: options.visible ?? (() => true),
   });
   const emet = (genre: string, donnees: unknown = {}) => gestionnaires?.onEvent(genre, donnees);
   const statut = (s: "live" | "down") => gestionnaires?.onStatus(s);
@@ -120,6 +124,55 @@ describe("rafales regroupées, vol partagé", () => {
     expect(compteurs.conversations - avant).toBe(1);
     // Les trois lectures partent ensemble (pas en série).
     expect(compteurs.overview).toBe(compteurs.conversations);
+  });
+});
+
+describe("une lecture interrompue n'est pas une panne", () => {
+  test("« Fetch is aborted » (iOS en arrière-plan) : ni journal, ni bandeau", async () => {
+    const signales: string[] = [];
+    const { magasin } = monte(
+      {
+        conversations: async () => {
+          throw new Error("Fetch is aborted");
+        },
+      },
+      { signale: (m) => signales.push(m) },
+    );
+    await magasin.rafraichit();
+    expect(signales).toEqual([]);
+    expect(magasin.etat().erreurs.conversations).toBeNull();
+  });
+
+  test("page cachée pendant la lecture : l'échec n'est pas publié", async () => {
+    const signales: string[] = [];
+    let visible = true;
+    const { magasin } = monte(
+      {
+        overview: async () => {
+          visible = false;
+          throw new Error("Load failed");
+        },
+      },
+      { signale: (m) => signales.push(m), visible: () => visible },
+    );
+    await magasin.rafraichit();
+    expect(signales).toEqual([]);
+    expect(magasin.etat().erreurs.overview).toBeNull();
+  });
+
+  test("une vraie panne, page visible, reste dite", async () => {
+    const signales: string[] = [];
+    const { magasin } = monte(
+      {
+        conversations: async () => {
+          throw new Error("Load failed");
+        },
+      },
+      { signale: (m) => signales.push(m) },
+    );
+    await magasin.rafraichit();
+    expect(signales).toEqual(["failed to read conversations"]);
+    expect(magasin.etat().erreurs.conversations).toContain("Load failed");
   });
 });
 
