@@ -418,10 +418,13 @@ export const reportError = (message: string, detail?: unknown): void => {
 /**
  * Le délai d'un envoi.
  *
- * ⚠️ 15 s : très au-delà d'un aller-retour normal (mesuré ~1 ms côté serveur),
- * donc un dépassement signale un vrai blocage — et non une lenteur passagère.
+ * ⚠️ 30 s : un envoi n'est PAS un aller-retour court sous herdr-core.
+ * `terminal.send` attend que personne n'ait tapé depuis ~3 s, puis jusqu'à ≈5 s
+ * le passage à `working` ; le démon observe encore 6 s un démarrage tardif
+ * (mesuré le 2026-11-08). Le pire cas légitime approche 15 s : l'ancien délai
+ * de 15 s coupait des envois réussis et les affichait « peut-être partis ».
  */
-const DELAI_ENVOI_MS = 15_000;
+const DELAI_ENVOI_MS = 30_000;
 
 export const sendPrompt = async (paneId: string, text: string): Promise<SendResult> => {
   /*
@@ -453,7 +456,7 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
     return {
       kind: "failed",
       message: expire
-        ? "Herdr did not respond within 15s."
+        ? `Herdr did not respond within ${String(DELAI_ENVOI_MS / 1000)}s.`
         : `Connection to the daemon interrupted (${cause instanceof Error ? cause.message : String(cause)}).`,
       state: "attente",
     };
