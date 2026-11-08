@@ -1003,6 +1003,18 @@ impl ControlPort for PortCore {
     /// une ligne vide ou le choix suivant).
     fn send_keys(&self, request: TargetedKeys) -> PortFuture<'_, TransportEvidence> {
         let adresse = request.pane.to_string();
+        // ⚠️ D'autres touches APRÈS le collage (un filtre de sélecteur, une
+        // flèche) : l'Entrée de `terminal.send` est loin derrière, un `enter`
+        // suivant est une nouvelle frappe. Sans ça, l'`enter` qui valide un
+        // sélecteur piloté (`interactions::reglage`) était avalé.
+        if request.keys != ["enter"]
+            && let Ok(mut dernier) = self.dernier_texte.lock()
+            && dernier
+                .as_ref()
+                .is_some_and(|(terminal, _)| *terminal == adresse)
+        {
+            *dernier = None;
+        }
         let deja = request.keys == ["enter"]
             && self.dernier_texte.lock().ok().is_some_and(|mut dernier| {
                 let recent = dernier.as_ref().is_some_and(|(terminal, instant)| {

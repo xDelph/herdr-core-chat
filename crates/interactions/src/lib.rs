@@ -4,4 +4,5 @@
 pub mod confiance;
 pub mod ecran;
 pub mod engine;
+pub mod reglage;
 pub mod repondre;

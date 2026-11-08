@@ -476,6 +476,21 @@
       ]
     },
     {
+      "id": "H24",
+      "deliverTasks": [
+        "lot-reglage-modele"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (modèle et réflexion en session, type lu chez Herdr)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/reglage.rs"
+      ],
+      "unitTests": [
+        "crates/interactions/tests/unit/reglage.rs"
+      ]
+    },
+    {
       "id": "D01",
       "deliverTasks": [
         "T005",

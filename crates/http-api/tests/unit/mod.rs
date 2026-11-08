@@ -23,6 +23,7 @@ pub(crate) mod overview;
 pub(crate) mod prompt;
 pub(crate) mod publication;
 pub(crate) mod push;
+pub(crate) mod reglage;
 pub(crate) mod reponse;
 pub(crate) mod router;
 pub(crate) mod sante;

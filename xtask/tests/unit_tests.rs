@@ -580,7 +580,7 @@ fn couverture_l_inventaire_complet_est_exige_pour_le_document_reel() {
             .iter()
             .any(|d| d.starts_with("Z99 : identifiant inconnu"))
     );
-    assert_eq!(rapport.defauts.len(), 93 + 26 + 1, "{:?}", rapport.defauts);
+    assert_eq!(rapport.defauts.len(), 94 + 26 + 1, "{:?}", rapport.defauts);
     let _ = std::fs::remove_dir_all(&racine);
 }
 

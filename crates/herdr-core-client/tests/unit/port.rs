@@ -449,6 +449,19 @@ fn l_entree_qui_suit_un_texte_n_est_pas_appuyee_deux_fois() {
     assert_eq!(demandes_de(&demandes, "terminal.keys").len(), 1);
 }
 
+/// Un sélecteur piloté : collage, puis d'autres touches, puis `enter`. Cet
+/// `enter` est une nouvelle frappe — l'avaler laissait le sélecteur ouvert.
+#[test]
+fn une_entree_apres_d_autres_touches_part_toujours() {
+    let (port, demandes) =
+        port_d_action(json!({"app":"claude-code","state":"blocked","kind":"question"}));
+    let _ = texte(&port);
+    let _ = touches(&port, &["down"]);
+    let preuve = touches(&port, &["enter"]);
+    assert_eq!(preuve.partial, [PartialStep::KeysSent]);
+    assert_eq!(demandes_de(&demandes, "terminal.keys").len(), 2);
+}
+
 #[test]
 fn l_arret_est_envoye_quel_que_soit_l_effet_observe() {
     for outcome in ["stopped", "exited", "still_working", "unknown"] {

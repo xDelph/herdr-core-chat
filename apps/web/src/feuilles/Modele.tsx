@@ -1,19 +1,20 @@
 /**
- * Changer le modèle et la réflexion d'un agent — par une commande tapée.
+ * Changer le modèle et la réflexion d'un agent **en session** — par le démon
+ * (H24, `POST /model`), qui lit le type de l'agent chez Herdr, tape SA
+ * recette et relit l'écran (`interactions::reglage`) :
  *
- * La feuille envoie `/model <id>` puis `/thinking <niveau>` **par le même
- * chemin qu'un prompt** (`POST /prompt`) : confirmation par Herdr, doublons
- * évités. Vérifié par exécution sur Pi (pane jetable) : la barre d'état de
- * l'agent change. La confirmation affichée est celle de la **transmission** —
- * l'agent exécute la commande chez lui.
+ * - Pi : `/model <fournisseur/id>`, `/thinking <niveau>` ;
+ * - Codex : `/model <id> --reasoning=<niveau>` ;
+ * - devin : `/model <nom>` (pas de commande de réflexion) ;
+ * - Claude Code : son sélecteur `/model`, effort aux flèches, touche `s` —
+ *   « cette session seulement ». ⚠️ Tapées, `/model` et `/effort` de Claude
+ *   ENREGISTRENT le choix comme défaut global (`~/.claude/settings.json`).
  *
- * Rien ne part avant « Appliquer ».
+ * « Applied » n'est dit que sur la confirmation affichée par l'agent.
+ * ⚠️ Recettes relevées dans le code livré des agents, **non vérifiées par
+ * exécution** (2026-11-08) : un écran inattendu arrête tout et le dit.
  *
- * ⚠️ **`/thinking` n'est envoyé qu'à Pi** : c'est la seule commande de
- * réflexion en cours de session vérifiée par exécution. Les niveaux que le
- * catalogue déclare pour les autres (`--effort` de Claude, niveaux de codex)
- * sont des **arguments de lancement** : taper `/thinking` dans Claude Code
- * enverrait une commande inconnue. La feuille le dit au lieu de l'offrir.
+ * Rien ne part avant « Apply ».
  *
  * ⚠️ **Changer la seule réflexion ne dépend pas du catalogue.** Un modèle
  * courant absent du catalogue (alias, modèle local) bloquait aussi la
@@ -22,16 +23,16 @@
  */
 import { useEffect, useState } from "react";
 import type { ModelCatalogResponse } from "@herdr-core-chat/shared";
-import { fetchModelCatalog, reportError, sendPrompt, type SendResult } from "../api.ts";
-import { expliquerEchec, expliquerEnvoi, expliquerSuppression } from "../etats-envoi.ts";
+import { changeModel, fetchModelCatalog, reportError, type ModelChangeResult } from "../api.ts";
 import { libelleReflexion } from "../libelles.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Feuille } from "../ui/Feuille.tsx";
 
-export const decrisEnvoi = (resultat: SendResult): string => {
-  if (resultat.kind === "sent") return expliquerEnvoi(resultat.confirmation).texte;
-  if (resultat.kind === "suppressed") return expliquerSuppression(resultat.reason).texte;
-  return expliquerEchec(resultat.state, resultat.message).texte;
+/** Le texte d'un réglage tranché, tel que l'écran de l'agent l'a montré. */
+export const decrisReglage = (resultat: ModelChangeResult): string => {
+  if (resultat.state === "appliquee") return `Applied — ${resultat.detail}`;
+  if (resultat.state === "transmise") return `Sent, not confirmed — ${resultat.detail}`;
+  return `Not changed — ${resultat.detail}`;
 };
 
 const fournisseurDe = (id: string): string | null => {
@@ -54,8 +55,25 @@ export const niveauxProposes = (
   return [...new Set(catalogue.models.flatMap((candidat) => candidat.thinkingLevels))];
 };
 
-/** Le seul type dont la commande `/thinking` en session est vérifiée. */
-export const reflexionEnSession = (kind: string): boolean => kind === "pi";
+/**
+ * Les types dont le démon sait changer le MODÈLE en session — miroir de
+ * `KINDS_MODELE_EN_SESSION` (`interactions::reglage`). Le démon refuse de
+ * toute façon ce qu'il ne sait pas faire : ceci n'évite que d'offrir l'inutile.
+ */
+export const modeleEnSession = (kind: string): boolean =>
+  kind === "pi" || kind === "codex" || kind === "claude" || kind === "devin";
+
+/** Les types dont le démon sait changer la RÉFLEXION en session. */
+export const reflexionEnSession = (kind: string): boolean =>
+  kind === "pi" || kind === "codex" || kind === "claude";
+
+/** Ce que chaque agent garde du changement — dit avant « Apply ». */
+const portee = (kind: string): string => {
+  if (kind === "claude")
+    return "Claude applies it to this session only: your default is unchanged.";
+  if (kind === "pi") return "Pi applies it to this session only.";
+  return "Applied to the running session.";
+};
 
 /** Le modèle courant tel que le catalogue l'écrit — `null` s'il n'y figure pas. */
 const modeleDuCatalogue = (
@@ -98,9 +116,7 @@ export const Modele = ({
   const [choix, setChoix] = useState<string | null | undefined>(undefined);
   const [reflexion, setReflexion] = useState<string | null | undefined>(undefined);
   const [filtre, setFiltre] = useState("");
-  const [resultats, setResultats] = useState<
-    ReadonlyArray<{ readonly commande: string; readonly resultat: SendResult }>
-  >([]);
+  const [resultat, setResultat] = useState<ModelChangeResult | null>(null);
   const [occupe, setOccupe] = useState(false);
 
   useEffect(() => {
@@ -158,37 +174,48 @@ export const Modele = ({
     niveau !== (reflexionActuelle ?? null) &&
     niveaux.includes(niveau);
 
+  // ⚠️ Claude règle l'effort DANS son sélecteur de modèle, sur le modèle
+  // surligné : changer le seul effort exige de nommer le modèle courant (le
+  // démon en tire l'alias : `claude-opus-…` → `opus`).
+  const modeleEnvoye = changeModele
+    ? modele.id
+    : kind === "claude" && changeReflexion
+      ? (actuel ?? modeleActuel)
+      : undefined;
+  const manqueModele = kind === "claude" && changeReflexion && modeleEnvoye === undefined;
+
   const appliquer = async () => {
-    if (occupe) return;
-    const commandes: string[] = [];
-    if (changeModele) commandes.push(`/model ${modele.id}`);
-    if (changeReflexion) commandes.push(`/thinking ${niveau}`);
-    if (commandes.length === 0) return;
+    if (occupe || manqueModele || (!changeModele && !changeReflexion)) return;
     setOccupe(true);
-    const faits: Array<{ readonly commande: string; readonly resultat: SendResult }> = [];
     try {
-      for (const commande of commandes) {
-        // Séquentiel : un modèle refusé arrête la commande de réflexion.
-        // oxlint-disable-next-line no-await-in-loop
-        const resultat = await sendPrompt(paneId, commande);
-        faits.push({ commande, resultat });
-        setResultats([...faits]);
-        if (resultat.kind !== "sent") break;
-      }
+      setResultat(
+        await changeModel(paneId, {
+          ...(modeleEnvoye === undefined ? {} : { model: modeleEnvoye }),
+          ...(changeReflexion && niveau !== null ? { thinking: niveau } : {}),
+        }),
+      );
     } finally {
       setOccupe(false);
     }
   };
 
+  if (!modeleEnSession(kind)) {
+    return (
+      <Feuille titre={`Model · ${agentNom}`} onClose={onClose}>
+        <Avis ton="attention">
+          {kind === "opencode"
+            ? "opencode's model and variant can't be changed from here: its pickers mark the selected row by colour only, so the choice could not be checked before pressing Enter. Use ctrl+x m and ctrl+t on the Mac."
+            : `${agentNom}'s model can't be changed mid-session from here: no in-session command is known for ${kind}.`}
+        </Avis>
+      </Feuille>
+    );
+  }
+
   return (
     <Feuille titre={`Model · ${agentNom}`} onClose={onClose}>
-      {resultats.length > 0 ? (
+      {resultat !== null ? (
         <output className="feuille__resultats">
-          {resultats.map(({ commande, resultat }) => (
-            <p key={commande}>
-              <code className="mono">{commande}</code> — {decrisEnvoi(resultat)}
-            </p>
-          ))}
+          <p>{decrisReglage(resultat)}</p>
         </output>
       ) : null}
       {erreur !== null ? (
@@ -274,8 +301,8 @@ export const Modele = ({
       )}
       {!enSession ? (
         <p className="discret">
-          {agentNom}'s thinking level cannot be changed mid-session from here: only Pi's “/thinking”
-          command is verified.
+          {agentNom}'s thinking level cannot be set mid-session from here: {kind} has no command for
+          a given level.
           {catalogue !== null && catalogue.thinkingLevels.length > 0
             ? ` Levels offered at launch: ${catalogue.thinkingLevels.map(libelleReflexion).join(", ")}.`
             : ""}
@@ -313,13 +340,15 @@ export const Modele = ({
       <button
         type="button"
         className="bouton bouton--principal bouton--plein"
-        disabled={occupe || (!changeModele && !changeReflexion)}
+        disabled={occupe || manqueModele || (!changeModele && !changeReflexion)}
         onClick={() => void appliquer()}
       >
-        {occupe ? "Sending…" : "Apply"}
+        {occupe ? "Applying…" : "Apply"}
       </button>
       <p className="discret">
-        A confirmation means the command reached the agent, not that the setting was applied.
+        {manqueModele
+          ? "The current model is unknown: choose the model too, Claude sets the effort in its model picker."
+          : `${portee(kind)} “Applied” is only shown once the agent confirms it on screen.`}
       </p>
     </Feuille>
   );

@@ -5,6 +5,7 @@
  * `transmise` **distinct** de « accordée », et aucune action qui promettrait ce
  * que l'écran ne sait pas.
  */
+import { decrisReglage } from "../src/feuilles/Modele.tsx";
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -197,9 +198,10 @@ describe("U08 — la décision ne se perd plus en route", () => {
     expect(gestes).not.toContain("resultat.accepted");
   });
 
-  test("un envoi sans confirmation n'est jamais annoncé comme envoyé", () => {
-    const feuille = lire("feuilles", "Modele.tsx");
-    expect(feuille).toContain("expliquerEnvoi(resultat.confirmation).texte");
-    expect(feuille).toContain("expliquerEchec(resultat.state, resultat.message).texte");
+  test("un réglage sans confirmation n'est jamais annoncé comme appliqué", () => {
+    // H24 : « Applied » n'existe que sur la confirmation lue à l'écran.
+    expect(decrisReglage({ detail: "Set model to Opus", state: "appliquee" })).toMatch(/^Applied/);
+    expect(decrisReglage({ detail: "typed", state: "transmise" })).not.toContain("Applied");
+    expect(decrisReglage({ detail: "no alias", state: "refusee" })).toMatch(/^Not changed/);
   });
 });

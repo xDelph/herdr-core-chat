@@ -9,10 +9,10 @@ use contracts::registry::{
 use contracts::{limits, registry};
 
 #[test]
-fn le_manifeste_compte_23_routes_distinctes() {
+fn le_manifeste_compte_24_routes_distinctes() {
     assert!(
-        ROUTES.len() == 23,
-        "23 routes documentées, pas {}",
+        ROUTES.len() == 24,
+        "24 routes documentées, pas {}",
         ROUTES.len()
     );
     for (rang, route) in ROUTES.iter().enumerate() {
@@ -39,7 +39,8 @@ fn le_manifeste_compte_23_routes_distinctes() {
             19 => RouteId::TachesDeFond,
             20 => RouteId::SessionDeTache,
             21 => RouteId::Lecture,
-            _ => RouteId::Presence,
+            22 => RouteId::Presence,
+            _ => RouteId::ReglageModele,
         };
         assert!(
             route.id == attendu,
@@ -110,7 +111,7 @@ fn la_politique_mutante_est_mesuree() {
 fn les_variantes_explicites_sont_toutes_documentees() {
     // Statuts explicites par route — transcription de CURRENT.md §2, une
     // ligne par route, dans l'ordre H01…H18.
-    let attendues: [&[u16]; 23] = [
+    let attendues: [&[u16]; 24] = [
         &[200, 503, 500],                          // H01 santé
         &[200, 500],                               // H02 overview
         &[200, 503, 502],                          // H03 conversations
@@ -134,6 +135,7 @@ fn les_variantes_explicites_sont_toutes_documentees() {
         &[200, 400, 403, 404, 409, 422, 502, 503], // H21 transcription d'une tâche
         &[200, 400],           // H22 lecture partagée
         &[204, 400, 503],      // H23 présence d'un appareil
+        &[200, 400, 404, 502], // H24 modèle et réflexion en session
     ];
     for (route, attendu) in ROUTES.iter().zip(attendues.iter()) {
         let trouves: Vec<u16> = route.variantes.iter().map(|v| v.statut).collect();
@@ -201,6 +203,7 @@ fn les_corps_nommes_pointent_vers_des_contrats_reels() {
                 "PushBody",
                 "MarkReadRequest",
                 "PresenceRequest",
+                "ModelChangeRequest",
             ];
             assert!(
                 connus.contains(&schema),
@@ -372,5 +375,5 @@ fn la_recherche_par_identifiant_est_totale() {
             "chaque route porte des variantes"
         );
     }
-    assert!(registry::ROUTES.len() == 23, "le manifeste reste complet");
+    assert!(registry::ROUTES.len() == 24, "le manifeste reste complet");
 }

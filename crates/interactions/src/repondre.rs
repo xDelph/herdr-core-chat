@@ -39,7 +39,7 @@ pub fn numero_offert(choix: &[Choix], numero: i64) -> bool {
 /// déguisés** (le transport Unix bloque dans l'appel) — ils répondent au
 /// premier poll. Un `Pending` serait un adaptateur mal branché : on le dit,
 /// on ne l'attend pas.
-fn attends<T: Send>(fut: &mut PortFuture<'_, T>) -> Result<T, PortError> {
+pub(crate) fn attends<T: Send>(fut: &mut PortFuture<'_, T>) -> Result<T, PortError> {
     let mut contexte = std::task::Context::from_waker(std::task::Waker::noop());
     match fut.as_mut().poll(&mut contexte) {
         std::task::Poll::Ready(reponse) => reponse,
@@ -238,7 +238,7 @@ const INTERVALLE_RELECTURE: std::time::Duration = std::time::Duration::from_mill
 
 /// Relit l'écran jusqu'à ce qu'il change (la frappe a été dessinée), borné :
 /// un écran qui ne bouge pas est rendu tel quel.
-fn relit_apres_frappe(
+pub(crate) fn relit_apres_frappe(
     port: &PortPourQuestion,
     pane: &PaneId,
     avant: &str,

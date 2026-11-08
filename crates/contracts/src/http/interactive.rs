@@ -93,6 +93,35 @@ pub enum AnsweredStatus {
     QuestionAnswered,
 }
 
+/// Changer le modèle et/ou la réflexion d'un agent en session (H24) — au
+/// moins l'un des deux ; un champ absent n'est pas changé.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ModelChangeRequest {
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub model: Field<String>,
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub thinking: Field<String>,
+}
+
+/// Le réglage tranché (`ModelChangedResponse`) — les trois états d'une
+/// réponse : `appliquee` (l'agent a affiché sa confirmation), `transmise`
+/// (tapé, rien de prouvé), `refusee` (rien n'a changé, la cause est nommée).
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelChangedResponse {
+    pub detail: String,
+    pub state: AnswerState,
+    pub status: ModelChangedStatus,
+}
+
+/// Le littéral `"model-changed"` — union à un membre.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ModelChangedStatus {
+    ModelChanged,
+}
+
 /// Un choix proposé (`Choix` de api.ts/question.ts) — les noms du fil
 /// **restent** : `numero`, `libelle`, `selectionne`, `detail` (TECH §5 :
 /// renommer les identifiants Rust ne change pas le fil).

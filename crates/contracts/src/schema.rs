@@ -166,6 +166,18 @@ pub fn definitions() -> Vec<(&'static str, Value)> {
         ),
         ("Choice", schema_de::<crate::http::interactive::Choice>()),
         (
+            "ModelChangeRequest",
+            schema_de::<crate::http::interactive::ModelChangeRequest>(),
+        ),
+        (
+            "ModelChangedResponse",
+            schema_de::<crate::http::interactive::ModelChangedResponse>(),
+        ),
+        (
+            "ModelChangedStatus",
+            schema_de::<crate::http::interactive::ModelChangedStatus>(),
+        ),
+        (
             "Question",
             schema_de::<crate::http::interactive::Question>(),
         ),

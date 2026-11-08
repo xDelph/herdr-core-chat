@@ -18,6 +18,7 @@ pub mod lectures;
 pub mod overview;
 pub mod prompt;
 pub mod push;
+pub mod reglage;
 pub mod reponse;
 pub mod sante;
 pub mod session;

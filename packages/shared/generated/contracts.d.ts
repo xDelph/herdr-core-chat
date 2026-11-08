@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (72 définitions).
+// Source : contracts.schema.json (75 définitions).
 
 /**
  * Un focus appliqué (`AgentFocusedResponse`).
@@ -1266,6 +1266,37 @@ export interface ModelCatalogResponse {
   source: string;
   thinkingLevels: string[];
 }
+
+/**
+ * Changer le modèle et/ou la réflexion d'un agent en session (H24) — au
+ * moins l'un des deux ; un champ absent n'est pas changé.
+ */
+export interface ModelChangeRequest {
+  model?: string;
+  thinking?: string;
+}
+
+/**
+ * Le réglage tranché (`ModelChangedResponse`) — les trois états d'une
+ * réponse : `appliquee` (l'agent a affiché sa confirmation), `transmise`
+ * (tapé, rien de prouvé), `refusee` (rien n'a changé, la cause est nommée).
+ */
+export interface ModelChangedResponse {
+  detail: string;
+  /**
+   * L'union fermée des états d'une réponse.
+   */
+  state: "appliquee" | "transmise" | "refusee";
+  /**
+   * Le littéral `"model-changed"` — union à un membre.
+   */
+  status: "model-changed";
+}
+
+/**
+ * Le littéral `"model-changed"` — union à un membre.
+ */
+export type ModelChangedStatus = "model-changed";
 
 /**
  * La réponse d'overview complète.

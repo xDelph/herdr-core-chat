@@ -83,6 +83,9 @@ pub enum RouteId {
     /// H23 — `POST /api/notifications/presence` (l'app au premier plan sur
     /// un appareil : il n'est pas notifié).
     Presence,
+    /// H24 — `POST /api/agents/{paneId}/model` (modèle et réflexion en
+    /// session).
+    ReglageModele,
 }
 
 /// La forme d'une réponse — le Content-Type est un fait du manifeste, pas
@@ -198,7 +201,7 @@ const fn json(statut: u16, schema: &'static str) -> Variante {
 
 /// Le manifeste complet — 23 entrées, dans l'ordre H01…H23, formes et
 /// statuts exacts de CURRENT.md §2.
-pub const ROUTES: [Route; 23] = [
+pub const ROUTES: [Route; 24] = [
     Route {
         id: RouteId::Sante,
         methode: Methode::Get,
@@ -677,6 +680,27 @@ pub const ROUTES: [Route; 23] = [
             },
             json(400, "ApiErrorResponse"),
             json(503, "ApiErrorResponse"),
+        ],
+    },
+    Route {
+        id: RouteId::ReglageModele,
+        methode: Methode::Post,
+        chemin: "/api/agents/{paneId}/model",
+        politique: Politique::Mutation,
+        entree: Entree {
+            chemin: &["paneId"],
+            requete: &[],
+            entete: &[],
+            corps: Some(Corps::Json {
+                schema: "ModelChangeRequest",
+                octets_max: None,
+            }),
+        },
+        variantes: &[
+            json(200, "ModelChangedResponse"),
+            json(400, "ApiErrorResponse"),
+            json(404, "ApiErrorResponse"),
+            json(502, "ApiErrorResponse"),
         ],
     },
 ];

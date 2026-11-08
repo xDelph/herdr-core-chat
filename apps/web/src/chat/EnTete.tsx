@@ -134,8 +134,9 @@ export const EnTete = memo(
           {menu ? (
             <div className="menu__liste" id={idMenu}>
               {/*
-                ⚠️ `/model …` est tapé comme un message : un agent qui travaille le
-                lirait en plein tour, un agent bloqué le recevrait dans sa question.
+                ⚠️ Le réglage tape des commandes et des touches dans l'agent (H24) :
+                un agent qui travaille les lirait en plein tour, un agent bloqué
+                les recevrait dans sa question.
               */}
               <button
                 type="button"

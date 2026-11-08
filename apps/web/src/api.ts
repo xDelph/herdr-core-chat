@@ -26,6 +26,7 @@ import {
   LaunchAgentResponse,
   ConversationsResponse,
   ModelCatalogResponse,
+  ModelChangedResponse,
   RecentImagesResponse,
   OverviewResponse,
   PromptSentResponse,
@@ -290,6 +291,12 @@ export const DELAIS_ACTION_MS = {
   reponse: 30_000,
   /** L'interruption observe jusqu'à 5 s. */
   arret: 30_000,
+  /**
+   * Un réglage de modèle : chaque commande tapée attend jusqu'à ~5 s le
+   * démarrage (`terminal.send`), et le sélecteur de Claude enchaîne plusieurs
+   * frappes relues.
+   */
+  reglage: 120_000,
   /** Un label posé, un fichier écrit. */
   court: 10_000,
 } as const;
@@ -951,6 +958,53 @@ export const answerQuestion = async (
         detail: "unreadable response: the state could not be read",
         state: "refusee",
       }
+    : { detail: valeur.detail, state: valeur.state };
+};
+
+/** Le réglage d'un modèle, tel que l'écran de l'agent l'a montré. */
+export interface ModelChangeResult {
+  readonly state: "appliquee" | "transmise" | "refusee";
+  readonly detail: string;
+}
+
+/**
+ * H24 — change le modèle et/ou la réflexion d'un agent EN SESSION. Le démon lit
+ * le type d'agent chez Herdr, tape la recette de cet agent et relit l'écran :
+ * `appliquee` = l'agent a affiché sa confirmation.
+ */
+export const changeModel = async (
+  paneId: string,
+  choix: { readonly model?: string; readonly thinking?: string },
+): Promise<ModelChangeResult> => {
+  let response: Response;
+  try {
+    response = await envoieAction(
+      `/api/agents/${encodeURIComponent(paneId)}/model`,
+      {
+        ...(choix.model === undefined ? {} : { model: choix.model }),
+        ...(choix.thinking === undefined ? {} : { thinking: choix.thinking }),
+      },
+      DELAIS_ACTION_MS.reglage,
+    );
+  } catch (cause) {
+    const envoyee = cause instanceof ActionSansReponse ? cause.envoyee : true;
+    return {
+      detail: cause instanceof Error ? cause.message : String(cause),
+      state: envoyee ? "transmise" : "refusee",
+    };
+  }
+  let payload: unknown;
+  try {
+    payload = await readJson(response);
+  } catch {
+    return { detail: `unreadable response (${String(response.status)})`, state: "refusee" };
+  }
+  if (response.status !== 200) {
+    return { detail: erreurDe(payload, response.status), state: "refusee" };
+  }
+  const valeur = Option.getOrUndefined(Schema.decodeUnknownOption(ModelChangedResponse)(payload));
+  return valeur === undefined
+    ? { detail: "unreadable response: the state could not be read", state: "transmise" }
     : { detail: valeur.detail, state: valeur.state };
 };
 

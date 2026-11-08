@@ -131,6 +131,13 @@ pub fn statut(route: RouteId, erreur: &ErreurDomaine) -> u16 {
             Nature::InternalInvariant => 500,
             _ => 503,
         },
+        // H24 : 400 corps invalide ; 404 pas d'agent dans le pane ; 502
+        // échec Herdr (la cause est nommée).
+        RouteId::ReglageModele => match nature {
+            Nature::InvalidInput => 400,
+            Nature::NoSource => 404,
+            _ => 502,
+        },
         // H22 : 400 corps invalide — la seule erreur documentée (une panne de
         // persistance est journalisée, la lecture vaut en mémoire).
         RouteId::Lecture => 400,

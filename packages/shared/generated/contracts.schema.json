@@ -2080,6 +2080,62 @@
       "title": "ModelCatalogResponse",
       "type": "object"
     },
+    "ModelChangeRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Changer le modèle et/ou la réflexion d'un agent en session (H24) — au\nmoins l'un des deux ; un champ absent n'est pas changé.",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "thinking": {
+          "type": "string"
+        }
+      },
+      "title": "ModelChangeRequest",
+      "type": "object"
+    },
+    "ModelChangedResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "Le réglage tranché (`ModelChangedResponse`) — les trois états d'une\nréponse : `appliquee` (l'agent a affiché sa confirmation), `transmise`\n(tapé, rien de prouvé), `refusee` (rien n'a changé, la cause est nommée).",
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "state": {
+          "description": "L'union fermée des états d'une réponse.",
+          "enum": [
+            "appliquee",
+            "transmise",
+            "refusee"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "description": "Le littéral `\"model-changed\"` — union à un membre.",
+          "enum": [
+            "model-changed"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "detail",
+        "state",
+        "status"
+      ],
+      "title": "ModelChangedResponse",
+      "type": "object"
+    },
+    "ModelChangedStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "Le littéral `\"model-changed\"` — union à un membre.",
+      "enum": [
+        "model-changed"
+      ],
+      "title": "ModelChangedStatus",
+      "type": "string"
+    },
     "OverviewResponse": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "La réponse d'overview complète.",

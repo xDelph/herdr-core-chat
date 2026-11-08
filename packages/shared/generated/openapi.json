@@ -2081,6 +2081,62 @@
         "title": "ModelCatalogResponse",
         "type": "object"
       },
+      "ModelChangeRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Changer le modèle et/ou la réflexion d'un agent en session (H24) — au\nmoins l'un des deux ; un champ absent n'est pas changé.",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "thinking": {
+            "type": "string"
+          }
+        },
+        "title": "ModelChangeRequest",
+        "type": "object"
+      },
+      "ModelChangedResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le réglage tranché (`ModelChangedResponse`) — les trois états d'une\nréponse : `appliquee` (l'agent a affiché sa confirmation), `transmise`\n(tapé, rien de prouvé), `refusee` (rien n'a changé, la cause est nommée).",
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "state": {
+            "description": "L'union fermée des états d'une réponse.",
+            "enum": [
+              "appliquee",
+              "transmise",
+              "refusee"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Le littéral `\"model-changed\"` — union à un membre.",
+            "enum": [
+              "model-changed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail",
+          "state",
+          "status"
+        ],
+        "title": "ModelChangedResponse",
+        "type": "object"
+      },
+      "ModelChangedStatus": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le littéral `\"model-changed\"` — union à un membre.",
+        "enum": [
+          "model-changed"
+        ],
+        "title": "ModelChangedStatus",
+        "type": "string"
+      },
       "OverviewResponse": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "La réponse d'overview complète.",
@@ -3729,6 +3785,115 @@
               }
             },
             "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/model": {
+      "post": {
+        "operationId": "h24-reglage-modele",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "Corps JSON — ModelChangeRequest",
+              "schema": {
+                "$ref": "#/components/schemas/ModelChangeRequest"
+              },
+              "x-octets-max": null
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelChangedResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — ModelChangedResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 404 — ApiErrorResponse"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
           }
         }
       }

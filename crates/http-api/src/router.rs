@@ -120,6 +120,10 @@ pub fn routeur(services: Arc<Services>, origines: impl Into<OriginesAutorisees>)
         )
         .route("/api/agents/{paneId}/focus", post(handlers::focus::focus))
         .route(
+            "/api/agents/{paneId}/model",
+            post(handlers::reglage::reglage),
+        )
+        .route(
             "/api/agents/{paneId}/read",
             post(handlers::lectures::lecture),
         )

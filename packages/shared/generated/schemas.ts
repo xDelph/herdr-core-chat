@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (72 définitions).
+// Source : contracts.schema.json (75 définitions).
 // Schemas Effect : le client décode avec EUX, comme le serveur sérialise avec le contrat.
 import { Schema } from "effect";
 
@@ -453,6 +453,25 @@ export const ModelCatalogResponse = Schema.Struct({
   "thinkingLevels": Schema.Array(Schema.String),
 });
 export type ModelCatalogResponse = typeof ModelCatalogResponse.Type;
+
+/** Changer le modèle et/ou la réflexion d'un agent en session (H24) — au */
+export const ModelChangeRequest = Schema.Struct({
+  "model": Schema.optional(Schema.String),
+  "thinking": Schema.optional(Schema.String),
+});
+export type ModelChangeRequest = typeof ModelChangeRequest.Type;
+
+/** Le réglage tranché (`ModelChangedResponse`) — les trois états d'une */
+export const ModelChangedResponse = Schema.Struct({
+  "detail": Schema.String,
+  "state": Schema.Literals(["appliquee", "transmise", "refusee"]),
+  "status": Schema.Literals(["model-changed"]),
+});
+export type ModelChangedResponse = typeof ModelChangedResponse.Type;
+
+/** Le littéral `"model-changed"` — union à un membre. */
+export const ModelChangedStatus = Schema.Literals(["model-changed"]);
+export type ModelChangedStatus = typeof ModelChangedStatus.Type;
 
 /** La réponse d'overview complète. */
 export const OverviewResponse = Schema.Struct({

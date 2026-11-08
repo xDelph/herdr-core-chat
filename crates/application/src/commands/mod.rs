@@ -8,6 +8,9 @@ use domain::ports::PortFuture;
 /// `interactions` (graphe), et les deux gestes interactifs — répondre à une
 /// question, trancher une confiance — y vivent.
 pub use interactions::confiance::{EtatConfiance, ReponseConfiance};
+pub use interactions::reglage::{
+    DemandeReglage, EtatReglage, KINDS_MODELE_EN_SESSION, KINDS_REFLEXION_EN_SESSION, ReglageModele,
+};
 pub use interactions::repondre::{EtatReponse, ReponseQuestion};
 
 pub mod admission;
@@ -43,6 +46,19 @@ pub fn repondre_confiance(
 ) -> Result<ReponseConfiance, PortError> {
     admis(pane, || {
         interactions::confiance::repondre_confiance(port, pane, accepte, famille)
+    })
+}
+
+/// Change le modèle et/ou la réflexion d'un agent en session — **admis par
+/// la file du pane** : la recette (frappes, relectures) ne s'entrelace jamais
+/// avec un prompt, une réponse ou un arrêt sur le même pane.
+pub fn regle_modele(
+    port: &interactions::reglage::PortPourReglage,
+    pane: &domain::ids::PaneId,
+    demande: DemandeReglage<'_>,
+) -> Result<ReglageModele, PortError> {
+    admis(pane, || {
+        interactions::reglage::regle_modele(port, pane, demande)
     })
 }
 

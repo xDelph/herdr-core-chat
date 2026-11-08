@@ -10,7 +10,7 @@ import { toMessages } from "../src/blocks.ts";
 import { annonceDeStatut } from "../src/chat/Annonces.tsx";
 import { Fil } from "../src/chat/Fil.tsx";
 import { LIBELLE_PERMISSION } from "../src/feuilles/Reglages.tsx";
-import { niveauxProposes, reflexionEnSession } from "../src/feuilles/Modele.tsx";
+import { modeleEnSession, niveauxProposes, reflexionEnSession } from "../src/feuilles/Modele.tsx";
 import type { VueSession } from "../src/flux-session.ts";
 import { creeTranscripteur } from "../src/transcript.ts";
 import { Notifications } from "../src/ui/Notifications.tsx";
@@ -129,10 +129,21 @@ describe("feuille Modèle : la réflexion seule, et seulement là où elle est v
     expect(niveauxProposes(catalogue(), { thinkingLevels: [] })).toEqual([]);
   });
 
-  test("`/thinking` n'est proposé qu'à Pi (seule commande vérifiée)", () => {
+  test("la réflexion en session : Pi, Codex et Claude — pas devin ni opencode", () => {
+    // Miroir de `KINDS_REFLEXION_EN_SESSION` (interactions::reglage) : devin
+    // n'a qu'Alt+T, qui fait tourner les niveaux sans en viser un.
     expect(reflexionEnSession("pi")).toBe(true);
-    expect(reflexionEnSession("claude")).toBe(false);
-    expect(reflexionEnSession("codex")).toBe(false);
+    expect(reflexionEnSession("claude")).toBe(true);
+    expect(reflexionEnSession("codex")).toBe(true);
+    expect(reflexionEnSession("devin")).toBe(false);
+    expect(reflexionEnSession("opencode")).toBe(false);
+  });
+
+  test("le modèle en session : pas opencode (sélecteur invérifiable)", () => {
+    expect(modeleEnSession("devin")).toBe(true);
+    expect(modeleEnSession("claude")).toBe(true);
+    expect(modeleEnSession("opencode")).toBe(false);
+    expect(modeleEnSession("cursor")).toBe(false);
   });
 });
 

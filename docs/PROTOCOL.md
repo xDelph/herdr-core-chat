@@ -132,7 +132,39 @@ they look »). Relevé sur le core de l'utilisateur, lecture seule : `view.json`
 
 ### 4.2 `terminal.keys` `[SCHÉMA]`
 
-Touches nommées (`enter`, `esc`, `tab`, `up`, `ctrl+c`, …).
+Touches nommées (`enter`, `esc`, `tab`, `up`, `ctrl+c`, …) — **et les lettres
+seules** (« Key names: enter, esc, tab, up, ctrl+c, alt+x, f5, a, ... ») : un
+filtre de sélecteur se tape lettre par lettre, sans l'Entrée que `terminal.send`
+ajoute toujours. Même « règle du calme » que `send`.
+
+### 4.2bis Modèle et réflexion en session (H24) `[CODE LIVRÉ]` — non exécuté
+
+Relevé le 2026-11-08 dans le code livré des agents (bundle, binaire, docs
+embarquées), **sans exécution** (décision de l'utilisateur). Recettes dans
+`interactions::reglage` ; « appliqué » seulement sur la confirmation affichée.
+
+| agent | modèle | réflexion | confirmation |
+|---|---|---|---|
+| Pi 1.5.0 | `/model <fournisseur/id>` (sans correspondance exacte : ouvre le sélecteur) | `/thinking <niveau>` | `Model: <id>`, `Thinking level: <niveau>` |
+| Codex 0.166 | `/model <id> --reasoning=<niveau>` | idem, `/model --reasoning=…` | `Model changed to …` |
+| devin 3000.11.92 | `/model <nom flou>` | **aucune** commande (`Alt+T` fait tourner) | `Model set to …` |
+| Claude Code 2.1.319 | sélecteur `/model` → lettres de l'alias → `down` → `s` | ←/→ sur la ligne « `<Niveau> effort` » du sélecteur | `Set model to … for this session only [with <niveau> effort]` |
+| opencode 2.2.5 | **non piloté** | **non piloté** | — |
+
+- ⚠️ **Claude : `/model <alias>` et `/effort <niveau>` tapés ENREGISTRENT le
+  choix** dans `~/.claude/settings.json` (« saved as your default for new
+  sessions »). Seule la touche `s` du sélecteur (« use this session only »)
+  reste à la session. `enter` dans le sélecteur = « set as default » : jamais
+  envoyé. Si la conversation est en cache, Claude demande « Switch model? » —
+  validé seulement si le curseur `❯` est sur « Yes, switch to … ».
+- ⚠️ **opencode** : `/models` et `/variants` n'ont pas d'argument, le sélecteur
+  montre des noms (« GPT-5 ») quand `opencode models` donne des identifiants
+  (`openai/gpt-5`), et la ligne choisie n'est marquée que par la couleur —
+  `terminal.read` rend du texte seul. Impossible de vérifier ce qu'`enter`
+  validerait.
+- L'adaptateur avalait un `enter` seul jusqu'à 5 s après un `send_text` (déjà
+  appuyé par `terminal.send`) même si d'autres touches étaient parties entre
+  les deux : corrigé, toute autre touche referme la fenêtre.
 
 ### 4.3 `terminal.interrupt` `[EXÉCUTÉ]`/`[SCHÉMA]`
 
