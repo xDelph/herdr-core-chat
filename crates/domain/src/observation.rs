@@ -165,6 +165,9 @@ pub struct WorkspaceObservation {
     pub tab_count: Option<u64>,
     pub active_tab_id: Option<TabId>,
     pub worktree: Option<WorkspaceWorktree>,
+    /// Le dossier de l'espace tel que Herdr.app le déclare (`space.folder`) :
+    /// le dossier de lancement, avant le `cwd` d'un pane (qui a pu `cd`).
+    pub folder: Option<String>,
 }
 
 /// Un onglet Herdr. `label` et `number` sont toujours présents côté Herdr ;
@@ -255,6 +258,9 @@ pub struct SituatedPane {
     pub pane_id: PaneId,
     pub workspace_id: Option<WorkspaceId>,
     pub cwd: Option<String>,
+    /// Le nom du terminal, agent ou non (un shell porte aussi un nom) : un
+    /// nom de lancement ne doit pas le reprendre.
+    pub name: Option<String>,
 }
 
 /// Réponse d'un `agent.list`.

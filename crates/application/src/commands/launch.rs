@@ -357,6 +357,16 @@ impl LanceurAgent {
                     essais += 1;
                     horloge.attend(INTERVALLE_ESSAIS_SHELL);
                 }
+                // Rien n'a démarré, et c'est OBSERVÉ (le shell est resté au
+                // premier plan) : l'onglet possédé est fermé, jamais rejoué.
+                Ok(StartEvidence::NeverStarted { detail }) => {
+                    ferme_le_possede(port, &tab);
+                    return Err(ErreurLancement::CoquilleNonPrete {
+                        pane: pane.clone(),
+                        tab,
+                        detail,
+                    });
+                }
                 // Un refus amont : l'agent peut exister (bloqué ou non),
                 // l'onglet est GARDÉ et l'identité signalée.
                 Ok(StartEvidence::Failed { detail }) => {
@@ -401,12 +411,18 @@ impl LanceurAgent {
     }
 }
 
-/// Les noms d'agents déjà pris, tels que la photo fraîche les voit.
+/// Les noms déjà pris, tels que la photo fraîche les voit : ceux des agents
+/// ET ceux des autres terminaux.
+///
+/// ⚠️ Un shell nommé (un onglet lancé dont l'agent n'a pas démarré) gardait
+/// son nom hors de la liste : chaque relance retombait sur `name_taken`, et
+/// l'onglet partait sans nom alors que la réponse en annonçait un.
 fn noms_pris(photo: &Snapshot) -> BTreeSet<String> {
     photo
         .agents
         .iter()
         .filter_map(|agent| agent.name.as_ref().map(|nom| nom.as_str().to_string()))
+        .chain(photo.panes.iter().filter_map(|pane| pane.name.clone()))
         .collect()
 }
 

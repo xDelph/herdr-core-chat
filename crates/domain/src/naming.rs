@@ -139,7 +139,8 @@ pub fn launch_name(base: &str, taken: &std::collections::BTreeSet<String>) -> Op
 /// pane du projet, lui, existe toujours. Deux chemins de calcul pour la même
 /// donnée avaient divergé : l'aperçu trouvait le dossier, le lancement non —
 /// d'où « aucun dossier de travail connu » sur un projet valide. Ordre :
-/// worktree lié **gagne**, sinon le premier pane du projet qui porte un cwd
+/// worktree lié **gagne**, sinon le dossier déclaré de l'espace, sinon le premier
+/// pane du projet qui porte un cwd
 /// (ordre du snapshot), sinon rien.
 #[must_use]
 pub fn checkout_path_of(
@@ -148,6 +149,11 @@ pub fn checkout_path_of(
 ) -> Option<String> {
     if let Some(worktree) = &workspace.worktree {
         return Some(worktree.checkout_path.clone());
+    }
+    // Le dossier déclaré de l'espace, avant le `cwd` d'un pane : un agent qui
+    // a fait `cd` ailleurs, ou un sous-agent, n'y envoie pas le suivant.
+    if let Some(dossier) = workspace.folder.as_ref().filter(|d| !d.is_empty()) {
+        return Some(dossier.clone());
     }
     panes
         .iter()
@@ -285,6 +291,7 @@ pub fn panes_situes(snapshot: &Snapshot) -> Vec<SituatedPane> {
             pane_id: agent.pane_id.clone(),
             workspace_id: Some(agent.workspace_id.clone()),
             cwd: agent.cwd.clone(),
+            name: None,
         });
     }
     situes

@@ -201,6 +201,7 @@ pub fn snapshot_de_base() -> Snapshot {
         tab_count: Some(1),
         active_tab_id: Some(tab.clone()),
         worktree: None,
+        folder: None,
     }];
 
     let tabs = vec![TabObservation {

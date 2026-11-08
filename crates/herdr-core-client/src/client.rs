@@ -283,6 +283,11 @@ impl ClientCore {
             "keep": true,
             "no_parent": true,
             "no_notify": true,
+            // ⚠️ oh-my-zsh demande « Would you like to update? [Y/n] » au
+            // démarrage du shell : la ligne de l'agent tapée ensuite y
+            // répondait (`c`) et lançait `laude` (mesuré le 2026-11-08).
+            // Cette variable coupe sa vérification, dans CE shell seulement.
+            "env": {"DISABLE_AUTO_UPDATE": "true"},
         });
         if let Some(nom) = name {
             params["name"] = json!(nom);

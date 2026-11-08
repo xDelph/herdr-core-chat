@@ -91,6 +91,7 @@ async fn apercu_le_dossier_d_un_projet_sans_agent_vient_de_ses_panes() {
         pane_id: PaneId::from(String::from(id)),
         workspace_id: Some(WorkspaceId::from(String::from(espace))),
         cwd: cwd.map(String::from),
+        name: None,
     };
     photo.panes = vec![
         pane("w3:p1", "w3", None),

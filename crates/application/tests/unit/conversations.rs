@@ -178,6 +178,7 @@ fn borne(agents: Vec<AgentObservation>) -> ObservationBorne {
             tab_count: Some(1),
             active_tab_id: None,
             worktree: None,
+            folder: None,
         }],
         tabs: Some(vec![TabObservation {
             tab_id: TabId::from(String::from("t1")),

@@ -210,6 +210,7 @@ fn workspace_avec(worktree: Option<WorkspaceWorktree>) -> WorkspaceObservation {
         tab_count: Some(1),
         active_tab_id: Some(TabId::from("tA".to_string())),
         worktree,
+        folder: None,
     }
 }
 
@@ -226,6 +227,7 @@ fn le_worktree_lie_gagne_toujours() {
         pane_id: PaneId::from("wA:p2".to_string()),
         workspace_id: Some(WorkspaceId::from("wA".to_string())),
         cwd: Some("/work/orchard-main".to_string()),
+        name: None,
     }];
     assert_eq!(
         checkout_path_of(&avec, &situes),
@@ -241,11 +243,13 @@ fn sans_worktree_le_premier_cwd_du_projet_parle() {
             pane_id: PaneId::from("wB:p1".to_string()),
             workspace_id: Some(WorkspaceId::from("wB".to_string())),
             cwd: Some("/work/autre".to_string()),
+            name: None,
         },
         SituatedPane {
             pane_id: PaneId::from("wA:p2".to_string()),
             workspace_id: Some(WorkspaceId::from("wA".to_string())),
             cwd: Some("/work/orchard".to_string()),
+            name: None,
         },
     ];
     assert_eq!(

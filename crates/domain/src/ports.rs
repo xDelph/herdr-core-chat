@@ -162,6 +162,11 @@ pub enum StartEvidence {
     ShellNotReady { detail: String },
     /// L'amont a refusé, avec sa cause réelle, phase structurelle à part.
     Failed { detail: String },
+    /// La commande a été tapée mais **rien n'a démarré** : à l'échéance, le
+    /// shell est encore au premier plan (commande introuvable, mangée par une
+    /// question du shell, sortie aussitôt). Prouvé, pas supposé : l'onglet
+    /// créé peut être fermé — et rien n'est rejoué (la ligne a été tapée).
+    NeverStarted { detail: String },
 }
 
 /// Une lecture de terminal bornée.

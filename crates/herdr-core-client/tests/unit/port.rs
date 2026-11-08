@@ -616,3 +616,45 @@ fn un_collage_ou_des_touches_refuses_sont_des_erreurs() {
     }
     assert_eq!(demandes_de(&demandes, "terminal.keys").len(), 1);
 }
+
+/// Un onglet lancé ICI (labels `herdr.space`/`herdr.tab`) que Herdr.app n'a
+/// pas encore mis dans son doc : il est dans SON espace, dans SON onglet —
+/// jamais « (outside Herdr.app) ». Et l'espace porte son dossier déclaré.
+#[test]
+fn un_onglet_lance_ici_est_dans_l_espace_de_ses_labels() {
+    let mut lance = terminal("t9", json!({"app":"pi","state":"idle"}), "pi", "/p/sous");
+    lance["labels"] = json!({"herdr.space": "sp1", "herdr.tab": "tbneuf"});
+    lance["name"] = json!("p-1");
+    let mut etranger = terminal("t8", json!({"app":"pi","state":"idle"}), "pi", "/x");
+    // Un label vers un espace inconnu ne vaut rien : dehors, par dossier.
+    etranger["labels"] = json!({"herdr.space": "sp-inconnu", "herdr.tab": "tb"});
+    let doc = json!({"version": 3, "value": {"spaces": [{"id":"sp1","name":"","folder":"/p","tabs":[]}]}});
+    let (port, _) = port_sur(json!([lance, etranger]), doc, rien);
+    let snapshot = snapshot(&port);
+    let agent = |id: &str| {
+        snapshot
+            .agents
+            .iter()
+            .find(|a| a.terminal_id == id)
+            .map(|a| (a.workspace_id.to_string(), a.tab_id.to_string()))
+    };
+    assert_eq!(
+        agent("t9"),
+        Some((String::from("sp1"), String::from("tbneuf")))
+    );
+    assert_eq!(
+        agent("t8").map(|(espace, _)| espace),
+        Some(String::from("hors:/x"))
+    );
+    let onglet = snapshot
+        .tabs
+        .unwrap_or_default()
+        .into_iter()
+        .find(|t| t.tab_id.to_string() == "tbneuf");
+    assert_eq!(onglet.and_then(|t| t.label).as_deref(), Some("p-1"));
+    let espace = snapshot
+        .workspaces
+        .iter()
+        .find(|w| w.workspace_id.to_string() == "sp1");
+    assert_eq!(espace.and_then(|w| w.folder.clone()).as_deref(), Some("/p"));
+}

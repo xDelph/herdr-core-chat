@@ -88,6 +88,7 @@ fn workspace(ident: &str, libelle: &str) -> WorkspaceObservation {
         tab_count: Some(1),
         active_tab_id: None,
         worktree: None,
+        folder: None,
     }
 }
 

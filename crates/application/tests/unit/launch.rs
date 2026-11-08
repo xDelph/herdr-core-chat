@@ -75,6 +75,7 @@ fn workspace_avec_chemin(libelle: &str, chemin: &str) -> WorkspaceObservation {
             repo_name: String::new(),
             repo_root: String::new(),
         }),
+        folder: None,
     }
 }
 
@@ -262,6 +263,7 @@ fn le_projet_absent_refuse_avant_tout_onglet() {
             repo_name: String::new(),
             repo_root: String::new(),
         }),
+        folder: None,
     };
     faux.repond_snapshot(Snapshot {
         agents: vec![],
@@ -568,5 +570,80 @@ fn un_demon_demarre_depuis_longtemps_lance_encore() {
             .iter()
             .all(|action| action.op != Op::FermetureOnglet),
         "aucun onglet fermé"
+    );
+}
+
+/// Rien n'a démarré, et c'est OBSERVÉ (le shell est resté au premier plan) :
+/// l'onglet possédé est fermé, rien n'est rejoué — jamais « the agent may
+/// exist » pour un shell nu.
+#[test]
+fn un_agent_jamais_demarre_ferme_l_onglet_sans_rejouer() {
+    let faux = faux_heureux();
+    faux.repond_lancement(StartEvidence::NeverStarted {
+        detail: String::from("`claude` did not start: zsh: command not found: laude"),
+    });
+    let horloge = HorlogeTest::nouvelle();
+    match LanceurAgent::nouveau().lance(&faux, &horloge, &args_acceptes, &demande("w1", "claude")) {
+        Err(ErreurLancement::CoquilleNonPrete { tab, detail, .. }) => {
+            assert_eq!(tab.as_str(), "t-1");
+            assert!(detail.contains("command not found"), "{detail}");
+        }
+        issue => panic!("jamais démarré attendu : {issue:?}"),
+    }
+    let actions = faux.actions();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|action| action.op == Op::LancementAgent)
+            .count(),
+        1,
+        "la ligne n'est jamais retapée"
+    );
+    assert!(
+        actions
+            .iter()
+            .any(|action| action.op == Op::FermetureOnglet && action.cible == "t-1"),
+        "l'onglet possédé est fermé"
+    );
+}
+
+/// Le dossier DÉCLARÉ de l'espace passe avant le `cwd` d'un pane (un agent
+/// qui a fait `cd`, un sous-agent).
+#[test]
+fn le_dossier_declare_de_l_espace_passe_avant_le_cwd_d_un_pane() {
+    let faux = faux_heureux();
+    let mut espace = workspace_avec_chemin("atelier", "/inutile");
+    espace.worktree = None;
+    espace.folder = Some(String::from("/projets/atelier"));
+    let mut photo = photo_avec(espace, vec![agent_nomme("p-voisin", "atelier-1")]);
+    photo.panes = vec![domain::observation::SituatedPane {
+        pane_id: PaneId::from(String::from("p-voisin")),
+        workspace_id: Some(WorkspaceId::from(String::from("w1"))),
+        cwd: Some(String::from("/ailleurs/apres-un-cd")),
+        name: Some(String::from("atelier-2")),
+    }];
+    faux.repond_snapshot(photo);
+    let horloge = HorlogeTest::nouvelle();
+    if let Err(erreur) =
+        LanceurAgent::nouveau().lance(&faux, &horloge, &args_acceptes, &demande("w1", "pi"))
+    {
+        panic!("lancement : {erreur:?}");
+    }
+    let creation = faux
+        .actions()
+        .into_iter()
+        .find(|action| action.op == Op::CreationTab)
+        .unwrap_or_else(|| panic!("aucun onglet"));
+    assert_eq!(creation.detail, "/projets/atelier");
+    // `atelier-2` est le nom d'un terminal (pas d'un agent) : il est pris.
+    let demarrage = faux
+        .actions()
+        .into_iter()
+        .find(|action| action.op == Op::LancementAgent)
+        .unwrap_or_else(|| panic!("aucun démarrage"));
+    assert!(
+        demarrage.detail.contains("atelier-3"),
+        "`atelier-1` (agent) et `atelier-2` (terminal) sont pris : {}",
+        demarrage.detail
     );
 }

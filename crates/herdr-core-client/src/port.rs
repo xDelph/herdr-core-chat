@@ -466,6 +466,7 @@ fn snapshot_sans_disposition(terms: &[Terminal], cause: &str, hello: HelloResult
             pane_id: PaneId::from(term.address.clone()),
             workspace_id: Some(WorkspaceId::from(ESPACE_INDISPONIBLE.to_string())),
             cwd: Some(dossier_du(term)),
+            name: None,
         });
         if PortCore::est_agent(term) {
             let agent = agent_de(term, ESPACE_INDISPONIBLE, &onglet);
@@ -483,6 +484,7 @@ fn snapshot_sans_disposition(terms: &[Terminal], cause: &str, hello: HelloResult
         tab_count: Some(1),
         active_tab_id: None,
         worktree: None,
+        folder: None,
     });
     snapshot.tabs = Some(vec![TabObservation {
         tab_id: TabId::from(onglet),
@@ -499,6 +501,8 @@ fn snapshot_sans_disposition(terms: &[Terminal], cause: &str, hello: HelloResult
 struct Groupe {
     id: String,
     label: Option<String>,
+    /// Le dossier de l'espace (`space.folder` du doc) — celui où l'on lance.
+    dossier: Option<String>,
     onglets: Vec<(String, Option<String>, Vec<String>)>,
 }
 
@@ -557,11 +561,14 @@ pub fn snapshot_depuis(
         groupes.push(Groupe {
             id: espace.id.clone(),
             label,
+            dossier: Some(espace.folder.clone()).filter(|d| !d.is_empty()),
             onglets,
         });
     }
 
-    // Hors disposition : l'espace du parent, sinon le dossier.
+    // Hors disposition : l'espace du parent, sinon celui que ses labels
+    // nomment (un onglet que NOUS avons créé, pas encore dans le doc de
+    // Herdr.app — ou Herdr.app fermé), sinon le dossier.
     for term in terms {
         if place.contains_key(&term.address) {
             continue;
@@ -571,7 +578,20 @@ pub fn snapshot_depuis(
             .as_deref()
             .and_then(|parent| place.get(parent))
             .map(|(espace, _)| espace.clone());
-        let id_espace = match espace_parent {
+        // ⚠️ Les labels `herdr.space`/`herdr.tab` posés à la création : sans
+        // eux, l'agent qu'on venait de lancer apparaissait « (outside
+        // Herdr.app) » tant que Herdr.app ne l'avait pas mis dans son doc.
+        let espace_label = term
+            .labels
+            .get("herdr.space")
+            .filter(|espace| disposition.spaces.iter().any(|s| s.id == **espace))
+            .cloned();
+        let onglet_label = espace_label
+            .as_ref()
+            .and(term.labels.get("herdr.tab"))
+            .filter(|onglet| !onglet.is_empty())
+            .cloned();
+        let id_espace = match espace_parent.or(espace_label) {
             Some(espace) => espace,
             None => {
                 let dossier = dossier_du(term);
@@ -580,13 +600,20 @@ pub fn snapshot_depuis(
                     groupes.push(Groupe {
                         id: id.clone(),
                         label: Some(format!("{} (outside Herdr.app)", nom_de_dossier(&dossier))),
+                        dossier: Some(dossier.clone()),
                         onglets: Vec::new(),
                     });
                 }
                 id
             }
         };
-        let id_onglet = format!("hors:{id_espace}:tab");
+        let (id_onglet, libelle_onglet) = match onglet_label {
+            Some(onglet) => (onglet, term.name.clone().filter(|nom| !nom.is_empty())),
+            None => (
+                format!("hors:{id_espace}:tab"),
+                Some(String::from("Outside Herdr.app")),
+            ),
+        };
         let Some(groupe) = groupes.iter_mut().find(|g| g.id == id_espace) else {
             continue;
         };
@@ -598,7 +625,7 @@ pub fn snapshot_depuis(
             Some((_, _, presents)) => presents.push(term.address.clone()),
             None => groupe.onglets.push((
                 id_onglet.clone(),
-                Some(String::from("Outside Herdr.app")),
+                libelle_onglet,
                 vec![term.address.clone()],
             )),
         }
@@ -643,6 +670,7 @@ pub fn snapshot_depuis(
             tab_count: Some(groupe.onglets.len() as u64),
             active_tab_id: None,
             worktree: None,
+            folder: groupe.dossier.clone(),
         });
     }
 
@@ -654,6 +682,7 @@ pub fn snapshot_depuis(
             pane_id: PaneId::from(term.address.clone()),
             workspace_id: Some(WorkspaceId::from(espace.clone())),
             cwd: Some(dossier_du(term)),
+            name: term.name.clone().filter(|nom| !nom.is_empty()),
         });
         if PortCore::est_agent(term) {
             snapshot.agents.push(agent_de(term, espace, onglet));
@@ -701,6 +730,29 @@ pub fn nom_de_terminal(nom: &str) -> Option<String> {
         .collect();
     let propre = propre.trim_matches('-').to_string();
     (!propre.is_empty()).then_some(propre)
+}
+
+/// La dernière ligne non vide d'un écran, bornée (pour un message).
+#[must_use]
+pub fn derniere_ligne(ecran: &str) -> String {
+    ecran
+        .lines()
+        .map(str::trim)
+        .rfind(|ligne| !ligne.is_empty())
+        .map(|ligne| ligne.chars().take(160).collect())
+        .unwrap_or_default()
+}
+
+/// Le shell pose-t-il une question oui/non avant son invite ? Rend la
+/// question (la dernière ligne non vide) le cas échéant.
+#[must_use]
+pub fn question_du_shell(ecran: &str) -> Option<String> {
+    let ligne = derniere_ligne(ecran);
+    let minuscule = ligne.to_lowercase();
+    ["[y/n]", "(y/n)", "[yes/no]", "(yes/no)"]
+        .iter()
+        .any(|motif| minuscule.contains(motif))
+        .then_some(ligne)
 }
 
 /// La commande d'un type d'agent (Cursor : `cursor-agent`).
@@ -1032,11 +1084,13 @@ impl ControlPort for PortCore {
     /// observe l'amorçage : un statut publié, ou un autre programme au
     /// premier plan.
     ///
-    /// - shell sans invite à l'écran → `ShellNotReady` (rien n'a été tapé :
-    ///   le moteur peut rejouer) ;
-    /// - shell terminé → `Failed` ;
-    /// - rien vu dans le délai → `Timeout` : l'agent PEUT exister, le moteur
-    ///   ne relance pas et garde l'onglet.
+    /// - shell sans invite à l'écran, ou qui pose une question (`[Y/n]`) →
+    ///   `ShellNotReady` (rien n'a été tapé : le moteur peut rejouer) ;
+    /// - shell terminé (ou disparu de `terminal.list`) → `Failed` ;
+    /// - à l'échéance, le shell encore au premier plan → `NeverStarted` :
+    ///   rien ne tourne, c'est observé (la ligne de l'écran le dit) ;
+    /// - premier plan illisible à l'échéance → `Timeout` : l'agent PEUT
+    ///   exister, le moteur ne relance pas et garde l'onglet.
     fn start_agent(&self, request: StartAgent) -> PortFuture<'_, StartEvidence> {
         let adresse = request.pane.to_string();
         if self.lance_de_terminal(&adresse).is_none() {
@@ -1054,6 +1108,16 @@ impl ControlPort for PortCore {
         if ecran.trim().is_empty() {
             return pret(Ok(StartEvidence::ShellNotReady {
                 detail: format!("the shell in {adresse} shows no prompt yet"),
+            }));
+        }
+        // ⚠️ Une question du shell (mise à jour d'oh-my-zsh…) mangerait le
+        // premier caractère de la ligne : on n'y tape jamais.
+        if let Some(question) = question_du_shell(&ecran) {
+            return pret(Ok(StartEvidence::ShellNotReady {
+                detail: format!(
+                    "the shell in {adresse} is asking a question before its prompt: \
+                     \"{question}\" — nothing was typed"
+                ),
             }));
         }
         let avant = match self.terminal(&adresse) {
@@ -1075,6 +1139,13 @@ impl ControlPort for PortCore {
         loop {
             let terminal = match self.terminal(&adresse) {
                 Ok(terminal) => terminal,
+                // `terminal.list` ne montre pas un terminal fini : disparu,
+                // c'est que son shell est sorti.
+                Err(PortError::Upstream { code, .. }) if code == "not_found" => {
+                    return pret(Ok(StartEvidence::Failed {
+                        detail: format!("the shell in {adresse} exited before `{ligne}` started"),
+                    }));
+                }
                 Err(erreur) => return pret(Err(erreur)),
             };
             if terminal.state == "finished" {
@@ -1089,6 +1160,29 @@ impl ControlPort for PortCore {
                 }));
             }
             if debut.elapsed() >= self.delai_amorcage {
+                // ⚠️ Le shell est TOUJOURS au premier plan : rien ne tourne
+                // (la ligne est introuvable, mangée, ou sortie aussitôt). Dire
+                // « the agent may exist » était faux — et laissait un shell nu.
+                if avant.foreground_pid.is_some() {
+                    let fin = self
+                        .verrouiller()
+                        .and_then(|mut client| {
+                            client.terminal_read(&adresse, 20).map_err(erreur_port)
+                        })
+                        .map(|ecran| derniere_ligne(&ecran))
+                        .unwrap_or_default();
+                    tracing::warn!(terminal = %adresse, ligne = %ligne, ecran = %fin, "herdr-core : agent jamais démarré");
+                    return pret(Ok(StartEvidence::NeverStarted {
+                        detail: if fin.is_empty() {
+                            format!("`{ligne}` did not start: the shell is still in the foreground")
+                        } else {
+                            format!(
+                                "`{ligne}` did not start: the shell is still in the foreground \
+                                 (last line: {fin})"
+                            )
+                        },
+                    }));
+                }
                 return pret(Err(PortError::Timeout));
             }
             std::thread::sleep(PAS_AMORCAGE);

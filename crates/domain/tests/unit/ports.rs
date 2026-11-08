@@ -104,7 +104,7 @@ fn un_stop_un_focus_et_un_start_sont_unions_exhaustives() {
         FocusEvidence::Focused => panic!("un refus s'affiche succès"),
     }
 
-    let démarrages: [StartEvidence; 3] = [
+    let démarrages: [StartEvidence; 4] = [
         StartEvidence::Started {
             pane: PaneId::from("wA:p9".to_string()),
         },
@@ -114,12 +114,16 @@ fn un_stop_un_focus_et_un_start_sont_unions_exhaustives() {
         StartEvidence::Failed {
             detail: "refus".to_string(),
         },
+        StartEvidence::NeverStarted {
+            detail: "zsh: command not found: laude".to_string(),
+        },
     ];
     for démarrage in démarrages {
         match démarrage {
             StartEvidence::Started { .. }
             | StartEvidence::ShellNotReady { .. }
-            | StartEvidence::Failed { .. } => (),
+            | StartEvidence::Failed { .. }
+            | StartEvidence::NeverStarted { .. } => (),
         }
     }
 }

@@ -58,6 +58,7 @@ fn photo_non_vide() -> Snapshot {
             tab_count: None,
             active_tab_id: None,
             worktree: None,
+            folder: None,
         }],
         ..Snapshot::default()
     }
