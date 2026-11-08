@@ -19,7 +19,6 @@ import { delaiDeReprise, SOURCE_OUVERTE } from "./reprise.ts";
 import type { InstalledKind, RecentImage } from "@herdr-core-chat/shared";
 import { byteLengthUtf8, MAX_PROMPT_BYTES } from "@herdr-core-chat/shared";
 import {
-  AgentFocusedResponse,
   ApiErrorResponse,
   MarkReadResponse,
   HealthResponse,
@@ -624,7 +623,7 @@ export interface VerdictSondeFlux {
  * ⚠️ **Le corps tranche, pas le statut seul.** Un `404` JSON portant une erreur
  * de domaine (pane inconnu, `no_source`) est un problème de **ce** pane ; un
  * `404 route inconnue`, un `405`, une réponse non JSON ou la page HTML que le
- * démon TS sert en `200` pour toute adresse inconnue disent que la **route**
+ * démon TS d'origine servait en `200` pour toute adresse inconnue disent que la **route**
  * manque. Un flux qui répond (`text/event-stream`) ou un `503` (plafond de
  * flux) est passager. Le corps d'un flux n'est jamais lu : la requête est
  * abandonnée dès les en-têtes.
@@ -956,18 +955,6 @@ export const answerQuestion = async (
 };
 
 /**
- * Montre le pane sur le Mac (`POST /focus`) — **geste explicite uniquement**.
- *
- * ⚠️ L'effet est réel sur le Mac : le pane prend le focus dans Herdr, et un
- * agent `done` passe `idle`. Ce n'était pas un geste mais un effet de bord de
- * la lecture (défilement d'une conversation terminée) : lire sur le téléphone
- * volait le clavier du Mac. Il n'est plus appelé que par le menu « Afficher sur
- * le Mac ».
- *
- * ⚠️ **Lève sur un échec**, avec la cause : un focus qui n'a pas eu lieu ne se
- * présente pas comme fait.
- */
-/**
  * H23 — l'app est au premier plan sur cet appareil (ou vient de le quitter).
  * `keepalive` : le départ doit partir même si la page gèle juste après.
  */
@@ -1000,21 +987,5 @@ export const markRead = async (paneId: string, at: number): Promise<MarkReadResp
   }
   const lu = decoderOf(MarkReadResponse)(payload);
   if (lu === undefined) throw new Error("unexpected response shape: read");
-  return lu;
-};
-
-export const focusAgent = async (paneId: string): Promise<AgentFocusedResponse> => {
-  const response = await envoieAction(
-    `/api/agents/${encodeURIComponent(paneId)}/focus`,
-    {},
-    DELAIS_ACTION_MS.court,
-  );
-  const payload = await readJson(response);
-  if (!response.ok) {
-    throw new Error(erreurDe(payload, response.status));
-  }
-  const lu = decoderOf(AgentFocusedResponse)(payload);
-  if (lu === undefined) throw new Error("unexpected response shape: focus");
-  if (!lu.focused) throw new Error("Herdr did not apply the focus");
   return lu;
 };

@@ -45,9 +45,16 @@ async fn sante_500_illisible() {
     });
     let (services, _) = services(faux, Default::default(), Default::default());
     let (statut, corps) = requete_get(routeur(services, vec![]), "/api/health").await;
-    // Un ping que le fil ne sait pas lire : 500 nommé, pas un 503 générique.
+    // Un ping que le fil ne sait pas lire : 500 nommé, pas un 503 générique —
+    // AVEC sa cause (une génération de protocole inconnue après une mise à
+    // jour de herdr-core).
     assert_eq!(statut, StatusCode::INTERNAL_SERVER_ERROR);
-    assert!(corps["error"].is_string());
+    assert!(
+        corps["error"]
+            .as_str()
+            .is_some_and(|erreur| erreur.contains("proto 23")),
+        "{corps}"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

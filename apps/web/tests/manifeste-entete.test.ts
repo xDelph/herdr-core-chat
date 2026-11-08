@@ -59,7 +59,6 @@ describe("en-tête", () => {
         kind: "pi",
         modele: undefined,
         onFichiers: () => undefined,
-        onMac: () => undefined,
         onModele: () => undefined,
         onRetour: () => undefined,
         projet: "herdr",

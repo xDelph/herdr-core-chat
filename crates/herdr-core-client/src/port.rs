@@ -171,13 +171,46 @@ impl PortCore {
 
     /// Le terminal d'un onglet créé ici, s'il l'a été.
     fn lance_de_terminal(&self, adresse: &str) -> Option<Lance> {
-        self.lances
+        let connu = self
+            .lances
             .lock()
             .ok()?
             .values()
             .find(|lance| lance.adresse == adresse)
-            .cloned()
+            .cloned();
+        // ⚠️ Après un redémarrage du démon, la mémoire est vide : la preuve
+        // est le label `LABEL_LANCE` que NOUS avons posé à la création —
+        // jamais `herdr.tab`, que Herdr.app pose aussi sur ses terminaux.
+        connu.or_else(|| {
+            self.terminal(adresse)
+                .ok()
+                .filter(|terminal| terminal.labels.contains_key(Self::LABEL_LANCE))
+                .map(|terminal| Lance {
+                    adresse: terminal.address,
+                })
+        })
     }
+
+    /// Le terminal créé par ce démon pour l'onglet `onglet`, d'après son
+    /// label (la mémoire ne survit pas à un redémarrage).
+    fn lance_d_onglet(&self, onglet: &str) -> Option<Lance> {
+        let mut client = self.verrouiller().ok()?;
+        client
+            .terminal_list()
+            .ok()?
+            .terminals
+            .into_iter()
+            .find(|terminal| {
+                terminal.labels.get(Self::LABEL_LANCE).map(String::as_str) == Some(onglet)
+            })
+            .map(|terminal| Lance {
+                adresse: terminal.address,
+            })
+    }
+
+    /// Le label qui prouve qu'un terminal a été créé par ce démon (valeur :
+    /// l'onglet). Herdr.app ne le pose jamais.
+    pub const LABEL_LANCE: &'static str = "herdr-core-chat.tab";
 
     /// Un client pour CET appel.
     ///
@@ -1050,6 +1083,7 @@ impl ControlPort for PortCore {
         let labels: BTreeMap<String, String> = [
             (String::from("herdr.space"), espace),
             (String::from("herdr.tab"), onglet.clone()),
+            (String::from(Self::LABEL_LANCE), onglet.clone()),
         ]
         .into_iter()
         .collect();
@@ -1199,7 +1233,8 @@ impl ControlPort for PortCore {
             .lances
             .lock()
             .ok()
-            .and_then(|mut lances| lances.remove(tab.as_str()));
+            .and_then(|mut lances| lances.remove(tab.as_str()))
+            .or_else(|| self.lance_d_onglet(tab.as_str()));
         let Some(lance) = lance else {
             return pret(Err(PortError::Unsupported {
                 feature: format!("closing tab {tab}, which Herdr Core Chat did not create"),

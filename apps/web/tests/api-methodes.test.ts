@@ -7,7 +7,6 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
   answerQuestion,
   answerTrust,
-  focusAgent,
   launchAgent,
   markRead,
   sendPrompt,
@@ -55,15 +54,14 @@ describe("les actions partent en POST JSON", () => {
     action(demandes[0]);
   });
 
-  test("envoi, réponse, confiance, focus, lancement", async () => {
+  test("envoi, réponse, confiance, lancement, lecture", async () => {
     doublure({});
     await sendPrompt("w1:p1", "bonjour").catch(() => undefined);
     await answerQuestion("w1:p1", 1).catch(() => undefined);
     await answerTrust("w1:p1", true).catch(() => undefined);
-    await focusAgent("w1:p1").catch(() => undefined);
     await launchAgent("w1", "pi").catch(() => undefined);
     await markRead("w1:p1", 1000).catch(() => undefined);
-    expect(demandes).toHaveLength(6);
+    expect(demandes).toHaveLength(5);
     for (const demande of demandes) action(demande);
   });
 });

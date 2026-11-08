@@ -268,8 +268,8 @@ export const Boite = ({
           <Avis ton="attention" annonce="statut">
             <div className="avis__corps">
               <p>
-                <strong>Can't reach Herdr on the Mac.</strong> Start Herdr there — this list fills
-                in by itself once it answers.
+                <strong>Can't reach herdr-core on the Mac.</strong> Start it there (
+                <code>hc server start</code>) — this list fills in by itself once it answers.
               </p>
               {donnees.erreurs.overview === null ? null : (
                 <p className="avis__detail">Cause: {donnees.erreurs.overview}</p>

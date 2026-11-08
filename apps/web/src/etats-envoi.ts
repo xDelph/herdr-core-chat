@@ -40,9 +40,9 @@ export const expliquerEchec = (etat: EtatEchecAffiche, message: string): Explica
     case "attente":
       return {
         texte: `Not confirmed — the message may have gone through.${suite}`,
-        // Renvoyer plutôt que retaper : la saisie est encore là, et Herdr
-        // ignorera un doublon identique.
-        action: "Retry",
+        // ⚠️ Le démon n'écarte un doublon qu'après un envoi CONFIRMÉ : un
+        // envoi en attente renvoyé peut arriver deux fois — le libellé le dit.
+        action: "Retry (may arrive twice)",
       };
     case "erreur":
       return {

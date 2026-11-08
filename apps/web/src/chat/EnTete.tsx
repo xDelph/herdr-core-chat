@@ -2,9 +2,10 @@
  * L'en-tête de conversation : retour, titre, projet · modèle · réflexion, état,
  * et le menu.
  *
- * ⚠️ **« Afficher sur le Mac » est dans le menu, et nulle part ailleurs.** Lire
- * ne touche pas au Mac (`lectures.ts`) ; poser le focus sur le pane est un geste
- * explicite, avec son issue affichée.
+ * ⚠️ **Plus d'« Afficher sur le Mac ».** Sous herdr-core, le démon ne pose pas
+ * le focus d'une fenêtre de Herdr.app (`focus` répond `unsupported`) : l'entrée
+ * échouait à chaque appui, avec un toast rouge. Lire ne touche jamais le Mac
+ * (`lectures.ts`).
  */
 import { memo, useEffect, useId, useRef, useState } from "react";
 import type { AgentStatus, AgentView, BackgroundTaskCount } from "@herdr-core-chat/shared";
@@ -37,7 +38,6 @@ export const EnTete = memo(
     tachesDeFond,
     onTaches,
     onRetour,
-    onMac,
     onModele,
     onFichiers,
   }: {
@@ -58,7 +58,6 @@ export const EnTete = memo(
     readonly tachesDeFond?: BackgroundTaskCount | undefined;
     readonly onTaches?: (() => void) | undefined;
     readonly onRetour: () => void;
-    readonly onMac: () => void;
     readonly onModele: () => void;
     readonly onFichiers: () => void;
   }) => {
@@ -134,11 +133,15 @@ export const EnTete = memo(
           </button>
           {menu ? (
             <div className="menu__liste" id={idMenu}>
-              <button type="button" onClick={choisit(onMac)} disabled={inactif}>
-                <Icone nom="mac" petite />
-                Show on the Mac
-              </button>
-              <button type="button" onClick={choisit(onModele)} disabled={inactif}>
+              {/*
+                ⚠️ `/model …` est tapé comme un message : un agent qui travaille le
+                lirait en plein tour, un agent bloqué le recevrait dans sa question.
+              */}
+              <button
+                type="button"
+                onClick={choisit(onModele)}
+                disabled={inactif || status === "working" || status === "blocked"}
+              >
                 <Icone nom="sliders" petite />
                 Model and thinking…
               </button>

@@ -122,7 +122,9 @@ fn l_onglet_est_le_shell_de_la_machine_avec_les_labels_de_herdr_app() {
     );
     assert_eq!(run["cwd"], "/p");
     assert_eq!(run["labels"]["herdr.space"], "sp1");
-    assert_eq!(run["labels"]["herdr.tab"], Value::String(onglet));
+    assert_eq!(run["labels"]["herdr.tab"], Value::String(onglet.clone()));
+    // Notre preuve de création, qui survit à un redémarrage du démon.
+    assert_eq!(run["labels"][PortCore::LABEL_LANCE], Value::String(onglet));
     assert_eq!(run["no_parent"], true);
     assert_eq!(run["no_notify"], true);
     assert_eq!(run["name"], "atelier-1");

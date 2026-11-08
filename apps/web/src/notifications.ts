@@ -15,8 +15,19 @@ const subscriptionRequest = async (body: unknown): Promise<void> => {
     method: "POST",
   });
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Notification setting rejected (${String(response.status)})`);
+    // ⚠️ Le corps est un `ApiErrorResponse` JSON : sa cause, pas le JSON brut
+    // (« {"error":"Web Push is unavailable"} » s'affichait tel quel).
+    const texte = await response.text();
+    let cause = texte;
+    try {
+      const lu: unknown = JSON.parse(texte);
+      const erreur: unknown =
+        typeof lu === "object" && lu !== null ? Reflect.get(lu, "error") : undefined;
+      if (typeof erreur === "string" && erreur.length > 0) cause = erreur;
+    } catch {
+      // Pas du JSON : le texte tel quel.
+    }
+    throw new Error(cause || `Notification setting rejected (${String(response.status)})`);
   }
 };
 

@@ -341,11 +341,12 @@ const appelants = (motif: string): ReadonlyArray<string> =>
     .toSorted();
 
 describe("portes invisibles à l'écran", () => {
-  test("le focus du Mac n'est posé que par le geste explicite du menu", () => {
+  test("le focus du Mac n'est jamais posé par la PWA", () => {
     // Lire (défiler, ouvrir) ne doit jamais appeler `/focus` : c'était le vol
-    // de clavier du Mac. Un seul appelant, `montrerSurMac`, câblé au menu.
-    expect(appelants("focusAgent(")).toEqual(["app/gestes.ts"]);
-    expect(appelants("montrerSurMac(")).toEqual(["chat/Conversation.tsx"]);
+    // de clavier du Mac. Et sous herdr-core, le démon ne sait pas le poser :
+    // l'entrée « Show on the Mac » est retirée.
+    expect(appelants("focusAgent(")).toEqual([]);
+    expect(appelants("Show on the Mac")).toEqual([]);
   });
 
   test("un seul flux global pour toute l'app", () => {

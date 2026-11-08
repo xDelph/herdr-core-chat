@@ -1,5 +1,11 @@
 # Herdr Remote — backlog de release
 
+> ⚠️ **Document historique (relu le 2026-11-08).** Il décrit l'ancien projet
+> (Herdr Remote / Herdr Chat, branché sur Herdr.app 0.9.3), pas
+> herdr-core-chat sous herdr-core. Ses statuts ne sont pas une liste de
+> tâches à jour : ce qui reste à prouver sous herdr-core est dans
+> `docs/PROTOCOL.md` §7.
+
 > Actif au 11/10/2026. Consolide l'audit, la publication du code source et la refonte mobile inspirée de [T3 Code Mobile](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824). `TASKS.md` conserve l'historique du MVP. D02 et D04 sont décidées ; U01/U02 sont entamées, mais aucune tâche d'implémentation ci-dessous n'a sa preuve de fin. Préserver les changements de code non committés.
 
 ## Contrat commun

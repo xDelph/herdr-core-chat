@@ -20,8 +20,9 @@ describe("U08 — les trois échecs se distinguent", () => {
   test("attente : le message est peut-être parti, on renvoie", () => {
     const e = expliquerEchec("attente", "aucune réponse en 5 s");
     expect(e.texte).toContain("may have gone through");
-    // L'action distingue ce cas des deux autres : renvoyer, pas retaper.
-    expect(e.action).toBe("Retry");
+    // L'action distingue ce cas des deux autres : renvoyer, pas retaper — et
+    // prévient : le démon n'écarte un doublon qu'après un envoi confirmé.
+    expect(e.action).toBe("Retry (may arrive twice)");
   });
 
   test("erreur : Herdr a refusé, rien n'est parti, on corrige", () => {

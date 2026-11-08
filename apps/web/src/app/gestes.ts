@@ -11,7 +11,7 @@
  * ⚠️ **Rien n'est présenté comme fait sans preuve.** « Transmise » n'est pas
  * « appliquée » ; une confiance « transmise » n'est pas « accordée ».
  */
-import { answerQuestion, answerTrust, focusAgent, reportError, stopAgent } from "../api.ts";
+import { answerQuestion, answerTrust, reportError, stopAgent } from "../api.ts";
 import { cleAction, type EtatAction } from "../actions-locales.ts";
 import { expliquerConfiance } from "../etats-envoi.ts";
 import { actions, magasin, notifications } from "./services.ts";
@@ -112,21 +112,4 @@ export const arreter = (paneId: string): Promise<void> =>
         : { phase: "fini", texte: "Herdr reports the agent is no longer working.", ton: "ok" };
     },
     { message: "failed to interrupt the agent", notifie: true, paneId },
-  );
-
-/**
- * Montrer le pane sur le Mac — **uniquement sur demande**.
- *
- * ⚠️ C'était un effet de bord de la lecture (défilement d'une conversation
- * terminée → `POST /focus`) : lire sur le téléphone volait le clavier du Mac.
- * C'est désormais une entrée du menu, et rien d'autre ne l'appelle.
- */
-export const montrerSurMac = (paneId: string): Promise<void> =>
-  execute(
-    cleAction(paneId, "focus"),
-    async () => {
-      await focusAgent(paneId);
-      return { phase: "fini", texte: "Pane shown on the Mac.", ton: "ok" };
-    },
-    { message: "failed to focus a pane", notifie: true, paneId },
   );

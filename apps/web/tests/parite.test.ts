@@ -245,7 +245,7 @@ const injoignable = (): string =>
 describe("Herdr injoignable : une seule explication, la vraie", () => {
   test("Herdr est nommé, avec sa cause et son socket — ni « Connecting » ni « Unreadable »", () => {
     const html = injoignable();
-    expect(html).toContain("Can't reach Herdr on the Mac.");
+    expect(html).toContain("Can't reach herdr-core on the Mac.");
     expect(html).toContain("No such file or directory");
     expect(html).toContain("/Users/x/.local/state/herdr-core/default/default.sock");
     expect(html).toContain("Herdr offline");

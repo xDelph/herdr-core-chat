@@ -1,5 +1,11 @@
 # Herdr Remote — PWA revamp task list
 
+> ⚠️ **Document historique (relu le 2026-11-08).** Il décrit l'ancien projet
+> (Herdr Remote / Herdr Chat, branché sur Herdr.app 0.9.3), pas
+> herdr-core-chat sous herdr-core. Ses statuts ne sont pas une liste de
+> tâches à jour : ce qui reste à prouver sous herdr-core est dans
+> `docs/PROTOCOL.md` §7.
+
 > **Objectif.** Refondre la PWA (`apps/web`) pour la rendre **maintenable, évolutive et à jour**, en exploitant pleinement le framework **Effect** (services, streams, fibers, layers, erreurs typées, resources) et en ajoutant une **couche d'animation professionnelle** (Motion, View Transitions, springs, micro-interactions). Sans réécriture big-bang : chaque phase livre de la valeur indépendamment et l'application ne s'arrête jamais de fonctionner.
 
 > **Source normative.** Ce document complète `docs/RELEASE_BACKLOG.md` (backlog de release) et `docs/IDEAS.md` (évolutions proposées). Les IDs `R*` renvoient au backlog, `I*` aux idées, `T*` aux tâches historiques. Les capacités non exposées par la source restent `inconnu`.

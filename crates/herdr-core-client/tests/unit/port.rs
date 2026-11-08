@@ -658,3 +658,30 @@ fn un_onglet_lance_ici_est_dans_l_espace_de_ses_labels() {
         .find(|w| w.workspace_id.to_string() == "sp1");
     assert_eq!(espace.and_then(|w| w.folder.clone()).as_deref(), Some("/p"));
 }
+
+/// Après un redémarrage du démon (mémoire vide), un onglet que NOUS avons
+/// créé se reconnaît à NOTRE label — jamais à `herdr.tab`, que Herdr.app pose
+/// aussi sur les terminaux de l'utilisateur.
+#[test]
+fn un_onglet_cree_avant_un_redemarrage_se_reconnait_a_notre_label() {
+    let mut notre = terminal("t9", Value::Null, "zsh", "/p");
+    notre["labels"] =
+        json!({"herdr.space": "sp1", "herdr.tab": "tbA", PortCore::LABEL_LANCE: "tbA"});
+    let mut sien = terminal("t1", Value::Null, "zsh", "/p");
+    sien["labels"] = json!({"herdr.space": "sp1", "herdr.tab": "tbB"});
+    let (port, demandes) = port_sur(json!([notre, sien]), sans_doc(), rien);
+    // Fermer l'onglet de l'utilisateur : refusé, rien n'est tué.
+    assert!(matches!(
+        attends(port.fermer_onglet(domain::ids::TabId::from(String::from("tbB")))),
+        Err(PortError::Unsupported { .. })
+    ));
+    assert!(demandes_de(&demandes, "terminal.kill").is_empty());
+    // Le nôtre : reconnu par son label, fermé.
+    if let Err(erreur) = attends(port.fermer_onglet(domain::ids::TabId::from(String::from("tbA"))))
+    {
+        panic!("fermer le nôtre : {erreur}");
+    }
+    let tues = demandes_de(&demandes, "terminal.kill");
+    assert_eq!(tues.len(), 1);
+    assert_eq!(tues[0]["terminal"], "t9");
+}

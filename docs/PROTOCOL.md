@@ -284,11 +284,56 @@ Résolution **par agent**, sans repli d'un profil vers un autre :
   pas créé. `name` herdr-core : `1-32 of a-z 0-9 - _ .` (nom d'agent
   assaini ; `name_taken` → onglet sans nom).
 
+### Lancement : ce que le terrain a montré (2026-11-08)
+- Relevé sur le core de l'utilisateur (lecture seule, `hc read t1q`) : le
+  shell neuf affichait « [oh-my-zsh] Would you like to update? [Y/n] » ; la
+  ligne `claude --model opus …` tapée y a répondu par son `c`, puis le shell a
+  lancé `laude` (« command not found »). Le démon disait « the agent may
+  exist » alors que le shell était resté au premier plan. `[EXÉCUTÉ]`
+- Correctifs (prouvés sur faux core, `tests/unit/lancement.rs`) :
+  - `terminal.run` porte `env {DISABLE_AUTO_UPDATE: "true"}` (variable lue par
+    `check_for_upgrade.sh` d'oh-my-zsh quand aucun `zstyle ':omz:update'
+    mode` n'est posé), dans CE shell seulement ;
+  - une question oui/non en dernière ligne (`[y/n]`, `(y/n)`…) → rien n'est
+    tapé (`ShellNotReady`) ;
+  - à l'échéance, shell encore au premier plan → `NeverStarted` (la dernière
+    ligne de l'écran dans le détail), l'onglet créé est fermé, rien n'est
+    rejoué ; premier plan illisible seulement → délai ambigu (onglet gardé) ;
+  - terminal disparu de `terminal.list` (un fini n'y est plus) → « the shell
+    exited », pas « not on this core ».
+- Le label `herdr-core-chat.tab = <onglet>` marque nos terminaux : après un
+  redémarrage du démon (mémoire vide), `start_agent`/`fermer_onglet` les
+  reconnaissent — jamais par `herdr.tab`, que Herdr.app pose aussi.
+- Placement : un terminal absent du doc mais labellisé `herdr.space` (espace
+  connu) / `herdr.tab` est rangé dans cet espace et cet onglet, plus dans
+  « (outside Herdr.app) ». Le dossier de lancement est `space.folder`, avant
+  le `cwd` d'un pane (qui a pu `cd`). Les noms pris comptent les shells nommés.
+
+### Envois, réponses : refus et délais (2026-11-08) `[SCHÉMA]`/tests
+- Un refus de `terminal.send`/`terminal.keys` (ex. `blocked` sur une
+  permission) est une **erreur** du port : `les_frappes` ne presse jamais
+  `enter` après un collage refusé (cet `enter` approuvait la permission).
+  Le refus `blocked` est reconnu par `data.kind`, plus par la phrase de
+  Herdr 0.9.3.
+- Sélecteur de pi : `terminal.keys ["down"|"up"]` (`tui.select.down/up`),
+  jamais `j`/`k` collés (`send` colle PUIS appuie sur Entrée).
+- Un délai de socket (`WouldBlock`/`TimedOut`) est `DelaiDepasse` →
+  `Timeout` → envoi `attente`, réponse `transmise` (plus « rejected »).
+- Le port n'a plus de client partagé sous verrou : chaque appel ouvre son
+  client (une connexion par appel de toute façon).
+- Le « vu » partagé compare `status_ms` à l'horloge du Mac (l'instant de
+  réception de `POST /read`), plus à celle du téléphone.
+
 ## 7. Ce qui reste à prouver (P1)
 
 - `events.subscribe` : comportement `missed` + resnapshot sous charge. `[INCONNU]`
 - `terminal.send` avec `blocked` (refus) et `force`. `[INCONNU]` (pas d'agent
-  bloqué sous le core de test)
+  bloqué sous le core de test) — l'adaptateur suppose `data.kind = blocked`
+  (schéma) ; à vérifier sur un faux agent bloqué en core isolé.
+- La détection de la demande de confiance **au lancement** (`409
+  trust-required`) n'est plus atteinte sous herdr-core : `start_agent` rend
+  `Started` dès que le premier plan change ; la confiance se lit ensuite sur
+  l'écran de la conversation. `[INCONNU]` (délai d'apparition de l'invite)
 - `terminal.read` : champs `complete`/`how`/`why`. `[SCHÉMA]`
 - OSC 7501 sous herdr-core pour Pi. `[INCONNU]`
 - Résolution de session pour Pi et devin. `[INCONNU]`

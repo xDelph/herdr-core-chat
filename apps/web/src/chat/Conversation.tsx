@@ -12,7 +12,7 @@ import type { AgentView, ConversationSummary } from "@herdr-core-chat/shared";
 import { cleAction } from "../actions-locales.ts";
 import { envoisApparus } from "../apparition-envois.ts";
 import { touchedFilesOf, type Block } from "../blocks.ts";
-import { arreter, montrerSurMac } from "../app/gestes.ts";
+import { arreter } from "../app/gestes.ts";
 import { useAction, useEnvois } from "../app/hooks.ts";
 import { envois } from "../app/services.ts";
 import { creeTranscripteur, tourEnCours } from "../transcript.ts";
@@ -277,7 +277,6 @@ export const Conversation = ({
         tachesDeFond={conversation?.tachesDeFond}
         onTaches={() => setFeuille({ genre: "taches" })}
         onRetour={onRetour}
-        onMac={() => void montrerSurMac(paneId)}
         onModele={() => setFeuille({ genre: "modele" })}
         onFichiers={() => setFeuille({ genre: "fichiers" })}
       />

@@ -37,7 +37,14 @@ async fn sante_sur_place(
             // Les seuls cas où le ping ne peut pas raisonnablement « réussir
             // sans valeur » : 500 nommé, jamais un succès fabriqué.
             PortError::Unsupported { .. } | PortError::PathRejected { .. } => {
-                let erreur = ErreurDomaine::invariant_viole("unreadable ping response");
+                // ⚠️ La cause NOMMÉE (« herdr-core protocol generation 2
+                // (supported: 1) ») : c'est exactement le cas d'une mise à
+                // jour de herdr-core, et « unreadable ping response » la
+                // cachait (AGENTS §1.6).
+                let erreur = ErreurDomaine::invariant_viole(format!(
+                    "unreadable ping response: {}",
+                    cause.description()
+                ));
                 let corps = ApiErrorResponse {
                     cause: Field(None),
                     error: erreur.message_sur(),
