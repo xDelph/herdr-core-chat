@@ -53,33 +53,61 @@ describe("suivre le bas", () => {
 });
 
 describe("où se poser quand le statut change", () => {
-  test("une réponse pas vue montre la demande", () => {
-    // L'agent finissait de travailler et s'arrête : la réponse est neuve.
-    expect(ancrage({ apres: "done", avant: "working", suivaitLeBas: true })).toBe("demande");
+  test("une réponse finie page cachée montre la demande", () => {
+    // L'agent finissait de travailler et s'arrête pendant que l'écran était
+    // éteint : personne ne l'a lue, elle est neuve.
+    expect(
+      ancrage({ apres: "done", avant: "working", pageVisible: false, suivaitLeBas: true }),
+    ).toBe("demande");
+  });
+
+  test("une réponse finie sous les yeux ne remonte pas à la demande", () => {
+    // ⚠️ Le bug vu à l'usage : on regarde l'agent écrire, il finit, et la vue
+    // remontait au début de la réponse. On vient de la lire : on reste au bas.
+    expect(
+      ancrage({ apres: "done", avant: "working", pageVisible: true, suivaitLeBas: true }),
+    ).toBe("bas");
+    expect(
+      ancrage({ apres: "idle", avant: "working", pageVisible: true, suivaitLeBas: true }),
+    ).toBe("bas");
   });
 
   test("arriver sur un agent déjà « done » montre la demande", () => {
     // On ouvre la conversation : la réponse est là, mais on ne l'a pas vue.
-    expect(ancrage({ apres: "done", avant: null, suivaitLeBas: true })).toBe("demande");
+    expect(ancrage({ apres: "done", avant: null, pageVisible: true, suivaitLeBas: true })).toBe(
+      "demande",
+    );
   });
 
   test("arriver sur un agent « idle » va au bas", () => {
     // Rien de neuf : la convention de toutes les messageries.
-    expect(ancrage({ apres: "idle", avant: null, suivaitLeBas: true })).toBe("bas");
+    expect(ancrage({ apres: "idle", avant: null, pageVisible: true, suivaitLeBas: true })).toBe(
+      "bas",
+    );
   });
 
   test("quelqu'un qui lisait plus haut n'est jamais tiré de sa lecture", () => {
-    expect(ancrage({ apres: "done", avant: "working", suivaitLeBas: false })).toBe("aucun");
-    expect(ancrage({ apres: "done", avant: null, suivaitLeBas: false })).toBe("aucun");
+    expect(
+      ancrage({ apres: "done", avant: "working", pageVisible: true, suivaitLeBas: false }),
+    ).toBe("aucun");
+    expect(ancrage({ apres: "done", avant: null, pageVisible: true, suivaitLeBas: false })).toBe(
+      "aucun",
+    );
   });
 
   test("un agent qui pose une question va au bas, pas à la demande", () => {
     // ⚠️ La question EST le dernier contenu : ancrer sur la demande la
     // laisserait hors de l'écran. C'est l'inverse du but recherché.
-    expect(ancrage({ apres: "blocked", avant: "working", suivaitLeBas: true })).toBe("bas");
-    expect(ancrage({ apres: "blocked", avant: null, suivaitLeBas: true })).toBe("bas");
+    expect(
+      ancrage({ apres: "blocked", avant: "working", pageVisible: true, suivaitLeBas: true }),
+    ).toBe("bas");
+    expect(ancrage({ apres: "blocked", avant: null, pageVisible: true, suivaitLeBas: true })).toBe(
+      "bas",
+    );
     // Et on ne tire toujours pas quelqu'un qui lisait plus haut.
-    expect(ancrage({ apres: "blocked", avant: "working", suivaitLeBas: false })).toBe("aucun");
+    expect(
+      ancrage({ apres: "blocked", avant: "working", pageVisible: true, suivaitLeBas: false }),
+    ).toBe("aucun");
   });
 });
 

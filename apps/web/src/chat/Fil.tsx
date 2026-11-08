@@ -10,8 +10,9 @@
  *   lecture : du neuf pendant qu'on lit plus haut affiche « Nouveaux messages » ;
  * - l'historique se charge en approchant du haut, et la vue ne saute pas
  *   (`positionApresPrepend`) ;
- * - quand l'agent finit pendant qu'on suit le bas, la vue se pose sur la
- *   demande, pour lire la réponse avec sa question.
+ * - quand l'agent finit pendant qu'on suit le bas **page cachée**, la vue se
+ *   pose sur la demande, pour lire la réponse avec sa question ; s'il finit
+ *   sous les yeux, on reste au bas — on vient de la lire s'écrire.
  *
  * ⚠️ **Défiler ne touche pas au Mac.** L'ancien fil posait le focus Herdr
  * (`POST /focus`) après un défilement : lire volait le clavier du bureau.
@@ -210,7 +211,12 @@ export const Fil = memo(
       const avant = statutVu.current;
       statutVu.current = status;
       if (avant === status) return;
-      const ou = ancrage({ apres: status, avant, suivaitLeBas: suitBas.current });
+      const ou = ancrage({
+        apres: status,
+        avant,
+        pageVisible: document.visibilityState === "visible",
+        suivaitLeBas: suitBas.current,
+      });
       if (ou === "bas") element.scrollTop = element.scrollHeight;
       if (ou === "demande") {
         versDerniereDemande(element);

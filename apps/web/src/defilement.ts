@@ -36,7 +36,10 @@ export const suitLeBas = (metriques: {
  * le porte. `done` = il a fini et personne ne l'a encore regardé ; `idle` = il
  * n'a rien à dire de neuf. D'où :
  *
- * - il **finissait** de travailler et il s'arrête → `demande` (réponse neuve) ;
+ * - il **finissait** de travailler et il s'arrête **page cachée** → `demande`
+ *   (personne ne l'a regardée écrire : réponse neuve) ;
+ * - il finit **sous les yeux** (page visible, on suivait le bas) → `bas` : on
+ *   vient de la lire s'écrire, remonter à la demande arrachait la lecture ;
  * - on **arrive** sur un agent déjà `done` → `demande` (on ne l'a pas vue) ;
  * - on arrive sur un agent `idle` → `bas` (rien de neuf à signaler) ;
  * - on lisait plus haut → `aucun` (on ne tire jamais quelqu'un de sa lecture).
@@ -47,6 +50,8 @@ export const ancrage = (etat: {
   readonly avant: string | null;
   readonly apres: string;
   readonly suivaitLeBas: boolean;
+  /** La page est-elle à l'écran au moment du changement ? */
+  readonly pageVisible: boolean;
 }): Ancrage => {
   if (!etat.suivaitLeBas) return "aucun";
   /*
@@ -57,7 +62,9 @@ export const ancrage = (etat: {
   */
   if (etat.apres === "blocked") return "bas";
   const finitDeTravailler = etat.avant === "working" && etat.apres !== "working";
-  if (finitDeTravailler) return "demande";
+  // ⚠️ Fini SOUS LES YEUX : la réponse a été lue pendant qu'elle s'écrivait.
+  // Sauter à la demande ici était le bug « ça remonte alors que je regarde ».
+  if (finitDeTravailler) return etat.pageVisible ? "bas" : "demande";
   // On arrive sur la conversation : `done` = réponse pas vue, sinon rien de neuf.
   if (etat.avant === null) return etat.apres === "done" ? "demande" : "bas";
   return "aucun";
