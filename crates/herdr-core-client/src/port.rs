@@ -73,6 +73,18 @@ pub const DELAI_AMORCAGE: Duration = Duration::from_secs(20);
 /// Le pas d'observation de l'amorçage.
 const PAS_AMORCAGE: Duration = Duration::from_millis(500);
 
+/// L'observation qui prolonge celle de `terminal.send`.
+///
+/// ⚠️ `terminal.send` n'attend le passage à `working` que **≈5 s** (mesuré
+/// le 2026-11-08, herdr-core 0.1.18, faux agent sur core isolé : démarrage à
+/// 3,5 s → `started: true` en 3,7 s ; à 5 s ou 8 s → `started: false` en
+/// 5,2 s). Un agent plus lent à publier `working` (gros contexte, réflexion)
+/// était affiché « not confirmed » alors qu'il avait bien pris le message.
+pub const DELAI_CONFIRMATION: Duration = Duration::from_secs(6);
+
+/// Le pas de cette observation.
+const PAS_CONFIRMATION: Duration = Duration::from_millis(500);
+
 static COMPTEUR_ONGLETS: AtomicU64 = AtomicU64::new(0);
 
 /// Un onglet que CE démon a créé : son terminal (le shell), seul cible
@@ -84,6 +96,8 @@ struct Lance {
 
 pub struct PortCore {
     client: Mutex<ClientCore>,
+    /// Le socket du core : l'envoi y ouvre son propre client.
+    socket: PathBuf,
     etat_herdr_app: PathBuf,
     /// Dernières causes journalisées — une cause n'est dite qu'à son
     /// apparition, pas toutes les 2 s.
@@ -94,6 +108,8 @@ pub struct PortCore {
     lances: Mutex<BTreeMap<String, Lance>>,
     /// Le délai d'observation de l'amorçage (les tests le raccourcissent).
     delai_amorcage: Duration,
+    /// Le délai d'observation après un `started: false` (idem).
+    delai_confirmation: Duration,
 }
 
 impl PortCore {
@@ -101,12 +117,50 @@ impl PortCore {
     /// configuration — la bibliothèque ne lit pas `HOME`).
     pub fn nouveau(client: ClientCore, etat_herdr_app: impl AsRef<Path>) -> Self {
         Self {
+            socket: client.chemin().to_path_buf(),
             client: Mutex::new(client),
             etat_herdr_app: etat_herdr_app.as_ref().to_path_buf(),
             causes_dites: Mutex::new(BTreeMap::new()),
             dernier_texte: Mutex::new(None),
             lances: Mutex::new(BTreeMap::new()),
             delai_amorcage: DELAI_AMORCAGE,
+            delai_confirmation: DELAI_CONFIRMATION,
+        }
+    }
+
+    /// Le même port avec un délai de confirmation choisi (tests).
+    #[must_use]
+    pub fn avec_delai_confirmation(mut self, delai: Duration) -> Self {
+        self.delai_confirmation = delai;
+        self
+    }
+
+    /// L'agent a-t-il pris le message **après** la fenêtre de
+    /// `terminal.send` ? Preuve : il passe `working`, ou son tour avance
+    /// (il est entré puis sorti de `working` entre deux lectures). Une
+    /// lecture qui échoue, un terminal disparu ou fini : rien n'est prouvé.
+    fn demarre_apres(&self, adresse: &str, tour: u64) -> bool {
+        let debut = Instant::now();
+        loop {
+            let Ok(terminal) = self.terminal(adresse) else {
+                return false;
+            };
+            if terminal.state == "finished" {
+                return false;
+            }
+            let travaille = terminal
+                .status
+                .as_ref()
+                .and_then(|status| status.get("state"))
+                .and_then(Value::as_str)
+                == Some("working");
+            if travaille || terminal.turn > tour {
+                return true;
+            }
+            if debut.elapsed() >= self.delai_confirmation {
+                return false;
+            }
+            std::thread::sleep(PAS_CONFIRMATION);
         }
     }
 
@@ -720,17 +774,53 @@ impl ControlPort for PortCore {
 
     /// Le prompt : `terminal.send` sans `force` — un agent bloqué (décision
     /// de permission, question) refuse, et le refus remonte tel quel.
+    ///
+    /// ⚠️ **Un client à part** : `terminal.send` dure jusqu'à ~5 s (il attend
+    /// le démarrage) ; tenir le client partagé bloquait la veille et l'accueil
+    /// pendant tout ce temps. Chaque appel ouvre de toute façon sa connexion.
+    ///
+    /// Chaque envoi est journalisé (jamais le texte : c'est du contenu) avec
+    /// ce que le core en a dit — c'est la trace qui permet d'expliquer un
+    /// « not confirmed ».
     fn prompt(&self, request: TargetedPrompt) -> PortFuture<'_, PromptEvidence> {
         let adresse = request.pane.to_string();
-        let resultat = self.verrouiller().map(|mut client| {
-            match client.terminal_send(&adresse, &request.literal_text, None, false) {
-                Ok(envoi) => preuve_de_prompt(&envoi, request.fingerprint.clone()),
-                Err(erreur) => PromptEvidence::Failed {
-                    detail: erreur_port(erreur).description(),
-                },
+        let debut = Instant::now();
+        let mut client = ClientCore::nouveau(&self.socket);
+        let preuve = match client.terminal_send(&adresse, &request.literal_text, None, false) {
+            Ok(envoi) => {
+                let rattrape =
+                    envoi.started == Some(false) && self.demarre_apres(&adresse, envoi.turn);
+                let preuve = if rattrape {
+                    PromptEvidence::Confirmed {
+                        fingerprint: request.fingerprint.clone(),
+                    }
+                } else {
+                    preuve_de_prompt(&envoi, request.fingerprint.clone())
+                };
+                tracing::info!(
+                    terminal = %adresse,
+                    tour = envoi.turn,
+                    statut = envoi.status.as_deref().unwrap_or("unreported"),
+                    started = ?envoi.started,
+                    rattrape,
+                    confirme = matches!(preuve, PromptEvidence::Confirmed { .. }),
+                    duree_ms = u64::try_from(debut.elapsed().as_millis()).unwrap_or(u64::MAX),
+                    "envoi : terminal.send"
+                );
+                preuve
             }
-        });
-        pret(resultat)
+            Err(erreur) => {
+                let detail = erreur_port(erreur).description();
+                tracing::warn!(
+                    terminal = %adresse,
+                    cause = %detail,
+                    duree_ms = u64::try_from(debut.elapsed().as_millis()).unwrap_or(u64::MAX),
+                    "envoi : terminal.send refusé"
+                );
+                PromptEvidence::Failed { detail }
+            }
+        };
+        pret(Ok(preuve))
     }
 
     /// Le texte littéral : herdr-core n'a pas d'écriture sans Entrée —

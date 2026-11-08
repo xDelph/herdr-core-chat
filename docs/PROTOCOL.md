@@ -109,6 +109,11 @@ de test — à vérifier en charge)
   `working` ou non ; `null` = indéterminable). `[SCHÉMA]`
 - Vérifié : sur un `sh` (status null), `if: idle` → `status_mismatch`. `[EXÉCUTÉ]`
 - Vérifié : `started` vaut `null` pour un programme sans statut. `[EXÉCUTÉ]`
+- Mesuré le 2026-11-08 (0.1.18, faux agent, core isolé) : la fenêtre de
+  `started` est **≈5 s**. Démarrage à 0,5/2/3,5 s → `started: true` (0,7 à
+  3,7 s) ; à 5 ou 8 s → `started: false` en 5,2 s. Agent déjà `working` →
+  `started: true` en 0,2 s. L'adaptateur relit le terminal 6 s de plus
+  (`working` ou tour qui avance = confirmé) et journalise chaque envoi. `[EXÉCUTÉ]`
 
 ### 4.2 `terminal.keys` `[SCHÉMA]`
 

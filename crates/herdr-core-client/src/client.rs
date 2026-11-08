@@ -71,6 +71,12 @@ impl ClientCore {
         }
     }
 
+    /// Le socket du core — pour ouvrir un client à part (envoi long).
+    #[must_use]
+    pub fn chemin(&self) -> &std::path::Path {
+        self.transport.chemin()
+    }
+
     pub fn hello(&mut self) -> Result<HelloResult, ErreurTransport> {
         let r = self.transport.appelle("hello", json!({"generation": 1}))?;
         Ok(HelloResult {

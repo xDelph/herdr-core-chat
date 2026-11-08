@@ -316,6 +316,46 @@ fn le_prompt_n_est_confirme_que_si_l_agent_demarre() {
     }
 }
 
+/// `terminal.send` n'attend le démarrage que ≈5 s : au-delà, `started` vaut
+/// `false` alors que l'agent a pu prendre le message. L'adaptateur prolonge
+/// l'observation — `working` ou un tour qui avance prouvent le démarrage ;
+/// un agent resté `idle` au même tour reste « non confirmé ».
+#[test]
+fn un_demarrage_tardif_est_confirme_par_le_statut_ou_le_tour() {
+    for (etat, tour, confirme) in [("working", 4, true), ("idle", 5, true), ("idle", 4, false)] {
+        let mut term = terminal("t1", json!({"app":"faux","state":etat}), "faux", "/p");
+        term["turn"] = json!(tour);
+        let (port, demandes) = port_sur(json!([term]), sans_doc(), |_, _| {
+            Reponse::Resultat(json!({"turn": 4, "status": "idle", "started": false}))
+        });
+        let port = port.avec_delai_confirmation(std::time::Duration::from_millis(300));
+        match prompt(&port) {
+            PromptEvidence::Confirmed { .. } => {
+                assert!(confirme, "{etat} au tour {tour} : confirmé sans preuve");
+            }
+            PromptEvidence::Unknown { detail, .. } => {
+                assert!(!confirme, "{etat} au tour {tour} : démarrage manqué");
+                assert!(detail.contains("did not start working"), "{detail}");
+            }
+            autre => panic!("{autre:?}"),
+        }
+        assert!(
+            !demandes_de(&demandes, "terminal.list").is_empty(),
+            "le terminal doit être relu après la fenêtre de terminal.send"
+        );
+    }
+}
+
+/// `started: true` suffit : aucune relecture, aucune attente de plus.
+#[test]
+fn un_demarrage_vu_par_le_core_ne_relit_pas_le_terminal() {
+    let (port, demandes) = port_sur(json!([]), sans_doc(), |_, _| {
+        Reponse::Resultat(json!({"turn": 4, "status": "idle", "started": true}))
+    });
+    assert!(matches!(prompt(&port), PromptEvidence::Confirmed { .. }));
+    assert!(demandes_de(&demandes, "terminal.list").is_empty());
+}
+
 #[test]
 fn un_agent_bloque_refuse_le_prompt_et_la_cause_remonte() {
     let (port, _) = port_sur(json!([]), sans_doc(), |_, _| Reponse::Erreur {
