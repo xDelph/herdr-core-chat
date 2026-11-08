@@ -607,19 +607,20 @@ fn un_agent_jamais_demarre_ferme_l_onglet_sans_rejouer() {
     );
 }
 
-/// Le dossier DÉCLARÉ de l'espace passe avant le `cwd` d'un pane (un agent
-/// qui a fait `cd`, un sous-agent).
+/// Le `cwd` réel d'un pane passe avant le dossier DÉCLARÉ de l'espace :
+/// Herdr.app garde le dossier de création (relevé le 2026-11-08 : l'espace
+/// « herdr-core-chat » déclarait `…/herdr-pwa`).
 #[test]
-fn le_dossier_declare_de_l_espace_passe_avant_le_cwd_d_un_pane() {
+fn le_cwd_d_un_pane_passe_avant_le_dossier_declare_de_l_espace() {
     let faux = faux_heureux();
     let mut espace = workspace_avec_chemin("atelier", "/inutile");
     espace.worktree = None;
-    espace.folder = Some(String::from("/projets/atelier"));
+    espace.folder = Some(String::from("/projets/dossier-de-creation"));
     let mut photo = photo_avec(espace, vec![agent_nomme("p-voisin", "atelier-1")]);
     photo.panes = vec![domain::observation::SituatedPane {
         pane_id: PaneId::from(String::from("p-voisin")),
         workspace_id: Some(WorkspaceId::from(String::from("w1"))),
-        cwd: Some(String::from("/ailleurs/apres-un-cd")),
+        cwd: Some(String::from("/projets/atelier")),
         name: Some(String::from("atelier-2")),
     }];
     faux.repond_snapshot(photo);

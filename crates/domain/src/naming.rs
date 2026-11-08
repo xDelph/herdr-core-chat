@@ -139,9 +139,14 @@ pub fn launch_name(base: &str, taken: &std::collections::BTreeSet<String>) -> Op
 /// pane du projet, lui, existe toujours. Deux chemins de calcul pour la même
 /// donnée avaient divergé : l'aperçu trouvait le dossier, le lancement non —
 /// d'où « aucun dossier de travail connu » sur un projet valide. Ordre :
-/// worktree lié **gagne**, sinon le dossier déclaré de l'espace, sinon le premier
-/// pane du projet qui porte un cwd
-/// (ordre du snapshot), sinon rien.
+/// worktree lié **gagne**, sinon le premier pane du projet qui porte un cwd
+/// (ordre du snapshot), sinon le dossier déclaré de l'espace, sinon rien.
+///
+/// ⚠️ **Le dossier déclaré n'est qu'un secours.** Herdr.app garde le dossier de
+/// CRÉATION de l'espace et renomme l'espace d'après ce qu'il contient : relevé
+/// le 2026-11-08, l'espace « herdr-core-chat » déclarait `…/herdr-pwa` alors
+/// que tous ses agents travaillaient dans `…/herdr-core-chat`. Le préférer
+/// lançait l'agent dans un autre projet que celui affiché.
 #[must_use]
 pub fn checkout_path_of(
     workspace: &WorkspaceObservation,
@@ -150,17 +155,14 @@ pub fn checkout_path_of(
     if let Some(worktree) = &workspace.worktree {
         return Some(worktree.checkout_path.clone());
     }
-    // Le dossier déclaré de l'espace, avant le `cwd` d'un pane : un agent qui
-    // a fait `cd` ailleurs, ou un sous-agent, n'y envoie pas le suivant.
-    if let Some(dossier) = workspace.folder.as_ref().filter(|d| !d.is_empty()) {
-        return Some(dossier.clone());
-    }
     panes
         .iter()
         .find(|pane| {
             pane.workspace_id.as_ref() == Some(&workspace.workspace_id) && pane.cwd.is_some()
         })
         .and_then(|pane| pane.cwd.clone())
+        // Un espace vide n'a pas de pane : son dossier déclaré est alors le seul.
+        .or_else(|| workspace.folder.clone().filter(|d| !d.is_empty()))
 }
 
 /// Un pane du contexte de nommage : son rang et la taille de son tab.

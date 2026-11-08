@@ -362,3 +362,41 @@ fn un_tab_sans_libelle_garde_son_numero_herdr() {
         None => panic!("tab retenu nulle part"),
     }
 }
+
+/// ⚠️ Relevé le 2026-11-08 : l'espace « herdr-core-chat » déclarait le dossier
+/// `…/herdr-pwa` (son dossier de création) alors que ses agents travaillaient
+/// dans `…/herdr-core-chat`. Le dossier déclaré ne doit pas battre un cwd réel.
+#[test]
+fn le_cwd_d_un_pane_bat_le_dossier_declare_de_l_espace() {
+    let espace = WorkspaceObservation {
+        folder: Some("/work/herdr-pwa".to_string()),
+        ..workspace_avec(None)
+    };
+    let situes: Vec<SituatedPane> = vec![SituatedPane {
+        pane_id: PaneId::from("wA:p1".to_string()),
+        workspace_id: Some(WorkspaceId::from("wA".to_string())),
+        cwd: Some("/work/herdr-core-chat".to_string()),
+        name: None,
+    }];
+    assert_eq!(
+        checkout_path_of(&espace, &situes),
+        Some("/work/herdr-core-chat".to_string())
+    );
+}
+
+#[test]
+fn un_espace_sans_pane_se_lance_dans_son_dossier_declare() {
+    let espace = WorkspaceObservation {
+        folder: Some("/work/neuf".to_string()),
+        ..workspace_avec(None)
+    };
+    assert_eq!(
+        checkout_path_of(&espace, &[]),
+        Some("/work/neuf".to_string())
+    );
+    let vide = WorkspaceObservation {
+        folder: Some(String::new()),
+        ..workspace_avec(None)
+    };
+    assert_eq!(checkout_path_of(&vide, &[]), None);
+}
