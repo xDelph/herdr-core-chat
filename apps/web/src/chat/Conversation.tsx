@@ -95,6 +95,10 @@ const aideDuComposeur = (sansEnvoi: string | null, saisieBrute: boolean): string
   return saisieBrute ? "The agent is waiting: your message is typed into its prompt." : null;
 };
 
+/** La page est-elle à l'écran ? Sans `document` (rendu de test), oui. */
+const pageVisible = (): boolean =>
+  typeof document === "undefined" || document.visibilityState === "visible";
+
 export const Conversation = ({
   paneId,
   agent,
@@ -180,9 +184,19 @@ export const Conversation = ({
   const arret = useAction(cleAction(paneId, "arret"));
 
   // La lecture est notée ici, sur le téléphone — jamais par un focus sur le Mac.
+  // ⚠️ **Seulement page visible.** Une conversation ouverte dans un onglet en
+  // arrière-plan (ou l'app suspendue) se rafraîchissait par le SSE et se
+  // marquait lue — et, depuis le partage du « vu », effaçait le `done` du Mac
+  // alors que personne n'avait regardé. Le retour au premier plan la note.
   const derniereActivite = conversation?.timestamp;
   useEffect(() => {
-    onVue(paneId, Math.max(Date.now(), derniereActivite ?? 0));
+    const note = () => {
+      if (pageVisible()) onVue(paneId, Math.max(Date.now(), derniereActivite ?? 0));
+    };
+    note();
+    if (typeof document === "undefined") return undefined;
+    document.addEventListener("visibilitychange", note);
+    return () => document.removeEventListener("visibilitychange", note);
   }, [derniereActivite, onVue, paneId]);
 
   // Une bulle locale disparaît quand la session porte CE message : c'est la

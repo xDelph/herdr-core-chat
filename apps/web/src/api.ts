@@ -17,6 +17,7 @@ import { erreurLisible, estRouteInconnue } from "./erreurs-demon.ts";
 import { delaiDeReprise, SOURCE_OUVERTE } from "./reprise.ts";
 // Import **local** : `export type { X } from "…"` ne crée aucune liaison ici.
 import type { InstalledKind, RecentImage } from "@herdr-core-chat/shared";
+import { byteLengthUtf8, MAX_PROMPT_BYTES } from "@herdr-core-chat/shared";
 import {
   AgentFocusedResponse,
   ApiErrorResponse,
@@ -428,6 +429,19 @@ const DELAI_ENVOI_MS = 30_000;
 
 export const sendPrompt = async (paneId: string, text: string): Promise<SendResult> => {
   /*
+    ⚠️ **Trop long : refusé ICI, rien ne part.** Le démon répond 413 au-delà de
+    `MAX_PROMPT_BYTES` ; sans ce contrôle la bulle proposait « Send again (may
+    arrive twice) », qui échouait à chaque fois.
+  */
+  const taille = byteLengthUtf8(text);
+  if (taille > MAX_PROMPT_BYTES) {
+    return {
+      kind: "failed",
+      message: `Message too long (${String(Math.ceil(taille / 1024))} KB, maximum ${String(MAX_PROMPT_BYTES / 1024)} KB): nothing was sent.`,
+      state: "erreur",
+    };
+  }
+  /*
     ⚠️ **Un envoi DOIT finir, même si le serveur ne répond pas.** Sans délai, une
     requête bloquée laissait l'envoi en `sending` pour toujours : le composeur se
     verrouillait (« impossible d'envoyer »), et aucune action n'était possible.
@@ -500,7 +514,9 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   return {
     kind: "failed",
     message: erreurDe(payload, response.status),
-    state: "inconnu",
+    // ⚠️ Un 4xx est un refus AVANT toute action (corps, origine, taille) :
+    // rien n'est parti — `erreur`, jamais « livraison inconnue ».
+    state: response.status >= 400 && response.status < 500 ? "erreur" : "inconnu",
   };
 };
 

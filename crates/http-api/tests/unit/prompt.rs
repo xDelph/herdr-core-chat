@@ -225,14 +225,18 @@ async fn prompt_agent_inconnu_reste_un_prompt() {
     assert!(ops.contains(&Op::Prompt));
 }
 
-/// Le refus déclenché par Herdr bascule en frappes seulement sur le texte
-/// mesuré de la saisie interactive (le fil faisait de même).
+/// Le refus `blocked` du core (l'agent est devenu bloqué entre la photo et
+/// l'envoi) bascule en frappes — sur le code typé, jamais sur une phrase.
 #[tokio::test(flavor = "multi_thread")]
 async fn prompt_refus_de_saisie_bascule_en_frappes() {
     let faux = herdr_avec_agent(AgentStatus::Working);
-    faux.repond_prompt(PromptEvidence::Failed {
-        detail: String::from("agent w1:p1 is blocked and requires interactive input"),
-    });
+    faux.panne_sur(
+        Op::Prompt,
+        PortError::Upstream {
+            code: String::from("blocked"),
+            message: String::from("terminal w1:p1 is blocked (question)"),
+        },
+    );
     let (services, _) = services(faux.clone(), Default::default(), Default::default());
     let (statut, corps) = envoie_post(
         routeur(services, vec![]),

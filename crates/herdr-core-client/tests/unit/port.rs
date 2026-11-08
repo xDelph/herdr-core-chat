@@ -362,10 +362,16 @@ fn un_agent_bloque_refuse_le_prompt_et_la_cause_remonte() {
         message: String::from("t1 is blocked (permission)"),
         kind: String::from("blocked"),
     });
-    match prompt(&port) {
-        PromptEvidence::Failed { detail } => {
-            assert!(detail.contains("blocked"), "{detail}");
-            assert!(detail.contains("permission"), "{detail}");
+    // L'erreur TYPÉE (`Upstream`, état `erreur` côté PWA), jamais un
+    // `Failed` que l'application range en « inconnu ».
+    match attends(port.prompt(TargetedPrompt {
+        pane: PaneId::from(String::from("t1")),
+        literal_text: String::from("bonjour"),
+        fingerprint: DeliveryFingerprint::from(String::from("e")),
+    })) {
+        Err(PortError::Upstream { code, message }) => {
+            assert_eq!(code, "blocked");
+            assert!(message.contains("permission"), "{message}");
         }
         autre => panic!("refus masqué : {autre:?}"),
     }
@@ -572,4 +578,41 @@ fn un_vu_refuse_par_le_core_remonte() {
         Err(erreur) => assert!(erreur.description().contains("not_found"), "{erreur}"),
         Ok(issue) => panic!("refus masqué : {issue:?}"),
     }
+}
+
+/// Un collage refusé par le core (permission en attente) est une **erreur** :
+/// l'appelant qui enchaîne `enter` s'arrête — un `Ok(Refused)` était suivi
+/// d'un vrai `enter` qui approuvait la permission.
+#[test]
+fn un_collage_ou_des_touches_refuses_sont_des_erreurs() {
+    let (port, demandes) = port_sur(
+        json!([terminal(
+            "t1",
+            json!({"app":"claude-code","state":"blocked","kind":"permission"}),
+            "claude",
+            "/p"
+        )]),
+        sans_doc(),
+        |_, _| Reponse::Erreur {
+            message: String::from("terminal t1 is blocked"),
+            kind: String::from("blocked"),
+        },
+    );
+    match attends(port.send_text(TargetedText {
+        pane: PaneId::from(String::from("t1")),
+        text: String::from("non, fais plutôt X"),
+    })) {
+        Err(PortError::Upstream { code, .. }) => assert_eq!(code, "blocked"),
+        autre => panic!("refus masqué : {autre:?}"),
+    }
+    // Rien ne marque « entrée déjà appuyée » : un `enter` qui suivrait
+    // partirait vraiment — et serait lui aussi refusé ici.
+    match attends(port.send_keys(TargetedKeys {
+        pane: PaneId::from(String::from("t1")),
+        keys: vec![String::from("enter")],
+    })) {
+        Err(PortError::Upstream { code, .. }) => assert_eq!(code, "blocked"),
+        autre => panic!("refus masqué : {autre:?}"),
+    }
+    assert_eq!(demandes_de(&demandes, "terminal.keys").len(), 1);
 }

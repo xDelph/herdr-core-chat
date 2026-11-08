@@ -65,5 +65,11 @@ export const MIN_TAP_TARGET_PX = 44;
 /** Contraste minimal du texte normal. */
 export const MIN_TEXT_CONTRAST = 4.5;
 
-/** Taille d'un octet en UTF-8 : un emoji en occupe quatre. */
-export const byteLengthUtf8 = (text: string): number => Buffer.byteLength(text, "utf8");
+/**
+ * Taille d'un texte en octets UTF-8 : un emoji en occupe quatre.
+ *
+ * ⚠️ `TextEncoder`, pas `Buffer` : `Buffer` n'existe pas dans le navigateur,
+ * et la PWA doit pouvoir vérifier la limite AVANT d'envoyer.
+ */
+const encodeurUtf8 = new TextEncoder();
+export const byteLengthUtf8 = (text: string): number => encodeurUtf8.encode(text).length;

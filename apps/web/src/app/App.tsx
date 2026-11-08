@@ -25,6 +25,7 @@ import { Notifications } from "../ui/Notifications.tsx";
 import { NouvelleVersion } from "../ui/NouvelleVersion.tsx";
 import { PleinEcran } from "../ui/PleinEcran.tsx";
 import { SqueletteFil } from "../ui/Squelettes.tsx";
+import type { PreuvePrompt } from "../envois.ts";
 import { envois, magasin, partageLecture } from "./services.ts";
 
 /**
@@ -69,10 +70,15 @@ const ATTENTE_CONVERSATION = (
 
 type FeuilleApp = { readonly genre: "lancement" } | { readonly genre: "reglages" } | null;
 
-const paneDe = (donnees: unknown): string | undefined => {
+/** Le pane et la preuve d'un événement `prompt` — ou rien s'il est hors forme. */
+const preuveDe = (donnees: unknown): { pane: string; preuve: PreuvePrompt } | undefined => {
   if (typeof donnees !== "object" || donnees === null) return undefined;
-  const valeur: unknown = Reflect.get(donnees, "paneId");
-  return typeof valeur === "string" ? valeur : undefined;
+  const pane: unknown = Reflect.get(donnees, "paneId");
+  const confirmation: unknown = Reflect.get(donnees, "confirmation");
+  const fingerprint: unknown = Reflect.get(donnees, "fingerprint");
+  if (typeof pane !== "string" || typeof fingerprint !== "string") return undefined;
+  if (confirmation !== "confirmed" && confirmation !== "unknown") return undefined;
+  return { pane, preuve: { confirmation, fingerprint } };
 };
 
 export const App = () => {
@@ -98,11 +104,11 @@ export const App = () => {
     purgeAnciennesPositions(globalThis.localStorage);
     magasin.demarre();
     // ⚠️ La remise d'un envoi est prouvée par l'ÉVÉNEMENT `prompt` du démon,
-    // pas par l'absence d'erreur — pour le pane qu'il nomme, et lui seul.
+    // pas par l'absence d'erreur — pour le pane ET l'empreinte qu'il nomme.
     const arrete = magasin.ecoute((evenement) => {
       if (evenement.genre !== "prompt") return;
-      const pane = paneDe(evenement.donnees);
-      if (pane !== undefined) envois.resoutParEvenement(pane);
+      const lu = preuveDe(evenement.donnees);
+      if (lu !== undefined) envois.resoutParEvenement(lu.pane, lu.preuve);
     });
     return () => {
       arrete();

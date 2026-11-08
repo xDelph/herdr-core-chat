@@ -152,6 +152,41 @@ describe("les erreurs du démon, en français (P2)", () => {
   });
 });
 
+describe("un envoi refusé avant toute action est une erreur, pas un « inconnu »", () => {
+  test("un 413 du démon : `erreur` (rien n'est parti)", async () => {
+    repond(
+      JSON.stringify({ error: "text too large (maximum 32768 UTF-8 bytes)" }),
+      413,
+      "application/json",
+    );
+    const issue = await sendPrompt("w1:p1", "x");
+    expect(issue.kind).toBe("failed");
+    expect(issue.kind === "failed" ? issue.state : undefined).toBe("erreur");
+  });
+
+  test("un 5xx sans corps nommé reste « inconnu »", async () => {
+    repond(JSON.stringify({ error: "boom" }), 500, "application/json");
+    const issue = await sendPrompt("w1:p1", "x");
+    expect(issue.kind === "failed" ? issue.state : undefined).toBe("inconnu");
+  });
+
+  test("trop long : refusé sur le téléphone, AUCUNE requête", async () => {
+    let appels = 0;
+    globalThis.fetch = Object.assign(
+      async () => {
+        appels += 1;
+        return new Response("{}");
+      },
+      { preconnect: original.preconnect },
+    );
+    // 4 octets par emoji : 8 193 emoji dépassent 32 KiB.
+    const issue = await sendPrompt("w1:p1", "🙂".repeat(8193));
+    expect(appels).toBe(0);
+    expect(issue.kind === "failed" ? issue.state : undefined).toBe("erreur");
+    expect(issue.kind === "failed" ? issue.message : "").toContain("nothing was sent");
+  });
+});
+
 describe("santé : le 503 est une réponse, pas une panne (H01)", () => {
   test("Herdr injoignable se lit, au lieu de « failed (503) »", async () => {
     repond(

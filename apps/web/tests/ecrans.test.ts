@@ -70,6 +70,7 @@ const envoi = (changement: Partial<Envoi>): Envoi => ({
   apres: null,
   creeA: 0,
   detail: null,
+  empreinte: "e",
   failureState: null,
   id: "local-1",
   pane: "w1:p1",

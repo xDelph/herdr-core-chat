@@ -83,12 +83,11 @@ impl ControlPort for FauxPort {
                 Ok(Some(empreinte)) => Ok(PromptEvidence::Confirmed {
                     fingerprint: DeliveryFingerprint::from(empreinte.clone()),
                 }),
-                Err(cause) if cause.contains("blocked and requires interactive input") => {
-                    Err(PortError::Upstream {
-                        code: String::from("agent_prompt_failed"),
-                        message: cause.clone(),
-                    })
-                }
+                // Le refus de herdr-core sur un agent bloqué : `data.kind = blocked`.
+                Err(cause) if cause.contains("is blocked") => Err(PortError::Upstream {
+                    code: String::from("blocked"),
+                    message: cause.clone(),
+                }),
                 Err(cause) if cause.contains("timeout") => Err(PortError::Timeout),
                 Err(cause) => Err(PortError::Transport {
                     detail: cause.clone(),
@@ -112,6 +111,11 @@ impl ControlPort for FauxPort {
                     outcome: TransportOutcome::Delivered,
                     partial: vec![PartialStep::LiteralTextWritten],
                     detail: String::new(),
+                }),
+                // Le refus du core sur une permission en attente.
+                Some(cause) if cause == "blocked" => Err(PortError::Upstream {
+                    code: String::from("blocked"),
+                    message: String::from("terminal is blocked (permission)"),
                 }),
                 Some(cause) => Err(PortError::Transport {
                     detail: cause.clone(),
@@ -267,6 +271,15 @@ fn échec_et_inconnu_ne_bloquent_pas_le_retry() {
         Ok(envoi) => panic!("une frappe partielle ne prouve pas l'application : {envoi:?}"),
     }
     assert!(envoieur.suivi() == 0);
+    // ⚠️ Le texte refusé n'est JAMAIS suivi d'un `enter` : sur une permission
+    // en attente, cet `enter` l'approuvait.
+    assert!(
+        port.touches
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_empty(),
+        "un enter est parti après un collage refusé"
+    );
 }
 
 #[test]
@@ -300,13 +313,11 @@ fn le_discriminateur_de_succès_est_exigé() {
 
 #[test]
 fn le_repli_interactif_sur_refus_connu_seulement() {
-    // Le refus « blocked and requires interactive input » (le texte mesuré) :
-    // les FRAPPES prennent le relais — et la confirmation reste « inconnu »
-    // (les frappes écrites, pas prouvées appliquées).
+    // Le refus `blocked` de herdr-core (l'agent est devenu bloqué entre la
+    // photo et l'envoi) : les FRAPPES prennent le relais — le port force une
+    // question, refuse une permission — et la confirmation reste « inconnu ».
     let port = FauxPort::par(
-        Mutex::new(Err(String::from(
-            "agent wA:p1 is blocked and requires interactive input",
-        ))),
+        Mutex::new(Err(String::from("terminal wA:p1 is blocked"))),
         Mutex::new(None),
     );
     let envoieur = EnvoieurPrompt::nouveau();
@@ -356,4 +367,32 @@ fn la_fenêtre_est_monotone() {
     // Les entrées suivies : la purge se lit sur le nombre.
     assert!(envoieur.suivi() == 1);
     let _ = PortError::Timeout; // le type d'erreur reste celui du port
+}
+
+/// Une permission en attente : le texte est refusé (`blocked`), AUCUN
+/// `enter` ne part, et la cause est dite — l'état est `erreur`, pas
+/// « peut-être parti ».
+#[test]
+fn une_permission_en_attente_ne_recoit_ni_texte_ni_enter() {
+    let port = FauxPort::par(
+        Mutex::new(Ok(None)),
+        Mutex::new(Some(String::from("blocked"))),
+    );
+    let envoieur = EnvoieurPrompt::nouveau();
+    match envoieur.envoie(&port, &cible(), "non, fais plutôt X", true) {
+        Err(RefusEnvoi::NonConfirme { detail, cause, .. }) => {
+            assert!(detail.contains("permission"), "{detail}");
+            assert!(detail.contains("nothing was sent"), "{detail}");
+            assert!(matches!(cause, PortError::Upstream { .. }), "{cause:?}");
+        }
+        Err(refus) => panic!("refus non confirmé attendu : {refus}"),
+        Ok(envoi) => panic!("rien ne part sur une permission : {envoi:?}"),
+    }
+    assert!(
+        port.touches
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_empty(),
+        "un enter est parti sur une permission"
+    );
 }

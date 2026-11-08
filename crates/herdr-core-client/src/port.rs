@@ -826,7 +826,7 @@ impl ControlPort for PortCore {
         let adresse = request.pane.to_string();
         let debut = Instant::now();
         let mut client = ClientCore::nouveau(&self.socket);
-        let preuve = match client.terminal_send(&adresse, &request.literal_text, None, false) {
+        let issue = match client.terminal_send(&adresse, &request.literal_text, None, false) {
             Ok(envoi) => {
                 let rattrape =
                     envoi.started == Some(false) && self.demarre_apres(&adresse, envoi.turn);
@@ -847,20 +847,25 @@ impl ControlPort for PortCore {
                     duree_ms = u64::try_from(debut.elapsed().as_millis()).unwrap_or(u64::MAX),
                     "envoi : terminal.send"
                 );
-                preuve
+                Ok(preuve)
             }
+            // ⚠️ L'erreur TYPÉE, pas un `Failed` : un refus du core
+            // (`not_found`, `finished`, `blocked`) dit « rien n'est parti »
+            // (état `erreur`), un délai dit « attente » — en `Failed`, tout
+            // devenait « inconnu », et l'utilisateur renvoyait un message
+            // qui n'était jamais arrivé… ou doublait un message arrivé.
             Err(erreur) => {
-                let detail = erreur_port(erreur).description();
+                let erreur = erreur_port(erreur);
                 tracing::warn!(
                     terminal = %adresse,
-                    cause = %detail,
+                    cause = %erreur.description(),
                     duree_ms = u64::try_from(debut.elapsed().as_millis()).unwrap_or(u64::MAX),
                     "envoi : terminal.send refusé"
                 );
-                PromptEvidence::Failed { detail }
+                Err(erreur)
             }
         };
-        pret(Ok(preuve))
+        pret(issue)
     }
 
     /// Le texte littéral : herdr-core n'a pas d'écriture sans Entrée —
@@ -880,29 +885,28 @@ impl ControlPort for PortCore {
             status.get("state").and_then(Value::as_str) == Some("blocked")
                 && status.get("kind").and_then(Value::as_str) == Some("question")
         });
-        let resultat = self.verrouiller().map(|mut client| {
-            match client.terminal_send(&adresse, &request.text, None, question) {
-                Ok(envoi) => {
-                    if let Ok(mut dernier) = self.dernier_texte.lock() {
-                        *dernier = Some((adresse.clone(), Instant::now()));
-                    }
-                    TransportEvidence {
-                        outcome: TransportOutcome::Delivered,
-                        partial: vec![
-                            PartialStep::LiteralTextWritten,
-                            PartialStep::EnterSequenceSent,
-                        ],
-                        detail: format!("pasted and submitted at turn {}", envoi.turn),
-                    }
-                }
-                Err(erreur) => TransportEvidence {
-                    outcome: TransportOutcome::Refused,
-                    partial: vec![],
-                    detail: erreur_port(erreur).description(),
-                },
-            }
+        // ⚠️ Un refus du core est une **erreur**, pas une preuve « refusée » :
+        // l'appelant qui enchaîne `enter` (`les_frappes`, réponses) s'arrête
+        // au `?`. Rendu en `Ok(Refused)`, le refus d'un collage sur une
+        // permission était suivi d'un vrai `enter`… qui l'approuvait.
+        let resultat = self.verrouiller().and_then(|mut client| {
+            client
+                .terminal_send(&adresse, &request.text, None, question)
+                .map_err(erreur_port)
         });
-        pret(resultat)
+        pret(resultat.map(|envoi| {
+            if let Ok(mut dernier) = self.dernier_texte.lock() {
+                *dernier = Some((adresse.clone(), Instant::now()));
+            }
+            TransportEvidence {
+                outcome: TransportOutcome::Delivered,
+                partial: vec![
+                    PartialStep::LiteralTextWritten,
+                    PartialStep::EnterSequenceSent,
+                ],
+                detail: format!("pasted and submitted at turn {}", envoi.turn),
+            }
+        }))
     }
 
     /// Les touches nommées (`terminal.keys`). Un `enter` SEUL qui suit de
@@ -928,21 +932,18 @@ impl ControlPort for PortCore {
                 detail: "enter already pressed by terminal.send".into(),
             }));
         }
-        let resultat = self.verrouiller().map(|mut client| {
-            match client.terminal_keys(&adresse, &request.keys) {
-                Ok(()) => TransportEvidence {
-                    outcome: TransportOutcome::Delivered,
-                    partial: vec![PartialStep::KeysSent],
-                    detail: format!("keys pressed: {}", request.keys.join(" ")),
-                },
-                Err(erreur) => TransportEvidence {
-                    outcome: TransportOutcome::Refused,
-                    partial: vec![],
-                    detail: erreur_port(erreur).description(),
-                },
-            }
+        // Un refus est une erreur, comme pour `send_text` : la séquence
+        // s'arrête là.
+        let resultat = self.verrouiller().and_then(|mut client| {
+            client
+                .terminal_keys(&adresse, &request.keys)
+                .map_err(erreur_port)
         });
-        pret(resultat)
+        pret(resultat.map(|()| TransportEvidence {
+            outcome: TransportOutcome::Delivered,
+            partial: vec![PartialStep::KeysSent],
+            detail: format!("keys pressed: {}", request.keys.join(" ")),
+        }))
     }
 
     /// Le « vu » partagé avec Herdr.app (`herdr.seen`), seulement pour un

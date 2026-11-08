@@ -23,6 +23,7 @@ import {
   type Lanceur,
   type Planificateur,
 } from "../src/envois.ts";
+import { empreinteEnvoi } from "../src/empreinte.ts";
 
 /** Un planificateur qui exécute tout de suite — le départ part sans `avance()`. */
 const planificateurImmediat = (): Planificateur => (action) => {
@@ -79,6 +80,12 @@ const lanceurQuiLeve =
 
 /** Laisse tourner la microtâche qui termine le lancement. */
 const souffle = (): Promise<void> => new Promise((ok) => setTimeout(ok, 0));
+
+/** Un événement `prompt` confirmé, avec l'empreinte que le démon publierait. */
+const confirme = (pane: string, texte: string) => ({
+  confirmation: "confirmed" as const,
+  fingerprint: empreinteEnvoi(pane, texte),
+});
 
 describe("C19 — la cible est CAPTURÉE, pas relue depuis l'écran", () => {
   test("échec sur A, puis B : réessayer appelle A, une seule fois", async () => {
@@ -212,7 +219,7 @@ describe("T058 — les états du fil, sans mensonge", () => {
     expect(envoi?.state).toBe("suppressed");
     expect(envoi?.detail).toBe("consecutive identical send");
     // Un `prompt` publié pour le pane ne le transforme pas en remise.
-    expect(magasin.resoutParEvenement("w1:p1")).toBe(0);
+    expect(magasin.resoutParEvenement("w1:p1", confirme("w1:p1", "x"))).toBe(0);
     expect(magasin.liste("w1:p1")[0]?.state).toBe("suppressed");
     // Et on ne le « réessaie » pas : seul l'utilisateur le ferme ou le reprend.
     expect(magasin.reessaye(id)).toBe(false);
@@ -295,8 +302,36 @@ describe("le SSE résout un envoi incertain — sans délai", () => {
     await new Promise((resoudre) => setTimeout(resoudre, 0));
     const envoi = () => magasin.liste("w1:p1").find((candidat) => candidat.id === id);
     expect(envoi()?.state).toBe("uncertain");
-    expect(magasin.resoutParEvenement("w1:p1")).toBe(1);
+    expect(magasin.resoutParEvenement("w1:p1", confirme("w1:p1", "salut"))).toBe(1);
     expect(envoi()?.state).toBe("delivered");
+  });
+
+  test("un `prompt` d'un AUTRE texte du même pane ne confirme pas cet envoi", async () => {
+    // Le défaut : un `/model`, un second envoi ou un autre appareil passait au
+    // vert une bulle restée « peut-être partie ».
+    const magasin = creeMagasinEnvois(
+      async () => ({ confirmation: "unknown", fingerprint: "f", kind: "sent" }),
+      planificateurImmediat(),
+    );
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "salut" });
+    await new Promise((resoudre) => setTimeout(resoudre, 0));
+    expect(magasin.resoutParEvenement("w1:p1", confirme("w1:p1", "/model opus"))).toBe(0);
+    expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
+  });
+
+  test("un `prompt` « unknown » ne prouve rien, même avec la bonne empreinte", async () => {
+    const magasin = creeMagasinEnvois(
+      async () => ({ confirmation: "unknown", fingerprint: "f", kind: "sent" }),
+      planificateurImmediat(),
+    );
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "salut" });
+    await new Promise((resoudre) => setTimeout(resoudre, 0));
+    const inconnu = {
+      confirmation: "unknown" as const,
+      fingerprint: empreinteEnvoi("w1:p1", "salut"),
+    };
+    expect(magasin.resoutParEvenement("w1:p1", inconnu)).toBe(0);
+    expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
   });
 
   test("un envoi réellement `failed` n'est PAS ressuscité par un événement", async () => {
@@ -307,7 +342,7 @@ describe("le SSE résout un envoi incertain — sans délai", () => {
     );
     const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "salut" });
     await new Promise((resoudre) => setTimeout(resoudre, 0));
-    expect(magasin.resoutParEvenement("w1:p1")).toBe(0);
+    expect(magasin.resoutParEvenement("w1:p1", confirme("w1:p1", "salut"))).toBe(0);
     expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("failed");
   });
 
@@ -318,7 +353,7 @@ describe("le SSE résout un envoi incertain — sans délai", () => {
     );
     const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "salut" });
     await new Promise((resoudre) => setTimeout(resoudre, 0));
-    expect(magasin.resoutParEvenement("w2:p2")).toBe(0);
+    expect(magasin.resoutParEvenement("w2:p2", confirme("w2:p2", "salut"))).toBe(0);
     expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
   });
 });

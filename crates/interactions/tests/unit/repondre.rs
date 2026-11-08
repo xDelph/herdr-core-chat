@@ -383,8 +383,9 @@ fn la_saisie_libre_de_claude_est_chiffre_texte_enter() {
     assert!(frappees(&vide).is_empty(), "rien ne part sans texte");
 }
 
-/// pi : aucun chiffre — le curseur descend pas à pas (`j`), l'écran est relu
-/// à chaque pas, et `enter` ne part que le curseur sur NOTRE choix.
+/// pi : aucun chiffre — le curseur descend pas à pas (touche `down`, jamais
+/// un `j` collé : coller appuie sur Entrée), l'écran est relu à chaque pas,
+/// et `enter` ne part que le curseur sur NOTRE choix.
 #[test]
 fn pi_le_curseur_est_amene_puis_valide() {
     use crate::unit::ecran::ecran_pi;
@@ -402,8 +403,11 @@ fn pi_le_curseur_est_amene_puis_valide() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .clone();
-    assert_eq!(textes, vec![String::from("j"), String::from("j")]);
-    assert_eq!(frappees(&port), touches(&[&["enter"]]));
+    assert!(textes.is_empty(), "aucun texte collé : {textes:?}");
+    assert_eq!(
+        frappees(&port),
+        touches(&[&["down"], &["down"], &["enter"]])
+    );
 }
 
 /// Le curseur ne bouge pas : `enter` ne part jamais.
@@ -414,5 +418,12 @@ fn pi_curseur_bloque_rien_ne_valide() {
     let reponse = repondre_question(&port, &PaneId::from(String::from("w9:p1")), 2, None)
         .unwrap_or_else(|cause| panic!("{cause}"));
     assert!(reponse.etat == EtatReponse::Transmise, "{reponse:?}");
-    assert!(frappees(&port).is_empty(), "jamais d'enter");
+    assert!(
+        !frappees(&port)
+            .iter()
+            .flatten()
+            .any(|touche| touche == "enter"),
+        "jamais d'enter : {:?}",
+        frappees(&port)
+    );
 }

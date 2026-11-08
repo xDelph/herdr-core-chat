@@ -262,10 +262,13 @@ fn relit_apres_frappe(
 /// Le nombre maximal de pas de curseur — une liste d'écran, pas un menu infini.
 const PAS_MAXIMUM: u64 = 20;
 
-/// Amène le curseur `→` sur `cible`, un pas à la fois (`j` descend, `k`
-/// monte — `extension-selector.js` de pi les lit en texte brut), en RELISANT
-/// l'écran après chaque pas. Rend un refus si le curseur n'y arrive pas :
-/// `enter` ne part alors jamais.
+/// Amène le curseur `→` sur `cible`, un pas à la fois (flèches `down`/`up`
+/// — `extension-selector.js` de pi les lit par `tui.select.down/up`), en
+/// RELISANT l'écran après chaque pas. Rend un refus si le curseur n'y arrive
+/// pas : `enter` ne part alors jamais.
+///
+/// ⚠️ **Des touches, jamais un texte.** Sous herdr-core, `send_text` colle
+/// PUIS appuie sur Entrée : un `j` collé validait l'option déjà surlignée.
 fn deplace_curseur(
     port: &PortPourQuestion,
     pane: &PaneId,
@@ -285,10 +288,10 @@ fn deplace_curseur(
         if curseur == cible {
             return Ok(None);
         }
-        let pas = if cible > curseur { "j" } else { "k" };
-        attends(&mut port.send_text(TargetedText {
+        let pas = if cible > curseur { "down" } else { "up" };
+        attends(&mut port.send_keys(TargetedKeys {
             pane: pane.clone(),
-            text: String::from(pas),
+            keys: vec![String::from(pas)],
         }))?;
         ecran = relit_apres_frappe(port, pane, &ecran)?;
         match question_de_l_ecran(&ecran) {

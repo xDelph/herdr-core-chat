@@ -21,6 +21,8 @@
  * avec l'onglet — le produit n'écrit pas de texte non envoyé sur le disque.
  */
 
+import { empreinteEnvoi } from "./empreinte.ts";
+
 /**
  * Où en est un envoi — les états du composeur, pas ceux du serveur.
  *
@@ -46,6 +48,17 @@ export interface Envoi {
   readonly state: EtatEnvoi;
   readonly detail: string | null;
   readonly failureState: EtatEchec | null;
+  /**
+   * L'empreinte que le démon publiera pour CET envoi (`empreinte.ts`) : seul
+   * un événement `prompt` qui la porte le confirme.
+   */
+  readonly empreinte: string;
+}
+
+/** Ce qu'un événement `prompt` du démon dit d'un envoi. */
+export interface PreuvePrompt {
+  readonly confirmation: "confirmed" | "unknown";
+  readonly fingerprint: string;
 }
 
 /**
@@ -91,11 +104,13 @@ export interface MagasinEnvois {
    *
    * ⚠️ **Le SSE est une meilleure preuve qu'un délai.** Un envoi resté
    * `sending` ou `uncertain` (réponse perdue, délai dépassé) est **confirmé**
-   * quand le serveur publie `prompt` pour ce pane : la preuve est observée, pas
-   * déduite d'une absence de réponse. On ne touche jamais à un envoi
-   * réellement `failed` (un refus nommé reste un refus).
+   * quand le serveur publie un `prompt` **confirmé** portant **son empreinte** :
+   * la preuve est observée, pas déduite d'une absence de réponse. Un autre
+   * envoi du même pane (un `/model`, un autre appareil) ou un `prompt`
+   * « unknown » ne prouve rien. On ne touche jamais à un envoi réellement
+   * `failed` (un refus nommé reste un refus).
    */
-  readonly resoutParEvenement: (pane: string) => number;
+  readonly resoutParEvenement: (pane: string, preuve: PreuvePrompt) => number;
   /**
    * Oublie un envoi dont la **session porte le texte** : sa bulle optimiste n'a
    * plus lieu d'être.
@@ -203,10 +218,11 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
     }
   };
 
-  const resoutParEvenement: MagasinEnvois["resoutParEvenement"] = (pane) => {
+  const resoutParEvenement: MagasinEnvois["resoutParEvenement"] = (pane, preuve) => {
+    if (preuve.confirmation !== "confirmed") return 0;
     let resolus = 0;
     for (const [id, envoi] of envois) {
-      if (envoi.pane !== pane) continue;
+      if (envoi.pane !== pane || envoi.empreinte !== preuve.fingerprint) continue;
       // ⚠️ `sending` et `uncertain` seulement : un `failed` nommé par le serveur
       // ne devient pas un succès parce qu'un autre prompt est passé.
       if (envoi.state !== "sending" && envoi.state !== "uncertain") continue;
@@ -226,6 +242,7 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
       apres,
       creeA,
       detail: null,
+      empreinte: empreinteEnvoi(pane, text),
       failureState: null,
       id,
       pane,

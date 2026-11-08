@@ -123,12 +123,13 @@ pub struct EnvoieurPrompt {
     derniers: Mutex<HashMap<String, Dernier>>,
 }
 
-/// Herdr a-t-il refusé parce que l'agent attend une **saisie interactive** ?
-/// ⚠️ **Sur le texte, faute de code typé** — le message est ce qu'on a de plus
-/// précis ; un refus d'une autre nature garde son comportement d'origine.
+/// Le core a-t-il refusé parce que l'agent est **bloqué** (`data.kind =
+/// blocked`) ? Il l'est devenu entre la photo et l'envoi : les frappes
+/// prennent le relais (le port force une question, jamais une permission).
+/// ⚠️ Le code typé, pas le texte : l'ancien test cherchait la phrase de
+/// Herdr 0.9.3, que herdr-core ne dit jamais.
 fn refus_de_saisie(erreur: &PortError) -> bool {
-    let texte = erreur.to_string().to_lowercase();
-    texte.contains("blocked and requires interactive input")
+    matches!(erreur, PortError::Upstream { code, .. } if code == "blocked")
 }
 
 impl EnvoieurPrompt {
@@ -221,9 +222,19 @@ impl EnvoieurPrompt {
             Ok(confirmation) => confirmation,
             // Échec : rien n'est enregistré — le prochain envoi passe.
             Err(cause) => {
+                // Un refus `blocked` qui survit au repli : une permission (ou
+                // une authentification) attend — on n'y tape jamais de texte.
+                let detail = if refus_de_saisie(&cause) {
+                    String::from(
+                        "the agent is waiting for a permission answer — answer it first; \
+                         nothing was sent",
+                    )
+                } else {
+                    format!("send not confirmed: {cause}")
+                };
                 return Err(RefusEnvoi::NonConfirme {
                     cible: cible.as_str().to_string(),
-                    detail: format!("send not confirmed: {cause}"),
+                    detail,
                     cause,
                 });
             }
