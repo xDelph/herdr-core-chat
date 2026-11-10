@@ -18,7 +18,9 @@
 | Sujet VAPID par défaut | `mailto:herdr-remote@example.com` | `mailto:herdr-core-chat@example.com` |
 | PWA | « Herdr Chat », `id: "/"`, icône bleue | « Herdr Core Chat », `id: "/herdr-core-chat"`, icône ambre |
 | Stockage navigateur | `herdr-chat.*`, cache `herdr-navigation` | `herdr-core-chat.*`, cache `herdr-core-chat-navigation` |
-| Formule / service | `herdr-chat` | `herdr-core-chat` (gabarits `packaging/`, non publiés) |
+| Tap / formule | `xDelph/herdr-chat` → `herdr-chat` | le **même** tap → `herdr-core-chat` (`brew install xDelph/herdr-chat/herdr-core-chat`) |
+| Service launchd | `sh.brew.herdr-chat` | `sh.brew.herdr-core-chat` |
+| Journal du service | `$(brew --prefix)/var/log/herdr-chat.log` | `$(brew --prefix)/var/log/herdr-core-chat.log` |
 
 ## Points d'attention
 
@@ -33,5 +35,12 @@
 - **Icône** : la même invite qu'Herdr Chat, en **ambre** (Herdr Chat : bleu), avec
   un « cœur » à la place du curseur — sources `apps/web/icones/*.svg`,
   `scripts/icones.sh` puis `scripts/ecrans-demarrage.sh`.
-- Aucun service, Homebrew, Tailscale ni launchd n'est touché par ce dépôt
-  (AGENTS §1.9).
+- **Un port, un démon.** Le démon prend son port avant toute autre chose : une
+  seconde instance sur `8792` (service Homebrew + démon lancé depuis le dépôt)
+  s'arrête sur `Address already in use` sans avoir lu Herdr ni composé ses
+  notifications. Les origines Tailscale autorisées sont celles qui proxifient
+  vers **son** port exact : `:8790`/`:8443` (Herdr Chat) ne lui ouvrent rien.
+- Bascule du démon de dev vers le service Homebrew, contrôles et retour
+  arrière : [`PACKAGING.md`](PACKAGING.md) §3.
+- Aucun service, Homebrew, Tailscale ni launchd n'est touché par ce dépôt sans
+  instruction explicite (AGENTS §1.9).

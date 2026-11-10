@@ -48,8 +48,15 @@ No SSH. No terminal on the phone. Nothing is copied out of your machine.
 
 ## Install
 
-Not published yet (no formula, no release). Run it from a checkout (below). The
-prepared Homebrew formula is `packaging/herdr-core-chat.rb`.
+```bash
+brew trust xDelph/herdr-chat                  # the tap shared with Herdr Chat
+brew install xDelph/herdr-chat/herdr-core-chat
+brew services start herdr-core-chat
+```
+
+The service listens on `127.0.0.1:8792`; its log is
+`$(brew --prefix)/var/log/herdr-core-chat.log`. Release and switch-over
+procedure: [`docs/PACKAGING.md`](docs/PACKAGING.md).
 
 Then expose it to your tailnet, on a port Herdr Chat does not use:
 

@@ -60,6 +60,22 @@ async fn main() {
 /// Le refus est **nomme** : il dit exactement quels ports manquent, et il ne
 /// cree aucun socket, n'ecrit aucun journal, ne lance aucun worker.
 async fn demarre(config: &Config) -> Result<(), String> {
+    /*
+      0) L'écoute D'ABORD. ⚠️ Elle venait après la veille : une seconde
+      instance sur le même port (service Homebrew + démon lancé depuis le
+      dépôt) lisait Herdr, démarrait son notifieur push sur le MÊME magasin
+      et ne mourait sur `Address already in use` que ~3 s plus tard — en
+      boucle sous `KeepAlive`. Un démon qui ne peut pas écouter ne fait rien
+      d'autre. Les connexions arrivées pendant la composition attendent dans
+      la file du noyau.
+    */
+    let adresse = format!("{}:{}", config.hostname, config.port);
+    let adresse: std::net::SocketAddr = adresse
+        .parse()
+        .map_err(|cause| format!("adresse invalide ({adresse}): {cause}"))?;
+    let ecouteur = herdr_core_chat::cycle::ecoute(adresse)
+        .await
+        .map_err(|erreur| erreur.to_string())?;
     // 1) Le contrôle : l'adaptateur herdr-core (une connexion par demande)
     //    et l'état publié par Herdr.app pour les noms d'espaces et d'onglets.
     let socket_path = config.herdr_socket_path.clone();
@@ -173,14 +189,7 @@ async fn demarre(config: &Config) -> Result<(), String> {
     // Le ping de démarrage (O03) : à côté, jamais devant l'écoute — un Herdr
     // injoignable est un avertissement dans les traces, pas un démon muet.
     let _ping = herdr_core_chat::demarrage::lance_ping_de_demarrage(Arc::clone(&controle_port));
-    // 8) Le routeur, l'écoute et le cycle de vie.
-    let adresse = format!("{}:{}", config.hostname, config.port);
-    let adresse: std::net::SocketAddr = adresse
-        .parse()
-        .map_err(|cause| format!("adresse invalide ({adresse}): {cause}"))?;
-    let ecouteur = herdr_core_chat::cycle::ecoute(adresse)
-        .await
-        .map_err(|erreur| erreur.to_string())?;
+    // 8) Le routeur et le cycle de vie (l'écoute est déjà prise, en 0).
     let (declencheur, arret) = herdr_core_chat::cycle::Declencheur::nouveau();
     // ⚠️ Le déclencheur est DÉPLACÉ dans la tâche de signaux : il n'est pas
     // clonable, et c'est voulu (un seul point demande l'arrêt).
