@@ -51,6 +51,8 @@ struct Interieur {
     desabonnes: Vec<String>,
     /// Les présences reçues (endpoint, visible), dans l'ordre (H23).
     presences: Vec<(String, bool)>,
+    /// Les genres coupés reçus (endpoint, genres), dans l'ordre (réglages).
+    coupes: Vec<(String, Vec<String>)>,
     /// La panne d'écriture du magasin d'abonnements (abonner/désabonner).
     abonnement_panne: Option<PortError>,
 }
@@ -124,6 +126,16 @@ impl PuitsPushFaux {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .presences
+            .clone()
+    }
+
+    /// Les genres coupés reçus (endpoint, genres), dans l'ordre d'arrivée.
+    #[must_use]
+    pub fn coupes(&self) -> Vec<(String, Vec<String>)> {
+        self.interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .coupes
             .clone()
     }
 
@@ -216,6 +228,20 @@ impl NotificationPort for PuitsPushFaux {
                 return Err(panne.clone());
             }
             interieur.desabonnes.push(endpoint);
+            Ok(())
+        })
+    }
+
+    fn mute(&self, endpoint: String, genres: Vec<String>) -> PortFuture<'_, ()> {
+        Box::pin(async move {
+            let mut interieur = self
+                .interieur
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if let Some(panne) = &interieur.abonnement_panne {
+                return Err(panne.clone());
+            }
+            interieur.coupes.push((endpoint, genres));
             Ok(())
         })
     }

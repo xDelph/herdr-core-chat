@@ -182,3 +182,52 @@ async fn l_appareil_au_premier_plan_n_est_pas_notifie() {
     );
     assert_eq!(notifieur.notifie(&payload).ok(), Some(2));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn un_genre_coupe_dans_les_reglages_ne_part_pas_vers_cet_appareil() {
+    let service = Arc::new(FauxService::default());
+    let gardien = store();
+    for endpoint in ["https://push.example/1", "https://push.example/2"] {
+        gardien
+            .abonne(&abonnement(endpoint))
+            .unwrap_or_else(|erreur| panic!("abonnement : {erreur:?}"));
+    }
+    // L'appareil 1 ne veut plus « fini » ; il veut toujours « à toi ».
+    gardien
+        .coupe("https://push.example/1", &[String::from("done")])
+        .unwrap_or_else(|erreur| panic!("coupe : {erreur:?}"));
+    let notifieur = Notifieur::nouveau(service.clone(), Arc::clone(&gardien));
+
+    let fini = payload_de_notification("pixel", Some("w1:p1"), StatutDeFin::Fini);
+    assert_eq!(fini.genre, "done");
+    let vises = notifieur
+        .notifie(&fini)
+        .unwrap_or_else(|erreur| panic!("{erreur}"));
+    assert_eq!(vises, 1);
+    service.attend(1).await;
+    assert_eq!(service.envois()[0].0, "https://push.example/2");
+
+    let attente = payload_de_notification("pixel", Some("w1:p1"), StatutDeFin::EnAttente);
+    let vises = notifieur
+        .notifie(&attente)
+        .unwrap_or_else(|erreur| panic!("{erreur}"));
+    assert_eq!(vises, 2);
+
+    // Désabonné : ses réglages partent avec lui.
+    gardien
+        .desabonne("https://push.example/1")
+        .unwrap_or_else(|erreur| panic!("désabonnement : {erreur:?}"));
+    assert!(
+        gardien
+            .coupes()
+            .unwrap_or_else(|erreur| panic!("{erreur:?}"))
+            .is_empty()
+    );
+}
+
+#[test]
+fn le_genre_ne_sort_pas_dans_le_json_envoye() {
+    let payload = payload_de_notification("pixel", Some("w1:p1"), StatutDeFin::Erreur);
+    assert_eq!(payload.genre, "error");
+    assert!(!texte_de_notification(&payload).contains("genre"));
+}

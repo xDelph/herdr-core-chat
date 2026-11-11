@@ -395,6 +395,24 @@ pub trait NotificationPort: Send + Sync {
     fn subscribe(&self, subscription: BrowserSubscription) -> PortFuture<'_, ()>;
     /// Retire un abonnement par endpoint — sans effet s'il est inconnu.
     fn unsubscribe(&self, endpoint: String) -> PortFuture<'_, ()>;
+    /// Les genres de notification qu'un appareil coupe dans ses réglages
+    /// (`waiting`, `done`, `error`, `gone`) ; vide = tout reçu.
+    ///
+    /// ⚠️ Défaut : rien à retenir pour une liste vide ; une liste non vide est
+    /// une capacité **absente**, dite telle quelle — jamais acceptée puis
+    /// ignorée.
+    fn mute(&self, endpoint: String, genres: Vec<String>) -> PortFuture<'_, ()> {
+        let _ = endpoint;
+        Box::pin(async move {
+            if genres.is_empty() {
+                Ok(())
+            } else {
+                Err(PortError::Unsupported {
+                    feature: String::from("notification preferences"),
+                })
+            }
+        })
+    }
     /// Note qu'un appareil (son endpoint) a l'app au premier plan, ou l'a
     /// quittée (H23) : un appareil présent n'est pas notifié.
     fn presence(&self, endpoint: String, visible: bool) -> PortFuture<'_, ()>;

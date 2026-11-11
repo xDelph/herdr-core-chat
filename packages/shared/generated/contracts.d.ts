@@ -2072,6 +2072,14 @@ export type PushBody =
         auth: string;
         p256dh: string;
       };
+      /**
+       * Les genres de notification que cet appareil ne veut pas recevoir
+       * (réglages) — absent : tous.
+       *
+       * Items: Un genre de notification, tel que les réglages le coupent : à toi
+       * (`waiting`), fini (`done`), erreur (`error`), plus là (`gone`).
+       */
+      muted?: ("waiting" | "done" | "error" | "gone")[];
     };
 
 /**
@@ -2443,6 +2451,14 @@ export interface SubscribeRequest {
     auth: string;
     p256dh: string;
   };
+  /**
+   * Les genres de notification que cet appareil ne veut pas recevoir
+   * (réglages) — absent : tous.
+   *
+   * Items: Un genre de notification, tel que les réglages le coupent : à toi
+   * (`waiting`), fini (`done`), erreur (`error`), plus là (`gone`).
+   */
+  muted?: ("waiting" | "done" | "error" | "gone")[];
 }
 
 /**

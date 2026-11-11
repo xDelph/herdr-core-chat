@@ -3251,6 +3251,20 @@
                 "p256dh"
               ],
               "type": "object"
+            },
+            "muted": {
+              "description": "Les genres de notification que cet appareil ne veut pas recevoir\n(réglages) — absent : tous.",
+              "items": {
+                "description": "Un genre de notification, tel que les réglages le coupent : à toi\n(`waiting`), fini (`done`), erreur (`error`), plus là (`gone`).",
+                "enum": [
+                  "waiting",
+                  "done",
+                  "error",
+                  "gone"
+                ],
+                "type": "string"
+              },
+              "type": "array"
             }
           },
           "required": [
@@ -3876,6 +3890,20 @@
             "p256dh"
           ],
           "type": "object"
+        },
+        "muted": {
+          "description": "Les genres de notification que cet appareil ne veut pas recevoir\n(réglages) — absent : tous.",
+          "items": {
+            "description": "Un genre de notification, tel que les réglages le coupent : à toi\n(`waiting`), fini (`done`), erreur (`error`), plus là (`gone`).",
+            "enum": [
+              "waiting",
+              "done",
+              "error",
+              "gone"
+            ],
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "required": [

@@ -96,6 +96,7 @@ pub async fn abonnements(
             endpoint,
             expiration_time: _,
             keys,
+            muted,
         }) => {
             // La règle mesurée : l'endpoint doit être HTTPS. Un endpoint en
             // clair ferait transiter les notifications sans chiffrement de
@@ -110,14 +111,27 @@ pub async fn abonnements(
                     .into_response();
             }
             let abonnement = BrowserSubscription {
-                endpoint,
+                endpoint: endpoint.clone(),
                 keys: PushSubscriptionKeys {
                     p256dh: keys.p256dh,
                     auth: keys.auth,
                 },
             };
+            let genres = muted
+                .iter()
+                .map(|genre| genre.mot().to_string())
+                .collect::<Vec<_>>();
             match port.subscribe(abonnement).await {
-                Ok(()) => acquittement(),
+                // Les réglages suivent l'abonnement : chaque envoi les
+                // remplace (vide : tout est reçu à nouveau).
+                Ok(()) => match port.mute(endpoint, genres).await {
+                    Ok(()) => acquittement(),
+                    Err(cause) => repondre_panne(
+                        RouteId::Abonnements,
+                        "Could not save notification preferences",
+                        &cause,
+                    ),
+                },
                 Err(cause) => repondre_panne(
                     RouteId::Abonnements,
                     "Could not save push subscription",

@@ -45,6 +45,34 @@ pub struct SubscribeRequest {
     #[schemars(with = "crate::presence::Nullable<u64>")]
     pub expiration_time: Option<Nullable<u64>>,
     pub keys: SubscriptionKeys,
+    /// Les genres de notification que cet appareil ne veut pas recevoir
+    /// (réglages) — absent : tous.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub muted: Vec<NotificationKind>,
+}
+
+/// Un genre de notification, tel que les réglages le coupent : à toi
+/// (`waiting`), fini (`done`), erreur (`error`), plus là (`gone`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum NotificationKind {
+    Waiting,
+    Done,
+    Error,
+    Gone,
+}
+
+impl NotificationKind {
+    /// Le mot du store et du payload (`notifications::payload::GENRES`).
+    #[must_use]
+    pub fn mot(self) -> &'static str {
+        match self {
+            NotificationKind::Waiting => "waiting",
+            NotificationKind::Done => "done",
+            NotificationKind::Error => "error",
+            NotificationKind::Gone => "gone",
+        }
+    }
 }
 
 /// L'union **du corps de la route push** : le désabonnement est essayé

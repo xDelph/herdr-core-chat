@@ -15,6 +15,7 @@
 use crate::vapid;
 use files::atomic::ecrit_atomique;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -26,6 +27,11 @@ pub struct StorePush {
     pub subscriptions: Vec<AbonnementPush>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vapid_keys: Option<ClefsVapid>,
+    /// Les genres de notification qu'un appareil a coupés dans ses réglages,
+    /// par endpoint (`waiting`, `done`, `error`, `gone`). Absent du fichier :
+    /// tout est reçu — un store d'avant ce champ se relit tel quel.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub muted: BTreeMap<String, Vec<String>>,
 }
 
 /// Un abonnement Web Push, tel que le navigateur l'a remis.
@@ -77,6 +83,7 @@ impl StorePush {
         Self {
             subscriptions: Vec::new(),
             vapid_keys: None,
+            muted: BTreeMap::new(),
         }
     }
 }
@@ -178,12 +185,32 @@ impl GardienDeStore {
         })
     }
 
-    /// Désabonne par endpoint — sans effet si l'endpoint est inconnu.
+    /// Désabonne par endpoint — sans effet si l'endpoint est inconnu. Ses
+    /// genres coupés partent avec lui.
     pub fn desabonne(&self, endpoint: &str) -> Result<(), ErreurStore> {
         self.modifie(|store| {
             store
                 .subscriptions
                 .retain(|existant| existant.endpoint != endpoint);
+            store.muted.remove(endpoint);
+        })
+    }
+
+    /// Les genres coupés, par endpoint — une photo, sans écrire.
+    pub fn coupes(&self) -> Result<BTreeMap<String, Vec<String>>, ErreurStore> {
+        let _garde = self.ecrivain.lock().unwrap_or_else(PoisonError::into_inner);
+        Ok(lit_store(&self.chemin)?.muted)
+    }
+
+    /// Remplace les genres coupés d'un appareil ; une liste vide les retire
+    /// (tout est reçu à nouveau).
+    pub fn coupe(&self, endpoint: &str, genres: &[String]) -> Result<(), ErreurStore> {
+        self.modifie(|store| {
+            if genres.is_empty() {
+                store.muted.remove(endpoint);
+            } else {
+                store.muted.insert(endpoint.to_string(), genres.to_vec());
+            }
         })
     }
 
@@ -201,6 +228,15 @@ impl GardienDeStore {
                 .any(|expire| expire.endpoint == courant.endpoint && expire.keys == courant.keys)
         });
         let apres = store.subscriptions.len();
+        // Un appareil élagué ne garde pas ses réglages derrière lui.
+        let restants: Vec<String> = store
+            .subscriptions
+            .iter()
+            .map(|courant| courant.endpoint.clone())
+            .collect();
+        store
+            .muted
+            .retain(|endpoint, _| restants.contains(endpoint));
         if avant != apres {
             ecrit_store(&self.chemin, &store)?;
         }

@@ -47,6 +47,7 @@ fn les_cles_et_abonnements_existants_sont_inchanges() {
     let chemin = atelier.join("push.json");
     let clefs = clefs_synthetiques();
     let store = StorePush {
+        muted: Default::default(),
         subscriptions: vec![abonnement("https://push.example/1")],
         vapid_keys: Some(clefs.clone()),
     };
@@ -143,6 +144,7 @@ fn une_paire_env_valide_est_acceptee_et_prioritaire() {
     let env = clefs_synthetiques();
     // Un store avec D'AUTRES clés : l'env gagne.
     let store = StorePush {
+        muted: Default::default(),
         subscriptions: vec![],
         vapid_keys: Some(clefs_synthetiques()),
     };
@@ -166,6 +168,7 @@ fn les_cles_du_store_sont_preservees_sans_env() {
     let chemin = atelier.join("push.json");
     let clefs = clefs_synthetiques();
     let store = StorePush {
+        muted: Default::default(),
         subscriptions: vec![abonnement("https://push.example/1")],
         vapid_keys: Some(clefs.clone()),
     };
@@ -248,6 +251,7 @@ fn la_migration_rapatrie_le_store_entier_sur_un_nouveau_vide() {
     let nouveau = atelier.join("nouveau").join("push.json");
     let clefs = clefs_synthetiques();
     let ancien_store = StorePush {
+        muted: Default::default(),
         subscriptions: vec![abonnement("https://push.example/1")],
         vapid_keys: Some(clefs.clone()),
     };
@@ -268,10 +272,12 @@ fn la_migration_ne_touche_pas_un_nouveau_store_peuple() {
     let ancien = atelier.join("ancien.json");
     let nouveau = atelier.join("nouveau.json");
     let ancien_store = StorePush {
+        muted: Default::default(),
         subscriptions: vec![abonnement("https://push.example/ancien")],
         vapid_keys: Some(clefs_synthetiques()),
     };
     let nouveau_store = StorePush {
+        muted: Default::default(),
         subscriptions: vec![abonnement("https://push.example/nouveau")],
         vapid_keys: Some(clefs_synthetiques()),
     };
@@ -303,6 +309,7 @@ fn la_migration_sur_un_nouveau_corrompu_est_visible() {
     let ancien = atelier.join("ancien.json");
     let nouveau = atelier.join("nouveau.json");
     let ancien_store = StorePush {
+        muted: Default::default(),
         subscriptions: vec![abonnement("https://push.example/1")],
         vapid_keys: None,
     };

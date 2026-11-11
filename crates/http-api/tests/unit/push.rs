@@ -336,3 +336,55 @@ async fn presence_503_sans_service() {
     assert_eq!(statut, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(reponse["error"], "Web Push is unavailable");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn abonnement_avec_genres_coupes_les_transmet_au_port() {
+    let (partage, puits) = puits();
+    let services = services_retouches(HerdrFaux::nouveau(), move |services| {
+        services.notifications = Some(partage);
+    });
+    let corps = json!({
+        "endpoint": "https://push.example/ep-1",
+        "keys": { "auth": "auth-1", "p256dh": "p256dh-1" },
+        "muted": ["done", "gone"]
+    })
+    .to_string()
+    .into_bytes();
+    let (statut, _) = envoie_post(
+        routeur(services, vec![]),
+        "/api/notifications/subscriptions",
+        corps,
+    )
+    .await;
+    assert_eq!(statut, StatusCode::NO_CONTENT);
+    assert_eq!(
+        puits.coupes(),
+        vec![(
+            String::from("https://push.example/ep-1"),
+            vec![String::from("done"), String::from("gone")]
+        )]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn un_genre_inconnu_est_un_corps_refuse() {
+    let (partage, puits) = puits();
+    let services = services_retouches(HerdrFaux::nouveau(), move |services| {
+        services.notifications = Some(partage);
+    });
+    let corps = json!({
+        "endpoint": "https://push.example/ep-1",
+        "keys": { "auth": "auth-1", "p256dh": "p256dh-1" },
+        "muted": ["everything"]
+    })
+    .to_string()
+    .into_bytes();
+    let (statut, _) = envoie_post(
+        routeur(services, vec![]),
+        "/api/notifications/subscriptions",
+        corps,
+    )
+    .await;
+    assert_eq!(statut, StatusCode::BAD_REQUEST);
+    assert!(puits.abonnes().is_empty());
+}

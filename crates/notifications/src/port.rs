@@ -172,6 +172,14 @@ impl NotificationPort for PortNotifications {
         })
     }
 
+    fn mute(&self, endpoint: String, genres: Vec<String>) -> PortFuture<'_, ()> {
+        Box::pin(async move {
+            self.store
+                .coupe(&endpoint, &genres)
+                .map_err(|erreur| erreur_de_port(&erreur))
+        })
+    }
+
     fn deliver(
         &self,
         subscription: BrowserSubscription,

@@ -76,6 +76,23 @@ pub struct PayloadNotification {
     pub tag: String,
     pub title: String,
     pub url: String,
+    /// Le genre, pour les réglages d'un appareil : [`GENRES`]. Hors du JSON
+    /// envoyé — il ne sert qu'à choisir qui prévenir.
+    pub genre: &'static str,
+}
+
+/// Les genres qu'un appareil peut couper dans ses réglages.
+pub const GENRES: [&str; 4] = ["waiting", "done", "error", "gone"];
+
+/// Le genre d'un statut de fin — le même mot que le début du `tag`.
+#[must_use]
+pub fn genre_de(statut: StatutDeFin) -> &'static str {
+    match statut {
+        StatutDeFin::EnAttente => "waiting",
+        StatutDeFin::Disparu => "gone",
+        StatutDeFin::Erreur => "error",
+        StatutDeFin::Fini => "done",
+    }
 }
 
 /// Le contenu d'une notification : trois étiquettes distinctes — une
@@ -107,15 +124,7 @@ pub fn payload_de_notification(
     };
     let tag = match pane_id {
         None => String::from("herdr-agent"),
-        Some(pane) => format!(
-            "{}-{pane}",
-            match statut {
-                StatutDeFin::EnAttente => "waiting",
-                StatutDeFin::Disparu => "gone",
-                StatutDeFin::Erreur => "error",
-                StatutDeFin::Fini => "done",
-            }
-        ),
+        Some(pane) => format!("{}-{pane}", genre_de(statut)),
     };
     let title = match statut {
         StatutDeFin::EnAttente => "Agent needs you",
@@ -132,6 +141,7 @@ pub fn payload_de_notification(
         tag,
         title: String::from(title),
         url,
+        genre: genre_de(statut),
     }
 }
 

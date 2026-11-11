@@ -101,6 +101,7 @@ impl Notifieur {
     /// sur le réseau.
     pub fn notifie(&self, payload: &PayloadNotification) -> Result<usize, ErreurNotification> {
         let maintenant = std::time::Instant::now();
+        let coupes = self.store.coupes().map_err(ErreurNotification::Store)?;
         let abonnements: Vec<_> = self
             .store
             .abonnements()
@@ -108,6 +109,12 @@ impl Notifieur {
             .into_iter()
             // L'appareil qui regarde déjà l'app n'a pas besoin d'être prévenu.
             .filter(|abonnement| !self.presence.est_present(&abonnement.endpoint, maintenant))
+            // Ni celui qui a coupé ce genre dans ses réglages.
+            .filter(|abonnement| {
+                coupes
+                    .get(&abonnement.endpoint)
+                    .is_none_or(|genres| !genres.iter().any(|genre| genre == payload.genre))
+            })
             .collect();
         if abonnements.is_empty() {
             return Ok(0);

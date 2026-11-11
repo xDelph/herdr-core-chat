@@ -683,6 +683,7 @@ export const PushBody = Schema.Union([Schema.Struct({
   "auth": Schema.String,
   "p256dh": Schema.String,
 }),
+  "muted": Schema.optional(Schema.Array(Schema.Literals(["waiting", "done", "error", "gone"]))),
 })]);
 export type PushBody = typeof PushBody.Type;
 
@@ -846,6 +847,7 @@ export const SubscribeRequest = Schema.Struct({
   "auth": Schema.String,
   "p256dh": Schema.String,
 }),
+  "muted": Schema.optional(Schema.Array(Schema.Literals(["waiting", "done", "error", "gone"]))),
 });
 export type SubscribeRequest = typeof SubscribeRequest.Type;
 
