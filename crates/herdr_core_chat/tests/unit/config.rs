@@ -520,10 +520,7 @@ fn l_argente_et_le_delai_de_la_cli_sont_ceux_du_fil() {
         sortie: reel().to_string(),
     };
     let origines = origines_tailscale_avec(PORT, &lanceur);
-    assert_eq!(
-        origines,
-        ["https://macbook.tailnet.ts.net:8790"]
-    );
+    assert_eq!(origines, ["https://macbook.tailnet.ts.net:8790"]);
     assert_eq!(
         *lanceur
             .argv_vu
