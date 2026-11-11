@@ -315,7 +315,20 @@ pub trait LitSessions: ResoutSessions {
 /// (`status_ms`) et le nombre de gestes du démon sur ce pane. Les 15 s
 /// bornent ce qu'aucune clé ne voit : une réponse tapée sur le Mac à une
 /// invite d'un agent `idle` (son statut ne bouge pas).
+///
+/// ⚠️ **Au-delà, l'écran est relu EN FOND, jamais par la liste (retour du
+/// 2026-11-11).** `terminal.read` prend 1,2 à 5 s chez herdr-core sur un
+/// agent au repos (mesuré : 5,09 s sur un pi sans session) ; la liste qui
+/// relisait à l'expiration se bloquait de 2 à 7 s toutes les ~20 s, et la
+/// PWA attendait d'autant un état déjà connu. Même clé : la liste sert
+/// l'écran retenu, et [`ServiceConversations::relit_ecrans_perimes`] le
+/// rafraîchit à côté. La liste ne lit elle-même que ce qu'elle n'a pas
+/// (premier affichage, nouveau tour, nouveau statut, geste).
 pub const DUREE_ECRAN: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Un écran que la liste ne demande plus depuis ce délai n'est plus relu
+/// en fond (l'agent a parlé, il est parti) : il est oublié.
+pub const OUBLI_ECRAN: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// Ce qui fait qu'un écran retenu vaut encore.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -329,6 +342,8 @@ struct CleEcran {
 struct EcranRetenu {
     cle: CleEcran,
     lu: std::time::Instant,
+    /// La dernière fois que la liste l'a demandé.
+    demande: std::time::Instant,
     texte: String,
 }
 
@@ -831,10 +846,11 @@ impl ServiceConversations {
                 .ecrans
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .get(pane.as_str())
+                .get_mut(pane.as_str())
             && retenu.cle == *cle
-            && retenu.lu.elapsed() < DUREE_ECRAN
         {
+            // Frais ou périmé : servi tel quel, la relecture se fait en fond.
+            retenu.demande = std::time::Instant::now();
             return retenu.texte.clone();
         }
         let texte = {
@@ -846,16 +862,56 @@ impl ServiceConversations {
             if ecrans.len() >= CAPACITE_ECRANS {
                 ecrans.clear();
             }
+            let maintenant = std::time::Instant::now();
             ecrans.insert(
                 pane.as_str().to_string(),
                 EcranRetenu {
                     cle,
-                    lu: std::time::Instant::now(),
+                    lu: maintenant,
+                    demande: maintenant,
                     texte,
                 },
             );
         }
         texte.unwrap_or_default()
+    }
+
+    /// Relit, hors de toute requête, les écrans retenus depuis plus de
+    /// [`DUREE_ECRAN`] que la liste demande encore ; oublie ceux qu'elle ne
+    /// demande plus ([`OUBLI_ECRAN`]). Rend le nombre d'écrans relus.
+    ///
+    /// Un écran relu garde sa clé : si la clé a changé entre-temps (nouveau
+    /// tour), la liste l'a déjà relu elle-même et la lecture de fond est
+    /// jetée. Une lecture ratée repousse l'essai d'une [`DUREE_ECRAN`].
+    pub fn relit_ecrans_perimes(&self, port: &dyn ControlPort) -> usize {
+        use std::sync::PoisonError;
+        let a_relire: Vec<(String, CleEcran)> = {
+            let mut ecrans = self.ecrans.lock().unwrap_or_else(PoisonError::into_inner);
+            ecrans.retain(|_, retenu| retenu.demande.elapsed() < OUBLI_ECRAN);
+            ecrans
+                .iter()
+                .filter(|(_, retenu)| retenu.lu.elapsed() >= DUREE_ECRAN)
+                .map(|(pane, retenu)| (pane.clone(), retenu.cle.clone()))
+                .collect()
+        };
+        let mut relus = 0;
+        for (pane, cle) in a_relire {
+            let texte = {
+                let _place = self.sas_ecrans.place();
+                lire_ecran(port, &PaneId::from(pane.clone()))
+            };
+            let mut ecrans = self.ecrans.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some(retenu) = ecrans.get_mut(&pane)
+                && retenu.cle == cle
+            {
+                retenu.lu = std::time::Instant::now();
+                if let Some(texte) = texte {
+                    retenu.texte = texte;
+                    relus += 1;
+                }
+            }
+        }
+        relus
     }
 }
 

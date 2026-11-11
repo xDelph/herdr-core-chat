@@ -1018,6 +1018,21 @@ fn ecran_hooks(port: &HerdrFaux, pane: &str) {
 }
 
 #[test]
+fn la_relecture_de_fond_laisse_les_ecrans_frais() {
+    // Retour du 2026-11-11 : les écrans périmés se relisent EN FOND
+    // (`relit_ecrans_perimes`) ; un écran frais n'y est pas relu.
+    let port = HerdrFaux::nouveau();
+    ecran_hooks(&port, "p-fond-1");
+    let service = service(FauxSessions::nouveau());
+    let mut bloque = agent("p-fond-1", Some("codex"), AgentStatus::Blocked, None);
+    bloque.state_change_seq = Some(1_000);
+    let _ = service.lignes(&port, &borne(vec![bloque]));
+    assert_eq!(lectures_d_ecran(&port), 1);
+    assert_eq!(service.relit_ecrans_perimes(&port), 0);
+    assert_eq!(lectures_d_ecran(&port), 1, "frais : rien relu en fond");
+}
+
+#[test]
 fn l_ecran_est_retenu_tant_que_rien_ne_l_a_change() {
     // Lot 3 : la liste relisait l'écran de chaque ligne bloquée à CHAQUE
     // requête (1,95 s mesurées sur un pane). Même tour, même statut, même

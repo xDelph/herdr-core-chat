@@ -186,6 +186,28 @@ async fn demarre(config: &Config) -> Result<(), String> {
         Arc::clone(&maintenant),
         Some(notifieur),
     );
+    /*
+      ⚠️ **Les écrans périmés se relisent ici, pas dans la liste (retour du
+      2026-11-11).** `terminal.read` peut prendre 5 s chez herdr-core : sur le
+      chemin de `/api/conversations`, la PWA attendait d'autant. Un fil à
+      part, toutes les 2 s, rafraîchit ce que la liste sert déjà.
+    */
+    {
+        let services = Arc::clone(&services);
+        if let Err(erreur) = std::thread::Builder::new()
+            .name(String::from("ecrans-herdr"))
+            .spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    services
+                        .conversations
+                        .relit_ecrans_perimes(services.port.as_ref());
+                }
+            })
+        {
+            tracing::warn!(target: "server", "relecture des écrans non démarrée : {erreur}");
+        }
+    }
     // Le ping de démarrage (O03) : à côté, jamais devant l'écoute — un Herdr
     // injoignable est un avertissement dans les traces, pas un démon muet.
     let _ping = herdr_core_chat::demarrage::lance_ping_de_demarrage(Arc::clone(&controle_port));
