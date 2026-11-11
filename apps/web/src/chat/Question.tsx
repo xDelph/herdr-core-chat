@@ -11,7 +11,7 @@
  *
  * La provenance est écrite : lue sur l'écran de l'agent, à telle heure.
  */
-import { memo, useId, useState } from "react";
+import { memo, useEffect, useId, useState } from "react";
 import type { ConversationSummary } from "@herdr-core-chat/shared";
 import { estOptionSaisieLibre } from "@herdr-core-chat/shared";
 import { cleAction } from "../actions-locales.ts";
@@ -47,6 +47,15 @@ export const Question = memo(
         : cleAction(paneId, "reponse", question?.texte ?? "");
     const issue = useAction(cle);
     const occupe = issue?.phase === "en-cours";
+    /*
+      ⚠️ La réponse libre n'est effacée qu'une fois APPLIQUÉE. L'effacer à
+      l'envoi perdait le texte quand le serveur refusait (choix disparu,
+      Herdr injoignable) : il fallait tout retaper.
+    */
+    const appliquee = issue?.phase === "fini" && issue.ton === "ok";
+    useEffect(() => {
+      if (appliquee) setLibre("");
+    }, [appliquee]);
 
     if (trust !== undefined) {
       return (
@@ -105,7 +114,7 @@ export const Question = memo(
                 type="button"
                 className={choix.selectionne ? "choix choix--courant" : "choix"}
                 disabled={occupe}
-                onClick={() => void repondre(paneId, question.texte, choix.numero)}
+                onClick={() => void repondre(paneId, question, choix.numero)}
               >
                 <span className="choix__k">{choix.numero}</span>
                 <span>
@@ -121,8 +130,7 @@ export const Question = memo(
                 evenement.preventDefault();
                 const texte = libre.trim();
                 if (texte.length === 0) return;
-                void repondre(paneId, question.texte, optionLibre.numero, texte);
-                setLibre("");
+                void repondre(paneId, question, optionLibre.numero, texte);
               }}
             >
               <label className="sr" htmlFor={idLibre}>

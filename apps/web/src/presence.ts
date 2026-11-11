@@ -49,7 +49,16 @@ export const creePresence = (deps: DependancesPresence): Presence => {
   };
 
   const bat = async (): Promise<void> => {
-    const endpoint = await deps.endpoint();
+    // ⚠️ Lire l'abonnement peut échouer (service worker absent, permission
+    // retirée) : sans ce `try`, le battement (`void bat()`) laissait une
+    // promesse rejetée que personne ne lisait — la cause n'était jamais dite.
+    let endpoint: string | null;
+    try {
+      endpoint = await deps.endpoint();
+    } catch (cause) {
+      deps.signale(cause instanceof Error ? cause.message : String(cause));
+      return;
+    }
     dernier = endpoint;
     if (endpoint !== null) await envoie(endpoint, true);
   };

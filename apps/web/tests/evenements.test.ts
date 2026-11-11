@@ -11,7 +11,7 @@
  * rien.
  */
 import { describe, expect, test } from "bun:test";
-import { openEventStream } from "../src/api.ts";
+import { SILENCE_MAX_FLUX_MS, openEventStream } from "../src/api.ts";
 
 type Ecouteur = (evenement: unknown) => void;
 
@@ -313,6 +313,23 @@ describe("le flux global tombé est recréé (mesuré : rien en 60 s après une 
     fermer();
   });
 
+  test("deux battements manqués : le flux « ouvert » mais muet est recréé (F1.8)", () => {
+    const { avance, c, fermer, sources } = banc();
+    sources[0]?.emet("open");
+    // Chaque battement réarme la veille : une seule recréation au bout.
+    sources[0]?.emet("heartbeat");
+    sources[0]?.emet("heartbeat");
+    avance(SILENCE_MAX_FLUX_MS - 1);
+    expect(sources).toHaveLength(1);
+    avance(SILENCE_MAX_FLUX_MS);
+    expect(sources).toHaveLength(2);
+    expect(sources[0]?.ferme).toBe(true);
+    // Le nouveau, vivant, fait relire la liste.
+    sources[1]?.emet("heartbeat");
+    expect(c.resync).toBe(1);
+    fermer();
+  });
+
   test("retour du réseau : un flux non ouvert est recréé tout de suite", () => {
     const { fermer, reveiller, sources } = banc();
     sources[0]?.emet("open");
@@ -322,5 +339,24 @@ describe("le flux global tombé est recréé (mesuré : rien en 60 s après une 
     reveiller();
     expect(sources).toHaveLength(2);
     fermer();
+  });
+});
+
+describe("lot 4 — l'âge du direct", () => {
+  test("chaque signe de vie est rapporté, un resync n'en est pas un", () => {
+    avecFauxSource(() => {
+      let vies = 0;
+      const { handlers } = compteurs();
+      const fermer = openEventStream({ ...handlers, onVie: () => (vies += 1) });
+      const source = FauxEventSource.dernier;
+      if (source === null) throw new Error("aucune source construite");
+      source.emettre("open");
+      source.emettre("heartbeat", { cursor: 3 });
+      source.emettre("agent_status", { paneId: "t1" });
+      expect(vies).toBe(3);
+      source.emettre("resync");
+      expect(vies).toBe(3);
+      fermer();
+    });
   });
 });

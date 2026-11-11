@@ -55,6 +55,12 @@ export interface Envoi {
   readonly empreinte: string;
 }
 
+/**
+ * Remis n'est pas lu : l'agent qui travaille met le message en file et ne
+ * l'écrit dans sa session qu'à sa prochaine étape.
+ */
+export const EN_ATTENTE_DE_LECTURE = "Waiting: the agent will read it at its next step";
+
 /** Ce qu'un événement `prompt` du démon dit d'un envoi. */
 export interface PreuvePrompt {
   readonly confirmation: "confirmed" | "unknown";
@@ -72,7 +78,11 @@ export type Lanceur = (
   pane: string,
   text: string,
 ) => Promise<
-  | { readonly kind: "sent"; readonly confirmation: "confirmed" | "unknown" }
+  | {
+      readonly kind: "sent";
+      readonly confirmation: "confirmed" | "unknown";
+      readonly queued?: boolean;
+    }
   | { readonly kind: "suppressed"; readonly reason: string }
   | {
       readonly kind: "failed";
@@ -125,6 +135,12 @@ export interface MagasinEnvois {
   readonly oublie: (id: string) => void;
   /** Les envois d'un pane, dans l'ordre de création. */
   readonly liste: (pane: string) => ReadonlyArray<Envoi>;
+  /**
+   * Tous les envois, de TOUS les panes, dans l'ordre de création — la boîte
+   * d'envoi (lot 4) : un envoi non confirmé sur un agent qu'on a quitté ne
+   * se voyait plus nulle part.
+   */
+  readonly tous: () => ReadonlyArray<Envoi>;
   /** S'abonner aux changements — rend le désabonnement. */
   readonly souscrire: (abonne: () => void) => () => void;
   /**
@@ -182,9 +198,16 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
       }
       if (resultat.kind === "sent") {
         remplace(id, {
+          /*
+            ⚠️ **Confirmé n'est pas lu** (B1.15) : le serveur dit si l'agent
+            travaillait à l'envoi — le statut gardé ici peut avoir 2 s de
+            retard, et la bulle disait « remis » à un message encore en file.
+          */
           detail:
             resultat.confirmation === "confirmed"
-              ? "Herdr confirmed receipt of the message."
+              ? resultat.queued === true
+                ? EN_ATTENTE_DE_LECTURE
+                : "Herdr confirmed receipt of the message."
               : "Herdr did not confirm receipt of the message.",
           state: resultat.confirmation === "confirmed" ? "delivered" : "uncertain",
         });
@@ -288,6 +311,7 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
       previent();
     },
     liste: (pane) => [...envois.values()].filter((envoi) => envoi.pane === pane),
+    tous: () => [...envois.values()],
     reessaye: (id) => {
       const envoi = envois.get(id);
       // ⚠️ Seuls les états NON RÉSOLUS se réessayent : réessayer un message

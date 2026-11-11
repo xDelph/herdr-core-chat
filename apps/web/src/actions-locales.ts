@@ -24,7 +24,7 @@ export type EtatAction =
       readonly texte: string;
     };
 
-export type GenreAction = "reponse" | "confiance" | "arret" | "focus" | "modele";
+export type GenreAction = "reponse" | "confiance" | "arret" | "focus" | "modele" | "epingle";
 
 /** La clé d'une action : sa cible, son genre, son sujet. */
 export const cleAction = (paneId: string, genre: GenreAction, sujet = ""): string =>

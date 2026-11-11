@@ -65,6 +65,37 @@ export interface ClientDeDonnees<O = unknown, H = unknown, C = unknown> {
   readonly vols: () => number;
 }
 
+/** Le nom d'une des trois lectures. */
+export type Ressource = "overview" | "health" | "conversations";
+
+/**
+ * Une issue rendue **dès qu'elle arrive**, avant les deux autres.
+ *
+ * ⚠️ **Le démarrage à froid attendait la plus lente** (audit, performance) :
+ * l'overview répond en 3,5 ms, la liste en 5 à 6 s à froid — et l'écran restait
+ * un squelette jusqu'à la fin du vol. L'issue partielle porte la génération du
+ * vol : le consommateur garde, par ressource, la plus récente appliquée.
+ */
+export type SurIssue<O, H, C> = (
+  issue:
+    | { readonly ressource: "overview"; readonly issue: Issue<O> }
+    | { readonly ressource: "health"; readonly issue: Issue<H> }
+    | { readonly ressource: "conversations"; readonly issue: Issue<C> },
+  generation: number,
+) => void;
+
+/**
+ * ⚠️ Le vol ne rejette jamais : un abonné partiel qui lève ne le casse pas —
+ * l'issue reste dans le résultat final, appliquée par l'appelant.
+ */
+const annonce = (action: () => void): void => {
+  try {
+    action();
+  } catch {
+    // Rien : le résultat complet porte la même issue.
+  }
+};
+
 /**
  * Une lecture, avec son échec attrapé.
  *
@@ -90,7 +121,10 @@ export const auMoinsUneReussie = (resultat: Resultat): boolean =>
  * Le client — `vols()` compte les vols RÉELS, pas les appels : c'est ce qui
  * rend « huit signaux = un vol » vérifiable.
  */
-export const creeClient = <O, H, C>(lectures: Lectures<O, H, C>): ClientDeDonnees<O, H, C> => {
+export const creeClient = <O, H, C>(
+  lectures: Lectures<O, H, C>,
+  surIssue?: SurIssue<O, H, C>,
+): ClientDeDonnees<O, H, C> => {
   let enCours: Promise<Resultat<O, H, C>> | null = null;
   /** Le vol déjà promis à ceux qui ont signalé pendant le vol en cours. */
   let suivant: Promise<Resultat<O, H, C>> | null = null;
@@ -106,9 +140,18 @@ export const creeClient = <O, H, C>(lectures: Lectures<O, H, C>): ClientDeDonnee
     // contraire du `Promise.all` tout-ou-rien d'origine.
     const vol = (async (): Promise<Resultat<O, H, C>> => {
       const [overview, health, conversations] = await Promise.all([
-        uneLecture(lectures.overview),
-        uneLecture(lectures.health),
-        uneLecture(lectures.conversations),
+        uneLecture(lectures.overview).then((issue) => {
+          annonce(() => surIssue?.({ issue, ressource: "overview" }, mienne));
+          return issue;
+        }),
+        uneLecture(lectures.health).then((issue) => {
+          annonce(() => surIssue?.({ issue, ressource: "health" }, mienne));
+          return issue;
+        }),
+        uneLecture(lectures.conversations).then((issue) => {
+          annonce(() => surIssue?.({ issue, ressource: "conversations" }, mienne));
+          return issue;
+        }),
       ]);
       return { conversations, generation: mienne, health, overview };
     })();

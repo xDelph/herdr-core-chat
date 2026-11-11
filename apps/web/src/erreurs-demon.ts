@@ -60,6 +60,35 @@ const CONNUES: ReadonlyArray<readonly [RegExp, (correspondance: RegExpExecArray)
   ],
 ];
 
+/**
+ * Les codes STABLES du démon (`code` des corps d'erreur) — le `data.kind` de
+ * herdr-core, traduit. On décide sur le code, plus sur la phrase : une phrase
+ * réécrite côté démon ne change plus ce que l'écran dit.
+ */
+const PAR_CODE: Readonly<Record<string, string>> = {
+  agent_blocked: "The agent is waiting for an answer: answer it first",
+  agent_exited: "The agent has exited",
+  agent_gone: "The agent is gone: its terminal no longer exists",
+  busy: "Busy: other actions are queued on this agent. Retry in a moment",
+  core_needs_update: "herdr-core needs an update",
+  core_unavailable: "herdr-core is not answering",
+  prompt_open: "The agent is showing a question: answer it from its card",
+  screen_changed: "The question on screen changed: nothing was sent",
+  status_changed: "The agent changed state: check it, then retry",
+  timeout: "herdr-core did not answer in time: the action may have been applied",
+};
+
+/** Le texte d'une erreur portant un code stable ; code inconnu ou absent : la phrase. */
+export const messageDeCode = (code: string | undefined, brut: string): string => {
+  const traduit = code === undefined ? undefined : PAR_CODE[code];
+  if (traduit === undefined) return erreurLisible(brut);
+  const cause = brut.trim();
+  return cause === ""
+    ? traduit
+    : `${traduit}
+Cause: ${cause}`;
+};
+
 /** Le texte à afficher : la traduction, puis la cause brute sur sa ligne. */
 export const erreurLisible = (brut: string): string => {
   const texte = brut.trim();

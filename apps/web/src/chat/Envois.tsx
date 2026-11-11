@@ -12,11 +12,11 @@
  */
 import { memo } from "react";
 import { expliquerEchec, NON_ENVOYE_DOUBLON, type Explication } from "../etats-envoi.ts";
-import type { Envoi } from "../envois.ts";
+import { EN_ATTENTE_DE_LECTURE, type Envoi } from "../envois.ts";
 import { envois } from "../app/services.ts";
 
 /** Ce que dit la bulle d'un message remis pendant que l'agent travaille. */
-export const EN_ATTENTE_DE_LECTURE = "Waiting: the agent will read it at its next step";
+export { EN_ATTENTE_DE_LECTURE };
 
 /**
  * Ce que dit la bulle, et le renvoi qu'elle propose (`action`, ou `null`).
@@ -87,7 +87,8 @@ export const Envois = memo(
         {liste.map((envoi) => {
           const explication = explicationDe(envoi, travaille);
           const renvoi = libelleRenvoi(envoi, explication);
-          const enFile = travaille && envoi.state === "delivered";
+          const enFile =
+            envoi.state === "delivered" && (travaille || envoi.detail === EN_ATTENTE_DE_LECTURE);
           return (
             <div
               key={envoi.id}

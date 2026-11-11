@@ -5,11 +5,22 @@
  * que le serveur a lus (`question.choix`), et il revalide le numéro avant de
  * l'envoyer. L'option de saisie libre ouvre la conversation : son texte se
  * tape dans le panneau de question, avec le choix.
+ *
+ * ⚠️ **Le détail d'un choix est écrit, pas caché dans un `title`** (invisible
+ * au doigt), et un choix qui DURE (« don't ask again ») demande un second
+ * appui (F1.5).
+ *
+ * ⚠️ **La carte suit ce que herdr-core dit de l'attente** : sa nature
+ * (permission, question, connexion à finir), ou la fin du programme en
+ * erreur avec son code et sa raison — jamais un « waiting » générique quand
+ * le core en sait plus.
  */
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import type { ConversationSummary } from "@herdr-core-chat/shared";
 import { estOptionSaisieLibre } from "@herdr-core-chat/shared";
 import { cleAction } from "../actions-locales.ts";
+import { finDeTerminal, natureAttente } from "../attente.ts";
+import { DELAI_CONFIRMATION_MS, estChoixARisque } from "../choix-risque.ts";
 import { libelleRefus } from "../etats-envoi.ts";
 import { faireConfiance, repondre } from "../app/gestes.ts";
 import { useAction } from "../app/hooks.ts";
@@ -31,6 +42,10 @@ export const CarteAttention = memo(
     readonly maintenant: number;
   }) => {
     const { paneId, question, trust, waiting } = conversation;
+    const nature = natureAttente(conversation);
+    const fin = finDeTerminal(conversation);
+    const enErreur = conversation.status === "error";
+    const connexion = conversation.status === "blocked" && conversation.blockedKind === "auth";
     const lien = routeToHash({ kind: "agent", paneId });
     const cle =
       trust !== undefined
@@ -38,6 +53,18 @@ export const CarteAttention = memo(
         : cleAction(paneId, "reponse", question?.texte ?? "");
     const issue = useAction(cle);
     const occupe = issue?.phase === "en-cours";
+    // Le choix à risque armé par un premier appui — désarmé après un délai.
+    const [arme, setArme] = useState<number | null>(null);
+    useEffect(() => {
+      if (arme === null) return undefined;
+      const minuterie = setTimeout(() => setArme(null), DELAI_CONFIRMATION_MS);
+      return () => clearTimeout(minuterie);
+    }, [arme]);
+    // Une autre question : rien ne reste armé.
+    const texteQuestion = question?.texte;
+    useEffect(() => {
+      setArme(null);
+    }, [texteQuestion]);
 
     return (
       <article className="carte" aria-label={`${projet} needs a decision`}>
@@ -50,6 +77,7 @@ export const CarteAttention = memo(
           )}
         </div>
         {titre.length > 0 && titre !== projet ? <div className="carte__titre">{titre}</div> : null}
+        {nature === null ? null : <p className="carte__nature">{nature}</p>}
 
         {trust !== undefined ? (
           <>
@@ -96,17 +124,60 @@ export const CarteAttention = memo(
                   <button
                     key={choix.numero}
                     type="button"
-                    className={choix.selectionne ? "bouton bouton--attn" : "bouton"}
+                    className={
+                      arme === choix.numero
+                        ? "bouton bouton--attn bouton--arme"
+                        : choix.selectionne
+                          ? "bouton bouton--attn"
+                          : "bouton"
+                    }
                     disabled={occupe}
-                    title={choix.detail}
-                    onClick={() => void repondre(paneId, question.texte, choix.numero)}
+                    onClick={() => {
+                      if (estChoixARisque(choix.libelle, choix.detail) && arme !== choix.numero) {
+                        setArme(choix.numero);
+                        return;
+                      }
+                      setArme(null);
+                      void repondre(paneId, question, choix.numero);
+                    }}
                   >
                     <span className="k">{choix.numero}</span>
-                    {choix.libelle}
+                    <span className="bouton__corps">
+                      {arme === choix.numero
+                        ? `Tap again to confirm: ${choix.libelle}`
+                        : choix.libelle}
+                      {choix.detail === undefined ? null : <small>{choix.detail}</small>}
+                    </span>
                   </button>
                 ),
               )}
               <a className="lien" href={lien}>
+                Open
+              </a>
+            </div>
+          </>
+        ) : enErreur ? (
+          <>
+            <p className="carte__q">Stopped with an error</p>
+            {fin === null ? null : <p className="discret num">{fin}</p>}
+            {conversation.activity === undefined ? null : (
+              <pre className="carte__ecran">{conversation.activity}</pre>
+            )}
+            <div className="carte__options">
+              <a className="bouton" href={lien}>
+                Open
+              </a>
+            </div>
+          </>
+        ) : connexion ? (
+          <>
+            <p className="carte__q">Sign-in required</p>
+            <p className="discret">
+              {marqueAgent(conversation.agent).nom} is waiting for authentication. Finish sign-in on
+              the Mac.
+            </p>
+            <div className="carte__options">
+              <a className="bouton" href={lien}>
                 Open
               </a>
             </div>

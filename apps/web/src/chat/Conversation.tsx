@@ -345,6 +345,7 @@ export const Conversation = ({
 
       {feuille?.genre === "modele" ? (
         <Modele
+          statut={status}
           paneId={paneId}
           kind={kind ?? "pi"}
           agentNom={agentNom}

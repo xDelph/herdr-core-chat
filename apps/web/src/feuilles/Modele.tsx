@@ -100,8 +100,16 @@ export const Modele = ({
   modeleActuel,
   fournisseurActuel,
   reflexionActuelle,
+  statut,
   onClose,
 }: {
+  /**
+   * Le statut observé de l'agent. ⚠️ Le réglage n'est offert qu'au REPOS
+   * (`idle`, `done`) : la recette tape `/model` puis Entrée, qui validerait
+   * un choix sur une question, et partirait dans la file d'un agent au
+   * travail (B1.3 — le serveur refuse aussi).
+   */
+  readonly statut: string | undefined;
   readonly paneId: string;
   readonly kind: string;
   readonly agentNom: string;
@@ -118,6 +126,7 @@ export const Modele = ({
   const [filtre, setFiltre] = useState("");
   const [resultat, setResultat] = useState<ModelChangeResult | null>(null);
   const [occupe, setOccupe] = useState(false);
+  const auRepos = statut === "idle" || statut === "done";
 
   useEffect(() => {
     let vivant = true;
@@ -185,7 +194,7 @@ export const Modele = ({
   const manqueModele = kind === "claude" && changeReflexion && modeleEnvoye === undefined;
 
   const appliquer = async () => {
-    if (occupe || manqueModele || (!changeModele && !changeReflexion)) return;
+    if (occupe || !auRepos || manqueModele || (!changeModele && !changeReflexion)) return;
     setOccupe(true);
     try {
       setResultat(
@@ -340,15 +349,19 @@ export const Modele = ({
       <button
         type="button"
         className="bouton bouton--principal bouton--plein"
-        disabled={occupe || manqueModele || (!changeModele && !changeReflexion)}
+        disabled={occupe || !auRepos || manqueModele || (!changeModele && !changeReflexion)}
         onClick={() => void appliquer()}
       >
         {occupe ? "Applying…" : "Apply"}
       </button>
       <p className="discret">
-        {manqueModele
-          ? "The current model is unknown: choose the model too, Claude sets the effort in its model picker."
-          : `${portee(kind)} “Applied” is only shown once the agent confirms it on screen.`}
+        {!auRepos
+          ? statut === "blocked"
+            ? "The agent is waiting for an answer: answer it first, then change the model."
+            : "The agent is not idle: wait until it finishes its turn to change the model."
+          : manqueModele
+            ? "The current model is unknown: choose the model too, Claude sets the effort in its model picker."
+            : `${portee(kind)} “Applied” is only shown once the agent confirms it on screen.`}
       </p>
     </Feuille>
   );

@@ -29,14 +29,24 @@
  *   mesure à l'insertion (hauteur du dernier rendu, position actuelle) — jamais
  *   contre l'inertie d'iOS avec une mesure périmée.
  *
- * La mémoïsation par élément fait qu'un delta ne redessine que le tour qui bouge
- * (l'historique est chargé par pages : le DOM reste borné).
+ * La mémoïsation par élément fait qu'un delta ne redessine que le tour qui bouge.
+ *
+ * ⚠️ **Le DOM est borné par une fenêtre glissante** (`fenetre-fil.ts`) : seuls
+ * les derniers tours sont rendus. Remonter au haut de la fenêtre l'étend
+ * d'abord (au repos, position corrigée comme pour l'historique), puis seulement
+ * charge une page plus ancienne. Revenu au bas, la fenêtre re-glisse.
+ *
+ * ⚠️ **L'arrêt du défilement ne mesure plus tout le fil** : un
+ * `IntersectionObserver` tient les éléments à l'écran, et seuls eux sont
+ * mesurés pour retenir la position (avant : `getBoundingClientRect` sur
+ * chaque élément, à chaque arrêt).
  */
 import {
   memo,
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -49,6 +59,7 @@ import {
   SEUIL_PREMIERES_LIGNES_PX,
   suitLeBas,
 } from "../defilement.ts";
+import { debutEtendu, debutParDefaut, debutPourAncre, doitReglisser } from "../fenetre-fil.ts";
 import type { SuiviSession, VueSession } from "../flux-session.ts";
 import {
   ecritPosition,
@@ -64,6 +75,17 @@ import { Annonces } from "./Annonces.tsx";
 import { ElementFil } from "./Elements.tsx";
 
 const cleDe = (item: Item): string => (item.kind === "tools" ? item.id : `m:${item.message.id}`);
+
+/** L'élément `index` ouvre-t-il un tour (une demande) ? */
+const demandeDans =
+  (items: ReadonlyArray<Item>) =>
+  (index: number): boolean => {
+    const item = items[index];
+    return item?.kind === "single" && item.message.role === "user";
+  };
+
+/** La fenêtre épinglée au tout premier élément connu (l'historique s'y ajoute). */
+const DEBUT_DU_FIL = "\u0000debut";
 
 const debutDuJour = (): number => {
   const maintenant = new Date();
@@ -141,12 +163,42 @@ export const Fil = memo(
     const enregistrement = useRef<number | undefined>(undefined);
     const [nouveaux, setNouveaux] = useState(false);
     const [loinDuBas, setLoinDuBas] = useState(false);
+    /*
+      La fenêtre : la clé de son premier élément (`null` : pas encore posée, la
+      fenêtre par défaut ; `DEBUT_DU_FIL` : tout depuis le premier élément).
+      ⚠️ Une CLÉ, pas un index : l'historique s'insère en haut, les index
+      bougent, la clé reste.
+    */
+    const [debutCle, setDebutCle] = useState<string | null>(null);
+    // Chaque extension vers le haut : la position se corrige comme pour une
+    // page d'historique (effet 5).
+    const [extensions, setExtensions] = useState(0);
+    // `epinglee` : la clé retenue est encore dans le fil (une session
+    // remplacée la perd — la fenêtre par défaut revient, puis se refige).
+    const { debut, epinglee } = useMemo(() => {
+      if (debutCle === DEBUT_DU_FIL) return { debut: 0, epinglee: true };
+      const index = debutCle === null ? -1 : items.findIndex((item) => cleDe(item) === debutCle);
+      return index >= 0
+        ? { debut: index, epinglee: true }
+        : { debut: debutParDefaut(items.length, demandeDans(items)), epinglee: false };
+    }, [debutCle, items]);
+    const rendus = useMemo(() => (debut === 0 ? items : items.slice(debut)), [debut, items]);
+    const epingle = useCallback(
+      (index: number) => {
+        const item = items[index];
+        setDebutCle(index <= 0 || item === undefined ? DEBUT_DU_FIL : cleDe(item));
+      },
+      [items],
+    );
     const jour = debutDuJour();
     const dernier = items.at(-1);
-    const itemsVus = useRef(items);
+    const itemsVus = useRef(rendus);
     useLayoutEffect(() => {
-      itemsVus.current = items;
+      itemsVus.current = rendus;
     });
+    // Les éléments À L'ÉCRAN, tenus par un observateur (pas mesurés à chaque arrêt).
+    const aLEcran = useRef(new Set<Element>());
+    const observateurEcran = useRef<IntersectionObserver | null>(null);
 
     // 1. La première pose, une fois le contenu là.
     useLayoutEffect(() => {
@@ -164,7 +216,16 @@ export const Fil = memo(
         return;
       }
       if (reprise.genre === "ancre" && contenu.current !== null) {
-        const cible = elementsDuFil(contenu.current, items).find(
+        // ⚠️ Un message retenu plus haut que la fenêtre : elle s'étend jusqu'à
+        // lui, et la pose attend le rendu suivant.
+        const indexAncre = items.findIndex((item) => cleDe(item) === reprise.ancre);
+        const debutAncre = debutPourAncre(debut, indexAncre);
+        if (debutAncre !== debut) {
+          poseFaite.current = false;
+          epingle(debutAncre);
+          return;
+        }
+        const cible = elementsDuFil(contenu.current, rendus).find(
           (candidat) => candidat.cle === reprise.ancre,
         );
         if (cible !== undefined) {
@@ -183,7 +244,20 @@ export const Fil = memo(
       }
       element.scrollTop = element.scrollHeight;
       suitBas.current = true;
-    }, [dernier, items, paneId, status]);
+    }, [debut, dernier, epingle, items, paneId, rendus, status]);
+
+    // 1 bis. La fenêtre se fige une fois posée : sans cela, chaque message
+    // ajouté la ferait glisser, et retirerait du contenu au-dessus du lecteur.
+    useLayoutEffect(() => {
+      if (poseFaite.current && !epinglee && items.length > 0) epingle(debut);
+    });
+
+    // 1 ter. Revenu au bas, une fenêtre qui a trop grandi re-glisse (le bas est
+    // suivi : le contenu retiré est au-dessus, la vue reste au bas).
+    useEffect(() => {
+      if (!poseFaite.current || !doitReglisser(debut, items.length, suitBas.current)) return;
+      epingle(debutParDefaut(items.length, demandeDans(items)));
+    }, [debut, epingle, items]);
 
     // 2. Suivre le bas quand le contenu OU le conteneur change de taille
     //    (composeur qui grandit, clavier iOS qui monte).
@@ -236,7 +310,7 @@ export const Fil = memo(
         hauteurAvant: hauteurRendue.current,
         scrollAvant: element.scrollTop,
       });
-    }, [vue.ajoutsEnHaut]);
+    }, [vue.ajoutsEnHaut, extensions]);
     // Après CHAQUE rendu : la hauteur de référence de la prochaine insertion.
     useLayoutEffect(() => {
       const element = conteneur.current;
@@ -250,6 +324,20 @@ export const Fil = memo(
       void suivi.chargePlusAncien();
     }, [suivi, vue.chargementAncien, vue.precedent]);
 
+    // Remonter : d'abord ce qui est déjà lu mais pas rendu, puis l'historique.
+    const etend = useCallback(() => {
+      if (debut <= 0) return;
+      epingle(debutEtendu(debut, demandeDans(items)));
+      setExtensions((compte) => compte + 1);
+    }, [debut, epingle, items]);
+    const remonte = useCallback(() => {
+      if (debut > 0) {
+        etend();
+        return;
+      }
+      chargeAncien();
+    }, [chargeAncien, debut, etend]);
+
     // L'historique se demande au repos : insérer une page pendant l'inertie
     // d'iOS obligeait à corriger la position en plein mouvement — l'à-coup.
     const demandeAncien = useCallback(() => {
@@ -258,19 +346,20 @@ export const Fil = memo(
         const attente = REPOS_DEFILEMENT_MS - (Date.now() - dernierDefilement.current);
         if (attente <= 0) {
           relance.current = undefined;
-          chargeAncien();
+          remonte();
           return;
         }
         relance.current = window.setTimeout(essaie, attente);
       };
       essaie();
-    }, [chargeAncien]);
+    }, [remonte]);
 
-    // 6. Le repère du haut déclenche l'historique.
+    // 6. Le repère du haut étend la fenêtre, puis déclenche l'historique.
+    const plusHaut = vue.precedent !== null || debut > 0;
     useEffect(() => {
       const element = conteneur.current;
       const repere = sentinelle.current;
-      if (element === null || repere === null || vue.precedent === null) return undefined;
+      if (element === null || repere === null || !plusHaut) return undefined;
       const observateur = new IntersectionObserver(
         (entrees) => {
           if (poseFaite.current && entrees.some((entree) => entree.isIntersecting)) {
@@ -281,7 +370,44 @@ export const Fil = memo(
       );
       observateur.observe(repere);
       return () => observateur.disconnect();
-    }, [demandeAncien, vue.precedent]);
+    }, [demandeAncien, plusHaut]);
+
+    // 7. Les éléments à l'écran — l'observateur, puis, après chaque rendu, les
+    //    nouveaux éléments observés et les disparus oubliés.
+    useEffect(() => {
+      const racine = conteneur.current;
+      const ensemble = aLEcran.current;
+      if (racine === null || typeof IntersectionObserver === "undefined") return undefined;
+      const observateur = new IntersectionObserver(
+        (entrees) => {
+          for (const entree of entrees) {
+            if (entree.isIntersecting) ensemble.add(entree.target);
+            else ensemble.delete(entree.target);
+          }
+        },
+        { root: racine },
+      );
+      observateurEcran.current = observateur;
+      return () => {
+        observateur.disconnect();
+        observateurEcran.current = null;
+        ensemble.clear();
+      };
+    }, []);
+    useEffect(() => {
+      const observateur = observateurEcran.current;
+      const interieur = contenu.current;
+      if (observateur === null || interieur === null) return;
+      for (const element of interieur.querySelectorAll(":scope > .fil__el")) {
+        observateur.observe(element);
+      }
+      for (const element of aLEcran.current) {
+        if (!element.isConnected) {
+          observateur.unobserve(element);
+          aLEcran.current.delete(element);
+        }
+      }
+    });
 
     useEffect(
       () => () => {
@@ -306,8 +432,13 @@ export const Fil = memo(
         if (interieur === null) return;
         const vus = itemsVus.current;
         const haut = element.getBoundingClientRect().top;
+        const tous = elementsDuFil(interieur, vus);
+        // Seuls les éléments à l'écran se mesurent ; sans observateur (ou
+        // avant son premier rapport), tous — le résultat est le même.
+        const ecran = aLEcran.current;
+        const mesures = ecran.size > 0 ? tous.filter(({ element: el }) => ecran.has(el)) : tous;
         const visible = premierVisible(
-          elementsDuFil(interieur, vus).map(({ cle, element: el }) => {
+          mesures.map(({ cle, element: el }) => {
             const rect = el.getBoundingClientRect();
             return { bas: rect.bottom, cle, haut: rect.top };
           }),
@@ -355,6 +486,10 @@ export const Fil = memo(
               <div className="fil__haut">
                 {vue.chargementAncien ? (
                   <output className="fil__info">Loading history…</output>
+                ) : debut > 0 ? (
+                  <button type="button" className="lien fil__info" onClick={etend}>
+                    Show earlier messages
+                  </button>
                 ) : vue.precedent === null ? (
                   <p className="fil__info">Start of the conversation</p>
                 ) : null}
@@ -384,7 +519,7 @@ export const Fil = memo(
                 </p>
               </div>
             ) : null}
-            {items.map((item) => (
+            {rendus.map((item) => (
               <ElementFil
                 key={cleDe(item)}
                 item={item}

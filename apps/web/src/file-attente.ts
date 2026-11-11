@@ -22,9 +22,27 @@ interface EntreeBrute {
   readonly timestamp?: string | undefined;
 }
 
-const operationDe = (
-  raw: string,
-): { readonly operation: string; readonly texte: string } | undefined => {
+interface OperationLue {
+  readonly operation: string;
+  readonly texte: string;
+}
+
+/** La marque qu'une ligne DOIT contenir pour être une opération de file. */
+const MARQUE = '"queue-operation"';
+
+/**
+ * ⚠️ **Une ligne n'est relue qu'une fois** (audit, performance). Chaque delta
+ * de session relançait `JSON.parse` sur TOUTES les entrées : 17 ms pour 5 000
+ * entrées, 47 ms pour 20 000 sur un Mac, 2 à 4 fois plus sur un iPhone. Le
+ * verdict est gardé par ENTRÉE (les entrées affichées gardent leur identité
+ * d'un delta à l'autre, `fusionnerEntrees`), et une ligne sans la marque
+ * `"queue-operation"` n'est jamais parsée — `customType` est une chaîne JSON,
+ * la marque y figure littéralement.
+ */
+const verdicts = new WeakMap<object, OperationLue | null>();
+
+const operationDe = (raw: string): OperationLue | undefined => {
+  if (!raw.includes(MARQUE)) return undefined;
   let valeur: unknown;
   try {
     valeur = JSON.parse(raw);
@@ -54,13 +72,21 @@ const operationDe = (
 /** `true` si l'entrée est une opération de file (à ne pas rendre comme message). */
 export const estOperationDeFile = (raw: string): boolean => operationDe(raw) !== undefined;
 
+const operationDeLEntree = (entree: EntreeBrute): OperationLue | undefined => {
+  const connu = verdicts.get(entree);
+  if (connu !== undefined) return connu ?? undefined;
+  const lue = operationDe(entree.raw);
+  verdicts.set(entree, lue ?? null);
+  return lue;
+};
+
 /** Les demandes encore en file, dans l'ordre d'arrivée. */
 export const demandesEnFile = (
   entries: ReadonlyArray<EntreeBrute>,
 ): ReadonlyArray<DemandeEnFile> => {
   const file: DemandeEnFile[] = [];
   for (const entree of entries) {
-    const lue = operationDe(entree.raw);
+    const lue = operationDeLEntree(entree);
     if (lue === undefined) continue;
     if (lue.operation === "enqueue" && lue.texte.length > 0) {
       file.push({ depuis: entree.timestamp ?? null, texte: lue.texte });

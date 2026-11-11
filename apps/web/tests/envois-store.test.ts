@@ -20,6 +20,7 @@ import { describe, expect, test } from "bun:test";
 import {
   creeMagasinEnvois,
   DELAI_ENVOI_MS,
+  EN_ATTENTE_DE_LECTURE,
   type Lanceur,
   type Planificateur,
 } from "../src/envois.ts";
@@ -417,5 +418,19 @@ describe("la preuve du fil prime sur l'état de l'envoi", () => {
     expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
     magasin.oublie(id);
     expect(magasin.liste("w1:p1")).toHaveLength(0);
+  });
+});
+
+describe("un envoi confirmé à un agent au travail est en file, pas lu (B1.15)", () => {
+  test("le serveur dit « queued » : la bulle attend la prochaine étape", async () => {
+    const { lance } = lanceurNote({ confirmation: "confirmed", kind: "sent", queued: true });
+    const { avance, planifie } = planificateurManuel();
+    const magasin = creeMagasinEnvois(lance, planifie);
+    magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "et aussi les tests" });
+    avance(DELAI_ENVOI_MS);
+    await souffle();
+    const envoi = magasin.liste("w1:p1")[0];
+    expect(envoi?.state).toBe("delivered");
+    expect(envoi?.detail).toBe(EN_ATTENTE_DE_LECTURE);
   });
 });

@@ -16,6 +16,17 @@
  *   pas l'état, il le demande.
  * - Une lecture ratée effaçait les deux autres. Ici chaque ressource garde sa
  *   dernière valeur lue et porte sa propre cause d'échec.
+ * - Le démarrage attendait la plus lente des trois lectures (5 à 6 s pour la
+ *   liste à froid, 3,5 ms pour l'overview). Ici chaque valeur lue est publiée
+ *   **dès qu'elle arrive** (`surIssue`) ; les échecs, eux, attendent la fin du
+ *   vol (ils dépendent de la visibilité de la page pendant tout le vol).
+ * - Chaque rafraîchissement donnait trois rendus de toute l'app et des objets
+ *   neufs même sans changement. Ici une relecture identique rend les MÊMES
+ *   objets (`partage.ts`), une publication sans changement ne réveille
+ *   personne, et la fin du vol est publiée en une fois.
+ * - Chaque `session_changed` relisait aussi la santé, qui n'en dépend pas.
+ *   Ici la santé se relit au filet, au retour, à la demande — et sur un
+ *   événement seulement si elle a plus de `AGE_MAX_SANTE_MS`.
  *
  * Le module ne connaît ni React ni le réseau : tout est injecté.
  */
@@ -28,7 +39,15 @@ import {
   EVENEMENTS_RAFRAICHISSANTS,
 } from "./rafraichissement.ts";
 import { estInterruption } from "./interruption.ts";
-import type { Resultat } from "./rafraichissement.ts";
+import { partageStructure } from "./partage.ts";
+import type { Resultat, SurIssue } from "./rafraichissement.ts";
+
+/**
+ * L'âge au-delà duquel un événement relit aussi la santé. Les événements
+ * (`session_changed` surtout, à chaque écriture de session) n'ont rien à voir
+ * avec elle ; le filet et le retour au premier plan la relisent toujours.
+ */
+export const AGE_MAX_SANTE_MS = 15_000;
 
 export type Direct = "live" | "down" | "inconnu";
 
@@ -75,6 +94,7 @@ export type OuvreEvenements = (gestionnaires: {
   readonly onEvent: (genre: string, donnees: unknown) => void;
   readonly onResync: () => void;
   readonly onStatus: (statut: "live" | "down") => void;
+  readonly onVie?: () => void;
 }) => () => void;
 
 export interface DependancesDonnees {
@@ -103,6 +123,14 @@ export interface MagasinDonnees {
   /** S'abonner aux événements du flux global (le chat, les envois). */
   readonly ecoute: (abonne: (evenement: EvenementGlobal) => void) => () => void;
   readonly lectureDesKinds: () => Promise<void>;
+  /**
+   * L'instant du dernier signe de vie du flux (ouverture, battement,
+   * événement), ou `null` s'il n'en a jamais donné.
+   *
+   * ⚠️ **Lu, jamais publié.** Chaque battement réveillerait toute l'app pour
+   * une valeur que seul le centre de connexion affiche, à son propre rythme.
+   */
+  readonly derniereVie: () => number | null;
 }
 
 const lisChaine = (objet: unknown, cle: string): string | undefined => {
@@ -126,35 +154,97 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
   };
   const abonnes = new Set<() => void>();
   const ecouteurs = new Set<(evenement: EvenementGlobal) => void>();
-  let generationAppliquee = 0;
+  /** Par ressource, la génération la plus récente appliquée. */
+  const appliquees = { conversations: 0, health: 0, overview: 0 };
   let demarre = false;
+  let derniereVie: number | null = null;
   let fermeFlux: (() => void) | null = null;
   let annuleTour: (() => void) | null = null;
 
+  /** Publie ce qui a CHANGÉ — rien de changé, personne n'est réveillé. */
   const publie = (changement: Partial<EtatDonnees>): void => {
+    const change = Object.entries(changement).some(
+      ([cle, valeur]) => !Object.is(valeur, Reflect.get(etat, cle)),
+    );
+    if (!change) return;
     etat = { ...etat, ...changement };
     for (const abonne of abonnes) abonne();
   };
 
-  const client = creeClient({
-    conversations: deps.lectures.conversations,
-    health: deps.lectures.health,
-    overview: deps.lectures.overview,
-  });
+  /*
+    La santé : relue quand on la demande (filet, retour, « Réessayer »), et sur
+    un événement seulement si elle a vieilli. ⚠️ La demande est COLLANTE : un
+    vol déjà promis (`litFrais`) qui part plus tard la relit aussi.
+  */
+  let santeDemandee = true;
+  let santeLue: { readonly instant: number; readonly valeur: Health } | null = null;
+  const litSante = async (): Promise<Health> => {
+    const recente =
+      santeLue !== null && deps.maintenant() - santeLue.instant < AGE_MAX_SANTE_MS
+        ? santeLue
+        : null;
+    if (!santeDemandee && recente !== null) return recente.valeur;
+    santeDemandee = false;
+    const valeur = await deps.lectures.health();
+    santeLue = { instant: deps.maintenant(), valeur };
+    return valeur;
+  };
+
+  type Liste = { readonly conversations: ReadonlyArray<ConversationSummary> };
+
+  /** Une valeur lue, publiée dès son arrivée — si aucune plus récente ne l'a devancée. */
+  const surIssue: SurIssue<Overview, Health, Liste> = (lue, generation) => {
+    if (!lue.issue.ok || generation <= appliquees[lue.ressource]) return;
+    // ⚠️ Seulement un CHANGEMENT : une valeur identique attend la fin du vol,
+    // publiée en une fois avec elle (un rendu, pas deux).
+    if (lue.ressource === "overview") {
+      const valeur = partageStructure(etat.overview, lue.issue.valeur);
+      if (valeur === etat.overview) return;
+      appliquees.overview = generation;
+      publie({ erreurs: { ...etat.erreurs, overview: null }, overview: valeur });
+    } else if (lue.ressource === "health") {
+      const valeur = partageStructure(etat.health, lue.issue.valeur);
+      if (valeur === etat.health) return;
+      appliquees.health = generation;
+      publie({ erreurs: { ...etat.erreurs, health: null }, health: valeur });
+    } else {
+      const valeur = partageStructure(etat.conversations, lue.issue.valeur.conversations);
+      if (valeur === etat.conversations) return;
+      appliquees.conversations = generation;
+      publie({
+        conversations: valeur,
+        dernierSucces: deps.maintenant(),
+        erreurs: { ...etat.erreurs, conversations: null },
+      });
+    }
+  };
+
+  const client = creeClient(
+    {
+      conversations: deps.lectures.conversations,
+      health: litSante,
+      overview: deps.lectures.overview,
+    },
+    surIssue,
+  );
 
   const applique = (
-    resultat: Resultat<
-      Overview,
-      Health,
-      { readonly conversations: ReadonlyArray<ConversationSummary> }
-    >,
+    resultat: Resultat<Overview, Health, Liste>,
     /** La page a été cachée pendant la lecture : un échec n'y prouve rien. */
     cachee: boolean,
-  ): void => {
-    // ⚠️ Une réponse plus ancienne que celle déjà appliquée est ignorée : la
-    // liste ne revient jamais en arrière.
-    if (resultat.generation <= generationAppliquee) return;
-    generationAppliquee = resultat.generation;
+  ): Partial<EtatDonnees> => {
+    // ⚠️ Une réponse plus ancienne que celle déjà appliquée est ignorée, par
+    // ressource : la liste ne revient jamais en arrière. (Une ressource déjà
+    // publiée par ce vol, à son arrivée, n'est pas republiée.)
+    const neuve = {
+      conversations: resultat.generation > appliquees.conversations,
+      health: resultat.generation > appliquees.health,
+      overview: resultat.generation > appliquees.overview,
+    };
+    if (!neuve.conversations && !neuve.health && !neuve.overview) return {};
+    for (const ressource of ["conversations", "health", "overview"] as const) {
+      if (neuve[ressource]) appliquees[ressource] = resultat.generation;
+    }
     // ⚠️ Un échec INTERROMPU (page cachée, requête coupée par iOS) n'est ni
     // journalisé ni affiché : l'erreur précédente reste ce qu'elle était, et
     // le retour au premier plan relit (`interruption.ts`).
@@ -166,7 +256,7 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
       ["health", resultat.health],
       ["conversations", resultat.conversations],
     ] as const) {
-      if (!issue.ok && echec(issue) === "panne") {
+      if (neuve[ressource] && !issue.ok && echec(issue) === "panne") {
         deps.signale?.(`failed to read ${ressource}`, { cause: issue.cause });
       }
     }
@@ -177,29 +267,50 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
       if (issue.ok) return null;
       return echec(issue) === "panne" ? issue.cause : precedente;
     };
-    publie({
-      conversations: resultat.conversations.ok
-        ? resultat.conversations.valeur.conversations
-        : etat.conversations,
-      dernierSucces: resultat.conversations.ok ? deps.maintenant() : etat.dernierSucces,
-      erreurs: {
-        conversations: erreurDe(resultat.conversations, etat.erreurs.conversations),
-        health: erreurDe(resultat.health, etat.erreurs.health),
-        overview: erreurDe(resultat.overview, etat.erreurs.overview),
-      },
-      health: resultat.health.ok ? resultat.health.valeur : etat.health,
-      overview: resultat.overview.ok ? resultat.overview.valeur : etat.overview,
-    });
+    const erreurs = {
+      conversations: neuve.conversations
+        ? erreurDe(resultat.conversations, etat.erreurs.conversations)
+        : etat.erreurs.conversations,
+      health: neuve.health ? erreurDe(resultat.health, etat.erreurs.health) : etat.erreurs.health,
+      overview: neuve.overview
+        ? erreurDe(resultat.overview, etat.erreurs.overview)
+        : etat.erreurs.overview,
+    };
+    const listeLue = neuve.conversations && resultat.conversations.ok;
+    return {
+      conversations:
+        neuve.conversations && resultat.conversations.ok
+          ? partageStructure(etat.conversations, resultat.conversations.valeur.conversations)
+          : etat.conversations,
+      dernierSucces: listeLue ? deps.maintenant() : etat.dernierSucces,
+      // Les mêmes causes : le même objet (sinon chaque vol publierait).
+      erreurs: partageStructure(etat.erreurs, erreurs),
+      health:
+        neuve.health && resultat.health.ok
+          ? partageStructure(etat.health, resultat.health.valeur)
+          : etat.health,
+      overview:
+        neuve.overview && resultat.overview.ok
+          ? partageStructure(etat.overview, resultat.overview.valeur)
+          : etat.overview,
+    };
   };
 
-  const rafraichit = async (frais = false): Promise<void> => {
+  /**
+   * @param sante relire aussi la santé — faux pour un événement, qui n'en dit
+   *   rien (elle n'est alors relue que si elle a vieilli).
+   */
+  const rafraichit = async (frais = false, sante = true): Promise<void> => {
+    if (sante) santeDemandee = true;
     publie({ chargement: true });
     const visibleAuDepart = deps.visible();
+    let changement: Partial<EtatDonnees> = {};
     try {
       const resultat = await (frais ? client.litFrais() : client.lit());
-      applique(resultat, !visibleAuDepart || !deps.visible());
+      changement = applique(resultat, !visibleAuDepart || !deps.visible());
     } finally {
-      publie({ chargement: client.enVol() });
+      // La fin du vol en UNE publication : les valeurs et la fin du chargement.
+      publie({ ...changement, chargement: client.enVol() });
     }
   };
 
@@ -207,7 +318,7 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
   let compteurJetons = 0;
   // Un événement dit qu'un état a changé : la lecture doit partir APRÈS lui.
   const regroupement = creeRegroupement(
-    () => void rafraichit(true),
+    () => void rafraichit(true, false),
     deps.delaiRegroupement,
     (action, attente) => {
       compteurJetons += 1;
@@ -291,6 +402,9 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
         onStatus: (statut) => {
           if (statut !== etat.direct) publie({ direct: statut });
         },
+        onVie: () => {
+          derniereVie = deps.maintenant();
+        },
       });
       void rafraichit();
       void lectureDesKinds();
@@ -300,6 +414,7 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
       ecouteurs.add(abonne);
       return () => ecouteurs.delete(abonne);
     },
+    derniereVie: () => derniereVie,
     etat: () => etat,
     lectureDesKinds,
     rafraichit,

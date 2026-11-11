@@ -8,8 +8,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   answerQuestion,
+  changeModel,
   fetchHealth,
   fetchSession,
+  LancementIncertain,
   launchAgent,
   sendPrompt,
   sondeFluxSession,
@@ -207,14 +209,14 @@ const leve = (cause: unknown) => {
 describe("une action sans réponse dit ce qu'on en sait", () => {
   test("une réponse coupée par un délai est « transmise », pas « refusée »", async () => {
     leve(new DOMException("timed out", "TimeoutError"));
-    const issue = await answerQuestion("w1:p1", 2);
+    const issue = await answerQuestion("w1:p1", 2, "e1");
     expect(issue.state).toBe("transmise");
     expect(issue.detail).toContain("may have been applied");
   });
 
   test("une réponse coupée par l'arrière-plan n'affiche pas « Load failed » brut", async () => {
     leve(new TypeError("Load failed"));
-    const issue = await answerQuestion("w1:p1", 2);
+    const issue = await answerQuestion("w1:p1", 2, "e1");
     expect(issue.state).toBe("transmise");
     expect(issue.detail).toContain("Connection to the daemon interrupted");
   });
@@ -245,5 +247,99 @@ describe("santé : le 503 est une réponse, pas une panne (H01)", () => {
   test("un autre échec reste une erreur nommée", async () => {
     repond(JSON.stringify({ error: "boom" }), 500, "application/json");
     await expect(fetchHealth()).rejects.toThrow("boom");
+  });
+});
+
+describe("une réponse n'est « refusée » que si rien n'est parti (F3.2, B1.1)", () => {
+  const json = "application/json";
+
+  test("un 502 du démon est « transmise » : la touche a pu partir", async () => {
+    repond(JSON.stringify({ error: "answer failed: send_keys timed out" }), 502, json);
+    const issue = await answerQuestion("w1:p1", 1, "e1");
+    expect(issue.state).toBe("transmise");
+    expect(issue.detail).toContain("check the agent before retrying");
+  });
+
+  test("un corps illisible n'est pas un refus", async () => {
+    repond("<html>bad gateway</html>", 502, "text/html");
+    expect((await answerQuestion("w1:p1", 1, "e1")).state).toBe("transmise");
+  });
+
+  test("un 4xx est un refus : rien n'est parti", async () => {
+    repond(JSON.stringify({ error: "invalid body" }), 400, json);
+    expect((await answerQuestion("w1:p1", 1, "e1")).state).toBe("refusee");
+  });
+
+  test("une question changée (409) est refusée avec sa cause", async () => {
+    repond(
+      JSON.stringify({
+        detail: "the question on screen changed since it was shown — nothing was sent",
+        state: "refusee",
+        status: "question-answered",
+      }),
+      409,
+      json,
+    );
+    const issue = await answerQuestion("w1:p1", 1, "e1");
+    expect(issue.state).toBe("refusee");
+    expect(issue.detail).toContain("changed since it was shown");
+  });
+
+  test("l'empreinte de la question affichée part avec la réponse", async () => {
+    let corps = "";
+    globalThis.fetch = Object.assign(
+      async (_url: unknown, init?: RequestInit) => {
+        corps = typeof init?.body === "string" ? init.body : "";
+        return new Response("{}", { status: 400 });
+      },
+      { preconnect: original.preconnect },
+    );
+    await answerQuestion("w1:p1", 2, "abc123");
+    expect(JSON.parse(corps)).toEqual({ empreinte: "abc123", numero: 2 });
+  });
+
+  test("un changement de modèle en 5xx n'est pas « refusé »", async () => {
+    repond(JSON.stringify({ error: "model change failed" }), 502, json);
+    expect((await changeModel("w1:p1", { model: "opus" })).state).toBe("transmise");
+  });
+});
+
+describe("un lancement sans verdict n'est pas un échec (F1.1)", () => {
+  test("un 502 est une issue inconnue : l'agent a peut-être démarré", async () => {
+    repond(JSON.stringify({ error: "launch timed out" }), 502, "application/json");
+    const erreur = await launchAgent("sp1", "claude").catch((cause: unknown) => cause);
+    expect(erreur).toBeInstanceOf(LancementIncertain);
+  });
+
+  test("une coupure après l'envoi est une issue inconnue", async () => {
+    leve(new DOMException("timed out", "TimeoutError"));
+    const erreur = await launchAgent("sp1", "claude").catch((cause: unknown) => cause);
+    expect(erreur).toBeInstanceOf(LancementIncertain);
+  });
+
+  test("un 4xx est un vrai refus : rien n'a été lancé", async () => {
+    repond(JSON.stringify({ error: "unknown workspace" }), 404, "application/json");
+    const erreur = await launchAgent("sp1", "claude").catch((cause: unknown) => cause);
+    expect(erreur).toBeInstanceOf(Error);
+    expect(erreur).not.toBeInstanceOf(LancementIncertain);
+  });
+});
+
+describe("chaque action porte sa clé d'idempotence", () => {
+  test("deux actions, deux clés : un Retry n'est jamais pris pour une répétition", async () => {
+    const cles: string[] = [];
+    globalThis.fetch = Object.assign(
+      async (_url: unknown, init?: RequestInit) => {
+        const entetes = new Headers(init?.headers);
+        cles.push(entetes.get("idempotency-key") ?? "");
+        return new Response("{}", { status: 400 });
+      },
+      { preconnect: original.preconnect },
+    );
+    await answerQuestion("w1:p1", 1, "e1");
+    await answerQuestion("w1:p1", 1, "e1");
+    expect(cles).toHaveLength(2);
+    expect(cles[0]?.length).toBeGreaterThan(0);
+    expect(cles[0]).not.toBe(cles[1]);
   });
 });

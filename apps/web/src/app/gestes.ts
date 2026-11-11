@@ -11,7 +11,7 @@
  * ⚠️ **Rien n'est présenté comme fait sans preuve.** « Transmise » n'est pas
  * « appliquée » ; une confiance « transmise » n'est pas « accordée ».
  */
-import { answerQuestion, answerTrust, reportError, stopAgent } from "../api.ts";
+import { answerQuestion, answerTrust, pinAgent, reportError, stopAgent } from "../api.ts";
 import { cleAction, type EtatAction } from "../actions-locales.ts";
 import { expliquerConfiance } from "../etats-envoi.ts";
 import { actions, magasin, notifications } from "./services.ts";
@@ -56,14 +56,14 @@ export const sujetQuestion = (texte: string): string => texte;
 
 export const repondre = (
   paneId: string,
-  question: string,
+  question: { readonly texte: string; readonly empreinte?: string | undefined },
   numero: number,
   texte?: string,
 ): Promise<void> =>
   execute(
-    cleAction(paneId, "reponse", sujetQuestion(question)),
+    cleAction(paneId, "reponse", sujetQuestion(question.texte)),
     async () => {
-      const resultat = await answerQuestion(paneId, numero, texte);
+      const resultat = await answerQuestion(paneId, numero, question.empreinte, texte);
       switch (resultat.state) {
         case "appliquee":
           return { phase: "fini", texte: `Answer ${String(numero)} applied.`, ton: "ok" };
@@ -103,13 +103,47 @@ export const arreter = (paneId: string): Promise<void> =>
     cleAction(paneId, "arret"),
     async () => {
       const resultat = await stopAgent(paneId);
-      return resultat.status === "interrupt-sent"
-        ? {
+      if (resultat.status !== "interrupt-sent") {
+        return { phase: "fini", texte: "Herdr reports the agent is no longer working.", ton: "ok" };
+      }
+      // Ce que herdr-core a vu après la touche (B1.14) — dit tel quel.
+      switch (resultat.outcome) {
+        case "stopped":
+          return { phase: "fini", texte: "Stopped: the agent is no longer working.", ton: "ok" };
+        case "exited":
+          return { phase: "fini", texte: "Stopped: the agent exited.", ton: "ok" };
+        case "still-working":
+          return {
+            phase: "fini",
+            texte: "Interrupt sent, but the agent is still working. Try Stop again.",
+            ton: "attention",
+          };
+        default:
+          return {
             phase: "fini",
             texte: "Interrupt sent by Herdr — the agent has not confirmed it stopped yet.",
             ton: "attention",
-          }
-        : { phase: "fini", texte: "Herdr reports the agent is no longer working.", ton: "ok" };
+          };
+      }
     },
     { message: "failed to interrupt the agent", notifie: true, paneId },
+  );
+
+/**
+ * Épingle un agent en tête des listes, ou l'en retire — partagé avec Herdr.app
+ * (`herdr.pinned`). ⚠️ Rien d'optimiste : la liste montre l'épingle quand le
+ * démon l'a posée (relecture à la fin du geste), et un échec se dit.
+ */
+export const epingler = (paneId: string, pinned: boolean): Promise<void> =>
+  execute(
+    cleAction(paneId, "epingle"),
+    async () => {
+      const resultat = await pinAgent(paneId, pinned);
+      return {
+        phase: "fini",
+        texte: resultat.pinned ? "Pinned to the top, here and in Herdr." : "Unpinned.",
+        ton: "ok",
+      };
+    },
+    { message: "failed to pin the agent", notifie: true, paneId },
   );

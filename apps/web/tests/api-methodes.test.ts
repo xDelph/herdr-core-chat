@@ -57,7 +57,7 @@ describe("les actions partent en POST JSON", () => {
   test("envoi, réponse, confiance, lancement, lecture", async () => {
     doublure({});
     await sendPrompt("w1:p1", "bonjour").catch(() => undefined);
-    await answerQuestion("w1:p1", 1).catch(() => undefined);
+    await answerQuestion("w1:p1", 1, "e1").catch(() => undefined);
     await answerTrust("w1:p1", true).catch(() => undefined);
     await launchAgent("w1", "pi").catch(() => undefined);
     await markRead("w1:p1", 1000).catch(() => undefined);

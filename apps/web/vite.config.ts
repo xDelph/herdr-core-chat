@@ -28,7 +28,12 @@ export default defineConfig({
     __HERDR_PWA_BUILD_ID__: JSON.stringify(new Date().toISOString()),
     __HERDR_PWA_VERSION__: JSON.stringify(typeof VERSION === "string" ? VERSION : "unknown"),
   },
-  plugins: [react(), visualizer({ filename: "dist/stats.html", open: false })],
+  /*
+    ⚠️ **Le rapport de taille ne va PAS dans `dist/`** : tout ce qui y est
+    embarqué est servi par le démon. `dist/stats.html` (336 Ko, la carte du
+    code source) était public. Il part dans `build/`, ignoré par git.
+  */
+  plugins: [react(), visualizer({ filename: "build/stats.html", open: false })],
   server: {
     port: Number(process.env["HERDR_DEV_PORT"] ?? 5173),
     /*

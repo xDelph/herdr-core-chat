@@ -13,7 +13,7 @@
  * diverger entre le décodage et le type affiché. Aucune assertion de type.
  */
 import { Option, Schema } from "effect";
-import { erreurLisible, estRouteInconnue } from "./erreurs-demon.ts";
+import { erreurLisible, estRouteInconnue, messageDeCode } from "./erreurs-demon.ts";
 import { delaiDeReprise, SOURCE_OUVERTE } from "./reprise.ts";
 // Import **local** : `export type { X } from "…"` ne crée aucune liaison ici.
 import type { InstalledKind, RecentImage } from "@herdr-core-chat/shared";
@@ -37,6 +37,8 @@ import {
   TrustRequiredResponse,
   TrustResolvedResponse,
   StopAgentResponse,
+  PinResponse,
+  AttachmentResponse,
 } from "@herdr-core-chat/shared";
 
 /**
@@ -67,6 +69,8 @@ export type {
   TrustRequiredResponse as TrustRequired,
   TrustResolvedResponse as TrustResolved,
   StopAgentResponse,
+  PinResponse,
+  AttachmentResponse,
   WorkspaceView,
 } from "@herdr-core-chat/shared";
 
@@ -126,7 +130,7 @@ export const answerTrust = async (paneId: string, accept: boolean): Promise<Trus
       detail:
         failure === undefined
           ? `failed (${String(response.status)})`
-          : erreurLisible(failure.error),
+          : messageDeCode(failure.code, failure.error),
       state: "inconnu",
     };
   }
@@ -155,6 +159,19 @@ export class TrustRequiredError extends Error {
     super(value.message);
     this.name = "TrustRequiredError";
     this.request = value;
+  }
+}
+
+/**
+ * Un lancement dont l'issue est INCONNUE : la demande a pu partir (délai,
+ * coupure, 5xx, corps illisible). ⚠️ Ce n'est pas un échec (F1.1) : sur une
+ * 4G lente, l'onglet et l'agent sont créés et seule la réponse se perd —
+ * « Launch failed » faisait relancer, et l'utilisateur obtenait deux agents.
+ */
+export class LancementIncertain extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, { cause });
+    this.name = "LancementIncertain";
   }
 }
 
@@ -187,24 +204,46 @@ export const launchAgent = async (
     s'afficherait comme un échec rouge et l'agent resterait bloqué sans issue.
     On lit donc le corps **avant** de décider de l'échec.
   */
-  const response = await envoieAction(
-    `/api/workspaces/${encodeURIComponent(workspaceId)}/agents`,
-    body,
-    DELAIS_ACTION_MS.lancement,
-  );
-  const payload = await readJson(response);
+  let response: Response;
+  try {
+    response = await envoieAction(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/agents`,
+      body,
+      DELAIS_ACTION_MS.lancement,
+    );
+  } catch (cause) {
+    // Hors ligne : rien n'est parti, c'est un échec. Sinon : peut-être lancé.
+    if (cause instanceof ActionSansReponse && !cause.envoyee) throw cause;
+    throw new LancementIncertain(cause instanceof Error ? cause.message : String(cause), cause);
+  }
+  let payload: unknown;
+  try {
+    payload = await readJson(response);
+  } catch (cause) {
+    if (response.status >= 400 && response.status < 500) throw cause;
+    throw new LancementIncertain(
+      `unreadable response (${String(response.status)}): the agent may have started.`,
+      cause,
+    );
+  }
 
   if (response.status === 409) {
     const trust = decoderOf(TrustRequiredResponse)(payload);
     if (trust !== undefined) throw new TrustRequiredError(trust);
   }
   if (!response.ok) {
-    throw new Error(erreurDe(payload, response.status));
+    // Seul un 4xx prouve que rien n'a été lancé.
+    if (response.status >= 400 && response.status < 500) {
+      throw new Error(erreurDe(payload, response.status));
+    }
+    throw new LancementIncertain(
+      `${erreurDe(payload, response.status)}: the agent may have started.`,
+    );
   }
 
   const decoded = decoderOf(LaunchAgentResponse)(payload);
   if (decoded === undefined) {
-    throw new Error("unexpected response shape: launch");
+    throw new LancementIncertain("unexpected response shape: the agent may have started.");
   }
   return decoded;
 };
@@ -230,7 +269,13 @@ export const fetchModelCatalog = (kind: string): Promise<ModelCatalogResponse> =
  * pouvoir le renvoyer ; en `erreur` il est perdu et il faut le retaper.
  */
 export type SendResult =
-  | { kind: "sent"; confirmation: "confirmed" | "unknown"; fingerprint: string }
+  | {
+      kind: "sent";
+      confirmation: "confirmed" | "unknown";
+      fingerprint: string;
+      /** L'agent travaillait à l'envoi : le message est dans sa file (B1.15). */
+      queued?: boolean;
+    }
   | { kind: "suppressed"; reason: string }
   | {
       kind: "failed";
@@ -265,7 +310,9 @@ export const horsLigne = (): boolean =>
 /** La cause d'une réponse d'erreur, traduite quand on la reconnaît (`erreurs-demon.ts`). */
 const erreurDe = (payload: unknown, statut: number): string => {
   const failure = decodeError(payload);
-  return failure === undefined ? `failed (${String(statut)})` : erreurLisible(failure.error);
+  return failure === undefined
+    ? `failed (${String(statut)})`
+    : messageDeCode(failure.code, failure.error);
 };
 
 /**
@@ -299,6 +346,8 @@ export const DELAIS_ACTION_MS = {
   reglage: 120_000,
   /** Un label posé, un fichier écrit. */
   court: 10_000,
+  /** Une photo de 8 Mo au plus, sur un réseau mobile lent. */
+  piece: 120_000,
 } as const;
 
 /**
@@ -307,11 +356,24 @@ export const DELAIS_ACTION_MS = {
  * le passage en arrière-plan s'affichait « Load failed » (brut), alors que la
  * touche était peut-être déjà partie.
  */
+/**
+ * Une clé d'idempotence NEUVE par action (`Idempotency-Key`).
+ *
+ * ⚠️ Neuve à chaque appel : une répétition du TRANSPORT (réseau qui bascule,
+ * proxy qui réessaie) garde la même requête, donc la même clé, et le démon la
+ * rejoue sans rien refaire. Un « Retry » de l'utilisateur est une nouvelle
+ * intention : nouvel appel, nouvelle clé.
+ */
+export const nouvelleCle = (): string =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
 const envoieAction = async (chemin: string, corps: unknown, delaiMs: number): Promise<Response> => {
   try {
     return await fetch(chemin, {
       body: JSON.stringify(corps),
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "idempotency-key": nouvelleCle() },
       method: "POST",
       signal: AbortSignal.timeout(delaiMs),
     });
@@ -381,7 +443,9 @@ const request = async (
   if (!response.ok && !corpsDuContrat.includes(response.status)) {
     const failure = decodeError(payload);
     throw new Error(
-      failure === undefined ? `failed (${String(response.status)})` : erreurLisible(failure.error),
+      failure === undefined
+        ? `failed (${String(response.status)})`
+        : messageDeCode(failure.code, failure.error),
     );
   }
   return payload;
@@ -527,7 +591,7 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   try {
     response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/prompt`, {
       body: JSON.stringify({ text }),
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "idempotency-key": nouvelleCle() },
       method: "POST",
       signal: AbortSignal.timeout(DELAI_ENVOI_MS),
     });
@@ -576,6 +640,7 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
         confirmation: sent.confirmation === "confirmed" ? "confirmed" : "unknown",
         fingerprint: sent.fingerprint,
         kind: "sent",
+        queued: sent.queued === true,
       };
     }
   }
@@ -584,7 +649,7 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   // pilote l'action proposée à l'utilisateur.
   const named = decoderOf(FailedPayload)(payload);
   if (named !== undefined) {
-    return { kind: "failed", message: erreurLisible(named.detail), state: named.state };
+    return { kind: "failed", message: messageDeCode(named.code, named.detail), state: named.state };
   }
   return {
     kind: "failed",
@@ -614,6 +679,67 @@ export const stopAgent = async (paneId: string): Promise<StopAgentResponse> => {
   }
   const lu = decoderOf(StopAgentResponse)(payload);
   if (lu === undefined) throw new Error("unexpected response shape: stop");
+  return lu;
+};
+
+/**
+ * Épingle (ou désépingle) un agent en tête des listes — partagé avec Herdr.app
+ * (`herdr.pinned`, H25).
+ */
+export const pinAgent = async (paneId: string, pinned: boolean): Promise<PinResponse> => {
+  const response = await envoieAction(
+    `/api/agents/${encodeURIComponent(paneId)}/pin`,
+    { pinned },
+    DELAIS_ACTION_MS.court,
+  );
+  const payload = await readJson(response);
+  if (!response.ok) throw new Error(erreurDe(payload, response.status));
+  const lu = decoderOf(PinResponse)(payload);
+  if (lu === undefined) throw new Error("unexpected response shape: pin");
+  return lu;
+};
+
+/** La borne de `terminal.put` : 8 Mo de données brutes (H26). */
+export const PIECE_JOINTE_MAX_OCTETS = 8 * 1024 * 1024;
+
+/**
+ * Pose une photo à côté du terminal de l'agent (H26) et rend son chemin.
+ *
+ * ⚠️ **Rien n'est tapé chez l'agent** : c'est au message de porter le chemin.
+ * Le corps est fait des octets bruts (pas de JSON, pas de formulaire), avec le
+ * type du fichier — `application/octet-stream` quand le navigateur n'en dit rien.
+ */
+export const uploadAttachment = async (
+  paneId: string,
+  fichier: Blob,
+  nom: string,
+): Promise<AttachmentResponse> => {
+  if (fichier.size > PIECE_JOINTE_MAX_OCTETS) {
+    throw new Error("Photo too large: 8 MB at most. Nothing was sent.");
+  }
+  const type = fichier.type.startsWith("image/") ? fichier.type : "application/octet-stream";
+  let response: Response;
+  try {
+    response = await fetch(
+      `/api/agents/${encodeURIComponent(paneId)}/attachments?name=${encodeURIComponent(nom)}`,
+      {
+        body: fichier,
+        headers: { "content-type": type, "idempotency-key": nouvelleCle() },
+        method: "POST",
+        signal: AbortSignal.timeout(DELAIS_ACTION_MS.piece),
+      },
+    );
+  } catch (cause) {
+    if (horsLigne()) throw new Error("Offline: the photo was not sent.", { cause });
+    throw new Error(
+      `The photo upload was interrupted (${erreurLisible(cause instanceof Error ? cause.message : String(cause))}).`,
+      { cause },
+    );
+  }
+  const payload = await readJson(response);
+  if (!response.ok) throw new Error(erreurDe(payload, response.status));
+  const lu = decoderOf(AttachmentResponse)(payload);
+  if (lu === undefined) throw new Error("unexpected response shape: attachment");
   return lu;
 };
 
@@ -692,6 +818,18 @@ export interface DependancesFluxGlobal {
   readonly visible?: () => boolean;
 }
 
+/**
+ * Le battement du démon : un événement `heartbeat` nommé toutes les 15 s
+ * quand le flux se tait (F1.8).
+ */
+export const BATTEMENT_FLUX_MS = 15_000;
+
+/**
+ * Sans signe de vie pendant deux battements (plus une marge), le flux est
+ * mort même si `EventSource` le croit ouvert : recréé.
+ */
+export const SILENCE_MAX_FLUX_MS = 2 * BATTEMENT_FLUX_MS + 5_000;
+
 const planifieParDefaut = (action: () => void, delai: number): (() => void) => {
   const minuterie = setTimeout(action, delai);
   return () => clearTimeout(minuterie);
@@ -725,6 +863,8 @@ export const openEventStream = (
     onEvent: (kind: string, data: unknown) => void;
     onResync: () => void;
     onStatus: (status: "live" | "down") => void;
+    /** Un signe de vie du flux (ouverture, battement, événement) — l'âge du direct. */
+    onVie?: () => void;
   },
   deps: DependancesFluxGlobal = {},
 ): (() => void) => {
@@ -746,6 +886,7 @@ export const openEventStream = (
    */
   let annuleBaisse: (() => void) | null = null;
   let annuleReprise: (() => void) | null = null;
+  let annuleVeille: (() => void) | null = null;
   let courant: SourceGlobale | undefined;
   let ferme = false;
   let essais = 0;
@@ -772,11 +913,13 @@ export const openEventStream = (
    * un flux RECRÉÉ se resynchronise une fois.
    */
   const signeDeVie = () => {
+    handlers.onVie?.();
     annuleReprise?.();
     annuleReprise = null;
     essais = 0;
     aDejaVecu = true;
     markLive();
+    veille();
     if (resynchroniser) {
       resynchroniser = false;
       handlers.onResync();
@@ -791,6 +934,22 @@ export const openEventStream = (
     // L'ancien objet emporte son `Last-Event-ID` : le nouveau devra relire.
     if (aDejaVecu) resynchroniser = true;
     connect();
+  };
+
+  /**
+   * La veille du flux (F1.8) : chaque signe de vie la réarme. Deux battements
+   * manqués — un iPhone sorti de veille sur une connexion morte, que
+   * `EventSource` croit encore ouverte — et le flux est recréé : l'indicateur
+   * ne reste plus « Live » sur un flux mort.
+   */
+  const veille = () => {
+    annuleVeille?.();
+    annuleVeille = planifie(() => {
+      annuleVeille = null;
+      if (ferme) return;
+      markDownSoon();
+      recree();
+    }, SILENCE_MAX_FLUX_MS);
   };
 
   const planifierReprise = () => {
@@ -845,6 +1004,9 @@ export const openEventStream = (
     source.addEventListener("ready", () => {
       if (actuelle()) signeDeVie();
     });
+    source.addEventListener("heartbeat", () => {
+      if (actuelle()) signeDeVie();
+    });
     source.addEventListener("resync", () => {
       if (actuelle()) handlers.onResync();
     });
@@ -867,6 +1029,7 @@ export const openEventStream = (
     ferme = true;
     annuleBaisse?.();
     annuleReprise?.();
+    annuleVeille?.();
     arreteReveil();
     courant?.close();
   };
@@ -900,15 +1063,41 @@ export interface AnswerResult {
 }
 
 /**
+ * L'issue d'une action à l'écran d'après la réponse HTTP — **sans corps de
+ * contrat lisible**.
+ *
+ * ⚠️ **Seul un 4xx prouve que rien n'est parti** (F3.2). Un 5xx (502 pour une
+ * action partielle) ou un corps illisible arrive APRÈS que le démon a pu
+ * frapper : l'afficher « rejected » faisait répondre une seconde fois à une
+ * question peut-être déjà validée.
+ */
+const issueSansContrat = (
+  statut: number,
+  detail: string,
+): { readonly state: "transmise" | "refusee"; readonly detail: string } =>
+  statut >= 400 && statut < 500
+    ? { detail, state: "refusee" }
+    : {
+        detail: `${detail} — it may have been sent: check the agent before retrying.`,
+        state: "transmise",
+      };
+
+/**
  * Répond à la question affichée sur un pane.
  *
  * ⚠️ Le serveur **valide le numéro contre les choix réellement à l'écran** : un
  * numéro qui n'est pas offert ne part jamais. L'interface n'a donc pas à
  * protéger cette décision — elle ne peut offrir que ce qui existe.
+ *
+ * ⚠️ **`empreinte` est celle de la question AFFICHÉE** (B1.1) : si l'agent a
+ * changé de question entre la lecture et l'appui, le serveur refuse (409) et
+ * rien ne part. Sans empreinte (vieux serveur), une chaîne vide est envoyée :
+ * elle ne correspond à rien, la réponse est refusée — jamais envoyée à l'aveugle.
  */
 export const answerQuestion = async (
   paneId: string,
   numero: number,
+  empreinte: string | undefined,
   texte?: string,
 ): Promise<AnswerResult> => {
   let response: Response;
@@ -917,7 +1106,11 @@ export const answerQuestion = async (
       `/api/agents/${encodeURIComponent(paneId)}/answer`,
       // ⚠️ `texte` n'est pas un ornement : l'option de saisie libre d'opencode
       // ouvre un champ, et le choix **seul** le laisserait vide.
-      texte === undefined || texte.length === 0 ? { numero } : { numero, texte },
+      {
+        empreinte: empreinte ?? "",
+        numero,
+        ...(texte === undefined || texte.length === 0 ? {} : { texte }),
+      },
       DELAIS_ACTION_MS.reponse,
     );
   } catch (cause) {
@@ -933,31 +1126,21 @@ export const answerQuestion = async (
   try {
     payload = await readJson(response);
   } catch {
-    return {
-      detail: `unreadable response (${response.status})`,
-      state: "refusee",
-    };
+    return issueSansContrat(response.status, `unreadable response (${String(response.status)})`);
   }
 
+  const valeur = Option.getOrUndefined(
+    Schema.decodeUnknownOption(QuestionAnsweredResponse)(payload),
+  );
+  if (response.status === 409 && valeur !== undefined) {
+    // La question a changé depuis l'affichage : rien n'est parti.
+    return { detail: valeur.detail, state: "refusee" };
+  }
   if (response.status !== 200) {
-    // Le refus porte toujours sa cause : le serveur n'en produit jamais de vide.
-    const message =
-      typeof payload === "object" && payload !== null && "error" in payload
-        ? String((payload as { error?: unknown }).error)
-        : `failed (${response.status})`;
-    return {
-      detail: message.length > 0 ? message : `failed (${response.status})`,
-      state: "refusee",
-    };
+    return issueSansContrat(response.status, erreurDe(payload, response.status));
   }
-
-  const decode = Schema.decodeUnknownOption(QuestionAnsweredResponse);
-  const valeur = Option.getOrUndefined(decode(payload));
   return valeur === undefined
-    ? {
-        detail: "unreadable response: the state could not be read",
-        state: "refusee",
-      }
+    ? issueSansContrat(response.status, "unreadable response: the state could not be read")
     : { detail: valeur.detail, state: valeur.state };
 };
 
@@ -997,10 +1180,10 @@ export const changeModel = async (
   try {
     payload = await readJson(response);
   } catch {
-    return { detail: `unreadable response (${String(response.status)})`, state: "refusee" };
+    return issueSansContrat(response.status, `unreadable response (${String(response.status)})`);
   }
   if (response.status !== 200) {
-    return { detail: erreurDe(payload, response.status), state: "refusee" };
+    return issueSansContrat(response.status, erreurDe(payload, response.status));
   }
   const valeur = Option.getOrUndefined(Schema.decodeUnknownOption(ModelChangedResponse)(payload));
   return valeur === undefined

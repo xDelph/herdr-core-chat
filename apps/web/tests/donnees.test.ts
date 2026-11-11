@@ -234,3 +234,87 @@ describe("début de travail observé", () => {
     expect(magasin.etat().debutsTravail.has("w1:p1")).toBe(false);
   });
 });
+
+describe("lot 3 : publier tôt, publier peu", () => {
+  test("l'overview est publié avant que la liste réponde", async () => {
+    let rendListe: ((valeur: { conversations: ConversationSummary[] }) => void) | null = null;
+    const { magasin } = monte({
+      conversations: () =>
+        new Promise((resolve) => {
+          rendListe = resolve;
+        }),
+    });
+    magasin.demarre();
+    await attend();
+    // La liste est toujours en vol : l'overview, lui, est déjà là.
+    expect(magasin.etat().overview).not.toBeNull();
+    expect(magasin.etat().conversations).toBeNull();
+    expect(magasin.etat().chargement).toBe(true);
+    rendListe?.({ conversations: [conversation("w1:p1")] });
+    await attend();
+    expect(magasin.etat().conversations?.map((c) => c.paneId)).toEqual(["w1:p1"]);
+    expect(magasin.etat().chargement).toBe(false);
+  });
+
+  test("une relecture identique garde les mêmes objets et ne republie que la fin du vol", async () => {
+    const { magasin } = monte({
+      // Des objets NEUFS à chaque lecture, comme un JSON relu.
+      conversations: async () => ({
+        conversations: [conversation("w1:p1"), conversation("w1:p2")],
+      }),
+      overview: async () => structuredClone(overview),
+    });
+    magasin.demarre();
+    await attend();
+    const avant = magasin.etat();
+    let reveils = 0;
+    magasin.souscrire(() => {
+      reveils += 1;
+    });
+    await magasin.rafraichit(true);
+    const apres = magasin.etat();
+    expect(apres.conversations).toBe(avant.conversations);
+    expect(apres.overview).toBe(avant.overview);
+    expect(apres.erreurs).toBe(avant.erreurs);
+    // Début du vol + fin du vol — plus trois publications par ressource.
+    expect(reveils).toBe(2);
+  });
+
+  test("une ligne qui change garde l'identité des autres", async () => {
+    let tour = 0;
+    const { magasin } = monte({
+      conversations: async () => {
+        tour += 1;
+        return {
+          conversations: [
+            conversation("w1:p1"),
+            { ...conversation("w1:p2"), status: tour > 1 ? "working" : "idle" },
+          ],
+        };
+      },
+    });
+    magasin.demarre();
+    await attend();
+    const [p1, p2] = magasin.etat().conversations ?? [];
+    await magasin.rafraichit(true);
+    const [p1Apres, p2Apres] = magasin.etat().conversations ?? [];
+    expect(p1Apres).toBe(p1);
+    expect(p2Apres).not.toBe(p2);
+    expect(p2Apres?.status).toBe("working");
+  });
+
+  test("un événement ne relit pas une santé récente ; le filet et le retour, si", async () => {
+    const { compteurs, emet, h, magasin } = monte();
+    magasin.demarre();
+    await attend();
+    expect(compteurs.health).toBe(1);
+    emet("session_changed", { paneId: "w1:p1" });
+    h.avance(200);
+    await attend();
+    expect(compteurs.conversations).toBe(2);
+    expect(compteurs.health).toBe(1);
+    // Le retour au premier plan relit tout.
+    await magasin.rafraichit(true);
+    expect(compteurs.health).toBe(2);
+  });
+});
