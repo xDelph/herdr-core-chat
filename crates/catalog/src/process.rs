@@ -115,12 +115,30 @@ pub fn execute(
     let Some(programme) = argv.first() else {
         return Err(ErreurProcess::Lancement(String::from("empty argv")));
     };
-    let mut enfant = Command::new(programme)
-        .args(&argv[1..])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|cause| ErreurProcess::Lancement(cause.to_string()))?;
+    // ⚠️ `ETXTBSY` (« Text file busy ») se relance, brièvement. Sous Linux,
+    // un exécutable encore ouvert en écriture QUELQUE PART refuse `exec` :
+    // un fichier tout juste écrit dont un fork concurrent (autre thread) tient
+    // encore le descripteur jusqu'à son propre `exec`, ou un binaire en cours
+    // de mise à jour. Rien n'a tourné : relancer est sûr. Vu en CI (tests
+    // parallèles qui écrivent puis lancent des scripts).
+    let mut tentative = 0_u64;
+    let mut enfant = loop {
+        match Command::new(programme)
+            .args(&argv[1..])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
+            Ok(enfant) => break enfant,
+            Err(cause)
+                if cause.kind() == std::io::ErrorKind::ExecutableFileBusy && tentative < 10 =>
+            {
+                tentative += 1;
+                std::thread::sleep(Duration::from_millis(10 * tentative));
+            }
+            Err(cause) => return Err(ErreurProcess::Lancement(cause.to_string())),
+        }
+    };
 
     // Le VEILLEUR : au délai OU à l'annulation, il tue CET enfant (et lui
     // seul) — l'enfant est ensuite ramassé (pas de zombie).
