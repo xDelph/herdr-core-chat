@@ -145,10 +145,26 @@ pub struct TacheDeFond {
     pub transcription: bool,
 }
 
+impl TacheDeFond {
+    /// Un sous-agent qui tourne : l'agent n'a pas fini son travail. Une
+    /// commande de fond, elle, ne le retient pas (voir [`CompteTaches`]).
+    #[must_use]
+    pub fn fait_travailler(&self) -> bool {
+        self.genre == GenreTache::Agent && self.statut == StatutTache::EnCours
+    }
+}
+
 /// Le décompte des tâches de fond d'une ligne de liste.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct CompteTaches {
     pub en_cours: u64,
+    /// Les seuls **sous-agents** en cours : eux font travailler l'agent.
+    ///
+    /// ⚠️ Retour du 2026-11-11 : une commande de fond (serveur de dev, `tail
+    /// -f`) peut tourner des heures après que l'agent a fini ; la compter
+    /// comme du travail laissait l'agent « Working » sans fin. Elle reste
+    /// dans `en_cours` (la puce des tâches), pas dans le travail.
+    pub agents_en_cours: u64,
     pub total: u64,
 }
 
@@ -159,6 +175,10 @@ impl CompteTaches {
             en_cours: taches
                 .iter()
                 .filter(|tache| tache.statut == StatutTache::EnCours)
+                .count() as u64,
+            agents_en_cours: taches
+                .iter()
+                .filter(|tache| tache.fait_travailler())
                 .count() as u64,
             total: taches.len() as u64,
         }
@@ -972,12 +992,17 @@ pub fn ouvre_un_tour(entree: &EntreeLu) -> bool {
         && !entree.en_cours_de_tour
 }
 
-/// Le lancement le plus ancien des tâches de fond qui tournaient à cet
-/// instant — `None` si aucune ne tournait. (Une tâche sans fin connue tourne
-/// encore ; une tâche « inconnue » est bornée par sa dernière activité.)
+/// Le lancement le plus ancien des **sous-agents** de fond qui tournaient à
+/// cet instant — `None` si aucun ne tournait. (Une tâche sans fin connue
+/// tourne encore ; une tâche « inconnue » est bornée par sa dernière activité.)
+///
+/// ⚠️ Les commandes de fond n'y entrent pas (retour du 2026-11-11) : un
+/// serveur lancé au tour d'avant tourne encore quand on envoie la demande
+/// suivante, et le chrono repartait de son lancement au lieu de zéro.
 fn tache_en_cours_a(taches: &[TacheDeFond], instant: u64) -> Option<u64> {
     taches
         .iter()
+        .filter(|tache| tache.genre == GenreTache::Agent)
         .filter_map(|tache| {
             let debut = tache.debut?;
             let fin = match tache.statut {
@@ -992,7 +1017,7 @@ fn tache_en_cours_a(taches: &[TacheDeFond], instant: u64) -> Option<u64> {
 /// L'instant où a commencé le travail en cours — absent s'il n'est pas daté
 /// (jamais l'heure courante).
 ///
-/// ⚠️ Une demande envoyée pendant qu'une tâche de fond tournait ne commence
+/// ⚠️ Une demande envoyée pendant qu'un sous-agent de fond tournait ne commence
 /// pas un nouveau travail : l'agent n'avait pas fini. Le début recule alors
 /// au moins jusqu'au lancement de cette tâche, et continue vers une demande
 /// antérieure faite sans tâche en cours. Si la fenêtre lue n'en contient pas,

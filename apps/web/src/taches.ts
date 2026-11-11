@@ -113,11 +113,19 @@ export const statutDuHarnais = (status: string | null): BackgroundTaskStatus | n
 export const nombreDeTaches = (nombre: number): string =>
   `${String(nombre)} background ${nombre > 1 ? "tasks" : "task"}`;
 
-/** Le libellé d'une ligne de liste qui attend ses tâches, ou `null`. */
-export const attenteDeTaches = (compte: { readonly enCours: number } | undefined): string | null =>
-  compte === undefined || compte.enCours <= 0
+/**
+ * Le libellé d'une ligne de liste qui attend ses **sous-agents**, ou `null`.
+ *
+ * ⚠️ Retour du 2026-11-11 : seuls les sous-agents font travailler l'agent.
+ * Une commande de fond (serveur de dev) tourne bien après la fin du travail ;
+ * elle reste visible dans la puce des tâches, mais l'agent a fini (`done`).
+ */
+export const attenteDeTaches = (
+  compte: { readonly agentsEnCours: number } | undefined,
+): string | null =>
+  compte === undefined || compte.agentsEnCours <= 0
     ? null
-    : `Waiting on ${nombreDeTaches(compte.enCours)}`;
+    : `Waiting on ${String(compte.agentsEnCours)} ${compte.agentsEnCours > 1 ? "subagents" : "subagent"}`;
 
 /**
  * Le résumé d'une tâche, s'il dit quelque chose de plus que son titre :

@@ -113,6 +113,7 @@ fn ligne_conversation(ligne: &LigneConversation) -> ConversationSummary {
         taches_de_fond: Field::de_option(ligne.taches_de_fond.map(|compte| {
             contracts::http::taches::BackgroundTaskCount {
                 en_cours: compte.en_cours,
+                agents_en_cours: compte.agents_en_cours,
                 total: compte.total,
             }
         })),

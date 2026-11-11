@@ -284,27 +284,41 @@ const conversation = (
 });
 
 describe("la liste suit les tâches de fond et la session", () => {
-  test("au repos avec des tâches en cours : « En cours », jamais pour `inconnu`", () => {
-    const attend = conversation("p1", { tachesDeFond: { enCours: 2, total: 3 } });
-    const finies = conversation("p2", { tachesDeFond: { enCours: 0, total: 3 } });
+  test("au repos avec des sous-agents en cours : « En cours », jamais pour `inconnu`", () => {
+    const attend = conversation("p1", { tachesDeFond: { agentsEnCours: 2, enCours: 2, total: 3 } });
+    const finies = conversation("p2", { tachesDeFond: { agentsEnCours: 0, enCours: 0, total: 3 } });
     const bloque = conversation("p3", {
       status: "blocked",
-      tachesDeFond: { enCours: 1, total: 1 },
+      tachesDeFond: { agentsEnCours: 1, enCours: 1, total: 1 },
     });
     expect(sectionDe(attend)).toBe("en-cours");
     expect(sectionDe(finies)).toBe("idle");
     expect(sectionDe(bloque)).toBe("a-traiter");
     const groupes = sectionConversations([attend, finies, bloque]);
     expect(groupes.map((groupe) => groupe.cle)).toEqual(["a-traiter", "en-cours", "idle"]);
-    expect(attenteDeTaches(attend.tachesDeFond)).toBe("Waiting on 2 background tasks");
+    expect(attenteDeTaches(attend.tachesDeFond)).toBe("Waiting on 2 subagents");
     expect(attenteDeTaches(finies.tachesDeFond)).toBeNull();
     expect(nombreDeTaches(1)).toBe("1 background task");
+  });
+
+  test("une commande de fond ne retient pas l'agent : il a fini", () => {
+    // Retour du 2026-11-11 : un serveur de dev lancé en fond laissait l'agent
+    // « Working » sans fin.
+    const serveur = conversation("p1", {
+      status: "done",
+      tachesDeFond: { agentsEnCours: 0, enCours: 1, total: 1 },
+      timestamp: 5,
+    });
+    expect(sectionDe(serveur)).toBe("done");
+    expect(attenteDeTaches(serveur.tachesDeFond)).toBeNull();
   });
 
   test("la ligne affiche l'attente, et le chronomètre part de la session", () => {
     const attend = rendu(
       createElement(LigneAgent, {
-        conversation: conversation("p1", { tachesDeFond: { enCours: 2, total: 2 } }),
+        conversation: conversation("p1", {
+          tachesDeFond: { agentsEnCours: 2, enCours: 2, total: 2 },
+        }),
         courante: false,
         debutTravail: undefined,
         maintenant: 0,
@@ -313,7 +327,7 @@ describe("la liste suit les tâches de fond et la session", () => {
         titre: "",
       }),
     );
-    expect(attend).toContain("Waiting on 2 background tasks");
+    expect(attend).toContain("Waiting on 2 subagents");
     const travaille = rendu(
       createElement(LigneAgent, {
         conversation: conversation("p1", { status: "working", tourDebut: 1_000 }),
@@ -335,7 +349,7 @@ describe("la liste suit les tâches de fond et la session", () => {
     );
     const html = rendu(
       createElement(PuceTaches, {
-        compte: { enCours: 2, total: 5 },
+        compte: { agentsEnCours: 0, enCours: 2, total: 5 },
         onOuvrir: () => undefined,
       }),
     );

@@ -72,6 +72,9 @@ pub struct BackgroundTasksResponse {
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BackgroundTaskCount {
+    /// Toutes les tâches qui tournent (sous-agents et commandes).
     pub en_cours: u64,
+    /// Les sous-agents qui tournent — seuls à faire travailler l'agent.
+    pub agents_en_cours: u64,
     pub total: u64,
 }

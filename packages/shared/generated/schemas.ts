@@ -124,6 +124,7 @@ export type BackgroundTask = typeof BackgroundTask.Type;
 
 /** Le décompte porté par une ligne de liste (`ConversationSummary`). */
 export const BackgroundTaskCount = Schema.Struct({
+  "agentsEnCours": Schema.Number,
   "enCours": Schema.Number,
   "total": Schema.Number,
 });
@@ -231,6 +232,7 @@ export const ConversationSummary = Schema.Struct({
   "tabId": Schema.String,
   "tabPaneCount": Schema.Number,
   "tachesDeFond": Schema.optional(Schema.Struct({
+  "agentsEnCours": Schema.Number,
   "enCours": Schema.Number,
   "total": Schema.Number,
 })),
@@ -296,6 +298,7 @@ export const ConversationsResponse = Schema.Struct({
   "tabId": Schema.String,
   "tabPaneCount": Schema.Number,
   "tachesDeFond": Schema.optional(Schema.Struct({
+  "agentsEnCours": Schema.Number,
   "enCours": Schema.Number,
   "total": Schema.Number,
 })),

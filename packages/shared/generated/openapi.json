@@ -642,7 +642,14 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Le décompte porté par une ligne de liste (`ConversationSummary`).",
         "properties": {
+          "agentsEnCours": {
+            "description": "Les sous-agents qui tournent — seuls à faire travailler l'agent.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "enCours": {
+            "description": "Toutes les tâches qui tournent (sous-agents et commandes).",
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
@@ -655,6 +662,7 @@
         },
         "required": [
           "enCours",
+          "agentsEnCours",
           "total"
         ],
         "title": "BackgroundTaskCount",
@@ -1135,7 +1143,14 @@
           "tachesDeFond": {
             "description": "Les tâches de fond de l'agent — présent seulement pour une famille\nqui les expose (Claude) ; absent = capacité absente.",
             "properties": {
+              "agentsEnCours": {
+                "description": "Les sous-agents qui tournent — seuls à faire travailler l'agent.",
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
               "enCours": {
+                "description": "Toutes les tâches qui tournent (sous-agents et commandes).",
                 "format": "uint64",
                 "minimum": 0,
                 "type": "integer"
@@ -1148,6 +1163,7 @@
             },
             "required": [
               "enCours",
+              "agentsEnCours",
               "total"
             ],
             "type": "object"
@@ -1482,7 +1498,14 @@
                 "tachesDeFond": {
                   "description": "Les tâches de fond de l'agent — présent seulement pour une famille\nqui les expose (Claude) ; absent = capacité absente.",
                   "properties": {
+                    "agentsEnCours": {
+                      "description": "Les sous-agents qui tournent — seuls à faire travailler l'agent.",
+                      "format": "uint64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
                     "enCours": {
+                      "description": "Toutes les tâches qui tournent (sous-agents et commandes).",
                       "format": "uint64",
                       "minimum": 0,
                       "type": "integer"
@@ -1495,6 +1518,7 @@
                   },
                   "required": [
                     "enCours",
+                    "agentsEnCours",
                     "total"
                   ],
                   "type": "object"

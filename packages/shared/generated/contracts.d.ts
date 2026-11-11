@@ -490,6 +490,13 @@ export interface BackgroundTask {
  * Le décompte porté par une ligne de liste (`ConversationSummary`).
  */
 export interface BackgroundTaskCount {
+  /**
+   * Les sous-agents qui tournent — seuls à faire travailler l'agent.
+   */
+  agentsEnCours: number;
+  /**
+   * Toutes les tâches qui tournent (sous-agents et commandes).
+   */
   enCours: number;
   total: number;
 }
@@ -762,6 +769,13 @@ export interface ConversationSummary {
    * qui les expose (Claude) ; absent = capacité absente.
    */
   tachesDeFond?: {
+    /**
+     * Les sous-agents qui tournent — seuls à faire travailler l'agent.
+     */
+    agentsEnCours: number;
+    /**
+     * Toutes les tâches qui tournent (sous-agents et commandes).
+     */
     enCours: number;
     total: number;
   };
@@ -968,6 +982,13 @@ export interface ConversationsResponse {
      * qui les expose (Claude) ; absent = capacité absente.
      */
     tachesDeFond?: {
+      /**
+       * Les sous-agents qui tournent — seuls à faire travailler l'agent.
+       */
+      agentsEnCours: number;
+      /**
+       * Toutes les tâches qui tournent (sous-agents et commandes).
+       */
       enCours: number;
       total: number;
     };

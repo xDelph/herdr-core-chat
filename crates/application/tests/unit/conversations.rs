@@ -796,6 +796,10 @@ fn les_taches_de_fond_sont_comptees_sur_la_ligne() {
             tache("a2", StatutTache::EnCours),
             tache("a3", StatutTache::Inconnu),
             tache("a4", StatutTache::Terminee),
+            TacheDeFond {
+                genre: GenreTache::Commande,
+                ..tache("c1", StatutTache::EnCours)
+            },
         ]));
     let lignes = service(faux).lignes(
         &HerdrFaux::nouveau(),
@@ -805,8 +809,10 @@ fn les_taches_de_fond_sont_comptees_sur_la_ligne() {
     assert_eq!(
         lignes[0].taches_de_fond,
         Some(CompteTaches {
-            en_cours: 2,
-            total: 4
+            en_cours: 3,
+            // La commande tourne, mais seuls les sous-agents font travailler.
+            agents_en_cours: 2,
+            total: 5
         })
     );
     // Capacité absente : pas de décompte inventé.
@@ -952,6 +958,45 @@ fn une_demande_pendant_une_tache_de_fond_continue_le_meme_travail() {
         .avec_taches(Ok(vec![finie]));
     let lignes = service(faux).lignes(&HerdrFaux::nouveau(), &agents);
     assert_eq!(lignes[0].tour_debut, Some(5_000));
+}
+
+#[test]
+fn une_commande_de_fond_ne_retient_pas_le_tour() {
+    // Retour du 2026-11-11 : un serveur lancé en fond au tour d'avant tourne
+    // encore ; la demande suivante ouvre un NOUVEAU tour, chrono à zéro.
+    let serveur = TacheDeFond {
+        genre: GenreTache::Commande,
+        debut: Some(1_200),
+        fin: None,
+        ..tache("s1", StatutTache::EnCours)
+    };
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture(
+            "p1",
+            Ok(vec![
+                entree_datee(RoleDeSession::User, "lance le serveur", 1_000, false),
+                entree_datee(RoleDeSession::Assistant, "serveur lancé", 1_300, false),
+                entree_datee(RoleDeSession::User, "ajoute un test", 5_000, false),
+            ]),
+        )
+        .avec_taches(Ok(vec![serveur]));
+    let lignes = service(faux).lignes(
+        &HerdrFaux::nouveau(),
+        &borne(vec![agent(
+            "p1",
+            Some("claude"),
+            AgentStatus::Working,
+            None,
+        )]),
+    );
+    assert_eq!(lignes[0].tour_debut, Some(5_000));
+    assert_eq!(
+        lignes[0]
+            .taches_de_fond
+            .map(|compte| compte.agents_en_cours),
+        Some(0)
+    );
 }
 
 fn lectures_d_ecran(port: &HerdrFaux) -> usize {
