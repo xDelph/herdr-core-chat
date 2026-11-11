@@ -1072,9 +1072,13 @@ fn un_fichier_remplace_reconstruit_l_index() {
     };
     let _ = lis();
     // Un autre fichier au même chemin (autre inode), plus long.
-    let _ = std::fs::remove_file(&chemin);
+    // ⚠️ Écrit À CÔTÉ puis renommé par-dessus (rotation atomique) : les deux
+    // fichiers coexistent, leurs inodes diffèrent donc à coup sûr. Supprimer
+    // puis recréer laissait Linux (ext4, tmpfs) redonner le MÊME inode — le
+    // test supposait « autre inode » sans le garantir, et tombait en CI.
+    let remplacant = dossier.join("session.jsonl.neuf");
     std::fs::write(
-        &chemin,
+        &remplacant,
         format!(
             "{}\n{}\n{}\n",
             ligne("neuve"),
@@ -1083,6 +1087,7 @@ fn un_fichier_remplace_reconstruit_l_index() {
         ),
     )
     .unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    std::fs::rename(&remplacant, &chemin).unwrap_or_else(|cause| panic!("rotation : {cause}"));
     let lu = lis();
     assert!(!lu.iter().any(|e| e.texte.as_deref() == Some("ancienne")));
     memes_faits(&lu, &resume_frais(&dossier, &chemin));
