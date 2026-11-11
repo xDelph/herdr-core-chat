@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>herdr-core-chat — audit du 2026-11-08 et feuille de route</title>
+<style>
+:root{
+  --ground:#f1f2f4;--surface:#fff;--surface-2:#f7f8f9;--ink:#14161b;--ink-2:#464c58;--ink-3:#636a77;--line:#e1e3e8;
+  --attn:#a84e07;--attn-fill:#fff3e3;--attn-line:#f2c88e;--work:#1d4ed8;--work-fill:#ecf1ff;--ok:#157a3a;--ok-fill:#e8f6ec;
+  --err:#b42318;--err-fill:#fdecea;--primary:#14161b;--on-primary:#fff;
+  --b-claude:#c2603a;--b-codex:#2b2f36;--b-pi:#5a4fcf;--b-oc:#3a3a3a;
+  --font-ui:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --ground:#0c0e12;--surface:#15181e;--surface-2:#1b1f27;--ink:#e8eaee;--ink-2:#b4bac5;--ink-3:#8e95a2;--line:#262b35;
+  --attn:#f4a63a;--attn-fill:#2a1e0b;--attn-line:#5a4015;--work:#82aaff;--work-fill:#14213d;--ok:#5bd38a;--ok-fill:#0f281a;
+  --err:#ff8a80;--err-fill:#301513;--primary:#e8eaee;--on-primary:#0c0e12;--b-codex:#4a505c;--b-oc:#4a505c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.5 var(--font-ui);-webkit-font-smoothing:antialiased}
+main{max-width:1180px;margin:0 auto;padding:40px 24px 96px}
+h1{font-size:30px;line-height:1.15;margin:0 0 6px;letter-spacing:-.01em}
+h2{font-size:22px;margin:56px 0 6px;padding-top:16px;border-top:1px solid var(--line)}
+h3{font-size:16px;margin:28px 0 8px}
+p{margin:8px 0;max-width:78ch}
+.lead{color:var(--ink-2);font-size:16px}
+.meta{color:var(--ink-3);font-size:13px}
+code,.mono{font-family:var(--font-mono);font-size:12.5px}
+code{background:var(--surface-2);border:1px solid var(--line);padding:0 4px;border-radius:4px}
+a{color:var(--work)}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 0}
+nav.toc a{text-decoration:none;color:var(--ink-2);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:24px 0}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.kpi b{display:block;font-size:26px;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi span{color:var(--ink-3);font-size:13px}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13.5px;margin:10px 0}
+th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{background:var(--surface-2);font-weight:600;color:var(--ink-2);font-size:12.5px}
+tr:last-child td{border-bottom:none}
+td.id{white-space:nowrap;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)}
+.sev{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.s-crit{background:var(--err-fill);color:var(--err)}
+.s-high{background:var(--attn-fill);color:var(--attn)}
+.s-med{background:var(--work-fill);color:var(--work)}
+.s-low{background:var(--surface-2);color:var(--ink-3);border:1px solid var(--line)}
+.v{font-size:11px;color:var(--ink-3);white-space:nowrap}
+.v.ok{color:var(--ok);font-weight:600}
+.callout{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--attn);border-radius:8px;padding:12px 16px;margin:14px 0;max-width:90ch}
+.callout.info{border-left-color:var(--work)}
+.phase{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.phase h3{margin:0 0 6px}
+.phase ul{margin:6px 0 0;padding-left:18px}
+.phase li{margin:3px 0}
+
+/* ---------- maquettes ---------- */
+.gallery{display:flex;flex-wrap:wrap;gap:36px;margin:24px 0}
+figure{margin:0;width:390px}
+figcaption{font-size:13px;color:var(--ink-2);margin-top:12px;line-height:1.45}
+figcaption b{color:var(--ink)}
+.phone{width:390px;height:844px;border-radius:46px;border:10px solid #0b0c0f;background:var(--ground);position:relative;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.18);display:flex;flex-direction:column;font-size:15px}
+.sb{height:44px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font-size:14px;font-weight:600}
+.island{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:110px;height:30px;border-radius:20px;background:#0b0c0f}
+.hdr{flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px 10px;border-bottom:1px solid var(--line);background:var(--ground)}
+.hdr .t{flex:1;min-width:0}
+.hdr .t b{display:block;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr .t span{display:block;font-size:12.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.back{font-size:22px;color:var(--ink-2);width:28px}
+.scroll{flex:1;overflow:hidden;padding:12px 14px}
+.sec{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:14px 4px 8px;display:flex;justify-content:space-between}
+.sec .c{color:var(--attn)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.card.attn{border-color:var(--attn-line);background:linear-gradient(var(--attn-fill),var(--attn-fill)) top/100% 3px no-repeat,var(--surface)}
+.card.err{border-color:color-mix(in srgb,var(--err) 35%,var(--line))}
+.idrow{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-3)}
+.idrow .p{color:var(--ink-2);font-weight:600}
+.logo{width:22px;height:22px;border-radius:6px;color:#fff;font:700 12px/22px var(--font-ui);text-align:center;flex:none}
+.l-c{background:var(--b-claude)}.l-x{background:var(--b-codex)}.l-pi{background:var(--b-pi)}.l-oc{background:var(--b-oc)}
+.q{font-size:16.5px;font-weight:600;margin:8px 0 2px;line-height:1.35}
+.ctx{font-size:13px;color:var(--ink-3)}
+.cmd{font-family:var(--font-mono);font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin:8px 0;white-space:pre-wrap;color:var(--ink-2)}
+.choice{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 12px;margin-top:7px;min-height:48px}
+.choice b{display:block;font-weight:600;font-size:14.5px}
+.choice small{display:block;color:var(--ink-3);font-size:12.5px;line-height:1.35}
+.choice.risk{border-style:dashed;border-color:var(--attn-line)}
+.choice.arm{border:2px solid var(--attn);background:var(--attn-fill)}
+.choice.arm b{color:var(--attn)}
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:13px}
+.lnk{color:var(--ink);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px}
+.pill.work{background:var(--work-fill);color:var(--work)}
+.pill.attn{background:var(--attn-fill);color:var(--attn)}
+.pill.ok{background:var(--ok-fill);color:var(--ok)}
+.pill.err{background:var(--err-fill);color:var(--err)}
+.pill.mute{background:var(--surface-2);color:var(--ink-3);border:1px solid var(--line)}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.row{display:flex;gap:10px;align-items:flex-start;padding:11px 4px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:none}
+.row .m{flex:1;min-width:0}
+.row .m b{font-size:15px;display:block}
+.row .m .s{font-size:13px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .m .s.live{color:var(--work)}
+.prog{height:4px;border-radius:2px;background:var(--line);margin-top:6px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--work)}
+.subs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.sub{font-size:11.5px;border:1px solid var(--line);border-radius:6px;padding:1px 6px;color:var(--ink-2);background:var(--surface-2)}
+.sub .dot{width:6px;height:6px;margin-right:4px;vertical-align:1px}
+.sub.w .dot{background:var(--work)}.sub.d .dot{background:var(--ok)}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border-radius:10px;font-weight:600;border:1px solid var(--line);background:var(--surface);font-size:14.5px}
+.btn.pri{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
+.btn.full{width:100%}
+.btn.ghost{background:transparent}
+.comp{flex:none;border-top:1px solid var(--line);background:var(--surface);padding:10px 12px 26px}
+.chips{display:flex;gap:8px;margin-bottom:8px;overflow:hidden}
+.chip{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:5px 8px 5px 5px;background:var(--surface-2);font-size:12px;min-width:0}
+.thumb{width:34px;height:34px;border-radius:6px;flex:none;background:linear-gradient(135deg,#9fb4d8,#e9d6c3)}
+.chip .n{display:block;font-weight:600;color:var(--ink)}
+.chip .z{color:var(--ink-3)}
+.chip.up .z{color:var(--work)}
+.chip.bad{border-color:var(--err);background:var(--err-fill)}
+.chip.bad .z{color:var(--err)}
+.field{display:flex;gap:8px;align-items:flex-end}
+.clip{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;font-size:20px;flex:none}
+.ta{flex:1;min-height:44px;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:16px;color:var(--ink-3);background:var(--surface)}
+.send{width:44px;height:44px;border-radius:12px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font-weight:700;flex:none;opacity:.35}
+.why{font-size:12px;color:var(--ink-3);margin-top:6px}
+.bub{max-width:82%;margin:8px 0 8px auto;background:var(--surface);border:1px solid var(--line);border-radius:14px 14px 4px 14px;padding:9px 12px;font-size:14.5px}
+.agent{margin:10px 0;font-size:14.5px;color:var(--ink)}
+.tool{font-size:13px;color:var(--ink-3);margin:6px 0;display:flex;gap:6px;align-items:center}
+.result{border:1px solid var(--ok);background:var(--ok-fill);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.result h4{margin:0;font-size:14px;color:var(--ok);display:flex;justify-content:space-between}
+.result p{font-size:14px;margin:6px 0;color:var(--ink)}
+.files{font-family:var(--font-mono);font-size:12px;color:var(--ink-2)}
+.files span{color:var(--ok)} .files em{color:var(--err);font-style:normal}
+.newsince{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--work);font-weight:600;margin:12px 0}
+.newsince:before,.newsince:after{content:"";flex:1;height:1px;background:var(--work);opacity:.4}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:18px 18px 0 0;box-shadow:0 -12px 32px rgba(0,0,0,.18);padding:8px 16px 30px}
+.grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
+.sheet h5{font-size:17px;margin:4px 0 12px;display:flex;justify-content:space-between;align-items:center}
+.scrim{position:absolute;inset:0;background:rgba(20,22,27,.38)}
+.steps{list-style:none;padding:0;margin:0}
+.steps li{display:flex;gap:12px;align-items:flex-start;padding:8px 0;position:relative}
+.steps li:not(:last-child):after{content:"";position:absolute;left:10px;top:30px;bottom:-8px;width:2px;background:var(--line)}
+.ic{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;border:2px solid var(--line);background:var(--surface);z-index:1}
+.ic.done{background:var(--ok);border-color:var(--ok);color:#fff}
+.ic.run{border-color:var(--work);border-top-color:transparent}
+.ic.fail{background:var(--err);border-color:var(--err);color:#fff}
+.ic.unk{background:var(--attn);border-color:var(--attn);color:#fff}
+.steps .l{flex:1}
+.steps .l b{font-size:14.5px;display:block}
+.steps .l small{color:var(--ink-3);font-size:12.5px}
+.steps .d{font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.banner{border-radius:10px;padding:10px 12px;font-size:13.5px;margin:12px 0}
+.banner.attn{background:var(--attn-fill);color:var(--attn);border:1px solid var(--attn-line)}
+.hl{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}
+.hl:last-of-type{border-bottom:none}
+.hl .st{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none}
+.st.g{background:var(--ok)}.st.o{background:var(--attn)}.st.r{background:var(--err)}
+.hl .m{flex:1}.hl .m b{display:block;font-size:14.5px}.hl .m small{display:block;color:var(--ink-3);font-size:12.5px}
+.hl .a{font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.ob{display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.ob .m{flex:1;min-width:0}
+.ob .x{font-size:14px;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ob .acts{display:flex;gap:8px;margin-top:8px}
+.ob .acts .btn{min-height:40px;padding:0 12px;font-size:13.5px}
+.term{background:#0d1014;color:#d6dae1;font:12px/1.45 var(--font-mono);border-radius:12px;padding:10px 12px;height:100%;overflow:hidden;white-space:pre}
+.term .g{color:#5bd38a}.term .y{color:#f4a63a}.term .b{color:#82aaff}.term .dim{color:#6b7280}
+.keys{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.key{min-width:44px;height:40px;border:1px solid var(--line);border-radius:8px;display:grid;place-items:center;font-size:13px;font-weight:600;background:var(--surface);padding:0 10px}
+.legend{font-size:12.5px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <p class="meta">herdr-core-chat · branche <code>develop</code> @ <code>f4bd02c</code> · herdr-core 0.1.19 / herdr-app 0.1.13 · 2026-11-08</p>
+  <h1>Audit backend, front et API herdr-core, puis feuille de route</h1>
+  <p class="lead">L'analyse a été faite en lecture seule par trois auditeurs (backend Rust, PWA, écarts avec l'API herdr-core). Chacun a lu le code et relancé les portes qualité. Les constats les plus graves ont ensuite été relus une seconde fois dans le code avant d'entrer dans ce document.</p>
+  <nav class="toc">
+    <a href="#synthese">Synthèse</a><a href="#roadmap">Feuille de route</a><a href="#securite">Actions sur le mauvais agent</a>
+    <a href="#backend">Backend</a><a href="#front">Front</a><a href="#erreurs">Erreurs</a><a href="#arbres">Arbres de décision</a>
+    <a href="#perf">Performance</a><a href="#api">API herdr-core</a><a href="#maquettes">Maquettes</a><a href="#docs">Docs à corriger</a>
+  </nav>
+</header>
+
+<section id="synthese">
+<h2>Synthèse</h2>
+<div class="kpis">
+  <div class="kpi"><b>991 / 0</b><span>tests Rust réussis / en échec · clippy propre</span></div>
+  <div class="kpi"><b>752 / 0</b><span>tests web réussis / en échec · typecheck et lint propres</span></div>
+  <div class="kpi"><b>7</b><span>chemins où une action peut viser la mauvaise cible, ou partir en double</span></div>
+  <div class="kpi"><b>2 s</b><span>intervalle d'interrogation du core : <code>events.subscribe</code> n'est pas utilisé</span></div>
+  <div class="kpi"><b>~12 / 32</b><span>méthodes RPC utilisées sur 32 · beaucoup de champs reçus puis ignorés</span></div>
+</div>
+<p><b>La base est saine et bien écrite.</b> Les invariants sont documentés là où ils servent, les portes qualité sont vertes, et l'isolation par pane, les époques du suivi de session, les curseurs, le confinement <code>cap-std</code> et la file de 900 ms tiennent. Les défauts trouvés se concentrent sur trois axes :</p>
+<ol>
+  <li><b>Les actions interactives ne vérifient pas que leur cible est encore celle que l'utilisateur a vue.</b> C'est le cas d'une réponse à une question, d'un prompt envoyé pendant une question, et d'un changement de modèle. Côté front, un résultat inconnu est présenté comme un échec, ce qui pousse à refaire l'action en double.</li>
+  <li><b>La vérité se dégrade entre herdr-core et l'écran.</b>
+    <ul>
+      <li>Le champ <code>turn</code> est lu puis jeté, si bien que des fins de tour sont perdues.</li>
+      <li>Le <code>data.kind</code> se fond dans des 502 génériques, et <code>hint</code>/<code>cause</code> ne sont jamais lus par le web.</li>
+      <li>Le statut <code>error</code> est affiché comme « waiting for input ».</li>
+      <li><code>exit_code</code> et <code>reason</code> sont ignorés.</li>
+    </ul></li>
+  <li><b>Une grande partie de l'API reste inexploitée.</b> <code>events.subscribe</code>, <code>records</code> (les sous-agents Claude en direct, vérifié sur ta machine), <code>status.msg</code>/<code>kind</code>/<code>progress</code>, <code>terminal.put</code> (photos depuis le téléphone), <code>terminal.get</code>/<code>wait</code>, le label <code>where</code> et <code>herdr.pinned</code> n'apportent encore rien à l'app.</li>
+</ol>
+<div class="callout info"><b>Légende des preuves.</b> <span class="v ok">relu</span> = relu une seconde fois dans le code pendant la synthèse · <span class="v">vérifié</span> = code lu et chemin tracé par un auditeur · <span class="v">plausible</span> = effet déduit, sans exécution. Les chemins sont relatifs à la racine du dépôt.</div>
+</section>
+
+<section id="roadmap">
+<h2>Feuille de route proposée</h2>
+<div class="phase"><h3>Lot 0 — Corrections rapides (moins d'une heure chacune, sans risque)</h3>
+<ul>
+  <li><b>Cache des assets</b> : <code>crates/http-api/src/assets.rs:58</code> découpe sur le dernier <code>-</code>, donc <code>index-Dz3mv-FR.js</code> n'est pas reconnu comme immuable. Prendre les 8 caractères avant l'extension et vérifier le <code>-</code> qui les précède. <span class="v ok">relu</span></li>
+  <li><b>Flux SSE</b> : <code>handlers/events.rs:93</code> doit prendre <code>frontiere = rattrapage.reprendre_de</code> et non <code>journal.dernier_id()</code>, relu après l'abonnement. <span class="v ok">relu</span></li>
+  <li><b>Résolution codex</b> : refuser l'ambiguïté (<code>LIMIT 2</code>, comme opencode) au lieu de <code>order by updated_at desc limit 1</code> (<code>sessions/src/resolver.rs:402</code>).</li>
+  <li><b>Front, petites corrections</b> :
+    <ul>
+      <li>la saisie libre est effacée avant le résultat (<code>chat/Question.tsx:124</code>) ;</li>
+      <li>le projet de la feuille de lancement reste figé à vide (<code>feuilles/Lancement.tsx:93</code>) ;</li>
+      <li><code>try</code> manquant dans <code>presence.ts:51</code> ;</li>
+      <li><code>stats.html</code> est servi publiquement : le sortir de <code>dist</code> ;</li>
+      <li>ajouter le build à <code>verify</code> (F04, toujours ouvert).</li>
+    </ul></li>
+  <li><b>Cibles tactiles de 44 px</b> : Cancel, Retry, Edit et Dismiss des envois ne font que 22 px (<code>conversation.css:290</code>).</li>
+  <li><b>Afficher <code>status.msg</code></b> en sous-titre des lignes « working ». La donnée est déjà dans <code>terminal.list</code>.</li>
+</ul></div>
+<div class="phase"><h3>Lot 1 — Ne jamais agir sur la mauvaise cible (prioritaire)</h3>
+<ul>
+  <li>Une empreinte de question et d'invite sur chaque action interactive (réponse, confiance, modèle), avec un refus 409 si l'écran a changé.</li>
+  <li>Un prompt reçu sur <code>blocked/question</code> est refusé, ou dirigé vers « Type something » ; il ne doit plus partir en <code>force</code> + Entrée.</li>
+  <li>Le changement de modèle n'est accepté que sur <code>idle</code> ou <code>done</code>, d'après une observation fraîche.</li>
+  <li>Un envoi à un agent <code>working</code> s'affiche « queued » et non « confirmed ».</li>
+  <li>Côté front :
+    <ul>
+      <li>« Launch outcome unknown » au lieu de « Launch failed » ;</li>
+      <li>un 5xx sur une réponse ou un changement de modèle devient « sent, unconfirmed » et non « rejected » ;</li>
+      <li>confirmation en deux temps pour les choix à conséquence dans la boîte de réception ;</li>
+      <li>clé <code>Idempotency-Key</code> sur tous les POST.</li>
+    </ul></li>
+</ul></div>
+<div class="phase"><h3>Lot 2 — Rendre fidèlement ce que dit herdr-core</h3>
+<ul>
+  <li>Faire de <code>turn</code> une donnée de premier rang : dans <code>AgentView</code>, dans la signature de la veille, pour la déduplication des push et pour la confirmation d'envoi.</li>
+  <li>Traduire chaque <code>data.kind</code> en nature de domaine, puis en statut HTTP et <code>code</code> stable dans <code>ApiErrorResponse</code>. Le front mappe par code et non plus par regex.</li>
+  <li><code>error</code>, <code>finished</code>, <code>exit_code</code>, <code>reason</code> et <code>blocked.kind</code> entrent dans le contrat, avec des cartes dédiées (voir les maquettes).</li>
+  <li>Gardes RAII sur le cache de snapshot, la santé et l'admission (un panic ne doit plus bloquer le démon), plus un délai global.</li>
+  <li>Exposer l'état de la veille dans <code>/health</code> ; ajouter un battement SSE nommé et la reconnexion du flux global.</li>
+  <li>Arrêt : accepter aussi <code>blocked</code>, <code>error</code> et <code>unknown</code>, et exposer <code>outcome</code>.</li>
+</ul></div>
+<div class="phase"><h3>Lot 3 — Performance</h3>
+<ul>
+  <li>Côté backend :
+    <ul>
+      <li>écran mis en cache par <code>(pane, turn, status_ms)</code> ;</li>
+      <li>permis de lecture globaux ;</li>
+      <li>cache de résolution de session ;</li>
+      <li>index incrémental par session, pour éviter les remontées de 2 à 32 Mio sur le chemin des requêtes.</li>
+    </ul></li>
+  <li>Côté front :
+    <ul>
+      <li>afficher l'overview (3,5 ms) avant <code>/api/conversations</code> (5 à 6 s à froid) ;</li>
+      <li>ne pas refaire le <code>JSON.parse</code> de la file d'attente à chaque delta ;</li>
+      <li>sélecteurs mémoïsés ;</li>
+      <li>fenêtre glissante sur le fil.</li>
+    </ul></li>
+</ul></div>
+<div class="phase"><h3>Lot 4 — Nouvelles capacités issues de l'API (à prouver d'abord sur un core isolé)</h3>
+<ul>
+  <li><code>events.subscribe</code> à la place de l'interrogation toutes les 2 s.</li>
+  <li>Sous-agents en direct grâce à <code>records</code>.</li>
+  <li>Pièces jointes et photos grâce à <code>terminal.put</code>.</li>
+  <li>Fin d'agent expliquée.</li>
+  <li>Épingles partagées.</li>
+  <li>Boîte d'envoi et centre de santé.</li>
+  <li>Plus tard : vue terminal en direct (<code>terminal.attach {observe:true}</code>) et machines distantes.</li>
+</ul></div>
+</section>
+
+<section id="securite">
+<h2>Les 7 chemins vers une action sur la mauvaise cible, ou en double</h2>
+<table>
+<tr><th>#</th><th>Gravité</th><th>Constat</th><th>Scénario</th><th>Correction</th></tr>
+<tr><td class="id">B1.1</td><td><span class="sev s-crit">critique</span><br><span class="v ok">relu</span></td><td>Une réponse à une question ne porte que <code>{numero, texte?}</code> (<code>handlers/reponse.rs:24</code>). Le numéro est validé contre la question <i>actuelle</i> (<code>interactions/src/repondre.rs:80</code>).</td><td>Le téléphone affiche « <code>ls</code> ? 1. Yes ». Claude passe entre-temps à « <code>rm -rf build</code> ? 1. Yes ». L'utilisateur approuve sans l'avoir lue.</td><td>Le client renvoie l'empreinte (texte + libellés) de la question affichée ; le serveur la compare sous l'admission du pane et répond 409 si elle diffère.</td></tr>
+<tr><td class="id">B1.2</td><td><span class="sev s-crit">critique</span><br><span class="v ok">relu</span></td><td>Un prompt envoyé à un agent <code>blocked</code> passe en mode saisie (<code>handlers/prompt.rs:63</code>), puis <code>send_text</code> met <code>force=true</code> sur <code>kind=question</code> (<code>herdr-core-client/src/port.rs:972</code>). Or <code>terminal.send</code> colle <b>puis</b> appuie sur Entrée.</td><td>Pendant un AskUserQuestion, « attends, plutôt X » est collé dans le sélecteur, puis Entrée valide l'option surlignée.</td><td>Refuser avec 409 « Answer the question first », ou diriger vers l'option de saisie libre. Réserver <code>force</code> au chemin de réponse.</td></tr>
+<tr><td class="id">B1.3</td><td><span class="sev s-high">haute</span></td><td>Le changement de modèle tape <code>/model</code> + Entrée sans regarder l'état de l'agent (<code>handlers/reglage.rs:36</code>, <code>interactions/src/reglage.rs:96</code>).</td><td>Sur une question, la commande valide un choix ; sur <code>working</code>, l'effet n'est pas vérifié.</td><td>Exiger <code>idle</code> ou <code>done</code> sur une observation fraîche ; côté front, la feuille Modèle observe le statut (F1.16).</td></tr>
+<tr><td class="id">F1.1</td><td><span class="sev s-high">haute</span></td><td>Un lancement resté sans réponse (180 s ou coupure) affiche « Launch failed » et réactive le bouton (<code>feuilles/Lancement.tsx:182</code>).</td><td>Sur une 4G lente, l'onglet et l'agent sont créés, la réponse se perd ; l'utilisateur relance et obtient un second agent.</td><td>État « Outcome unknown », relecture de la liste, « Found it: open » (voir la maquette C).</td></tr>
+<tr><td class="id">F3.2</td><td><span class="sev s-high">haute</span></td><td>Un 5xx ou un corps illisible sur une réponse ou un changement de modèle devient <code>refusee</code> (<code>api.ts:935</code>, <code>:999</code>), alors que le démon renvoie 502 pour <code>partial_action</code>.</td><td>« Answer rejected » est affiché alors que la touche est partie ; l'utilisateur répond une seconde fois.</td><td>4xx = refusé ; 5xx ou corps illisible = « Sent, not confirmed — check before retrying ».</td></tr>
+<tr><td class="id">B1.15</td><td><span class="sev s-med">moyenne</span></td><td><code>terminal_send(.., None, false)</code> sans <code>if: idle</code> (<code>port.rs:917</code>) : sur un agent déjà <code>working</code>, <code>started:true</code> arrive en 0,2 s.</td><td>Le message est affiché « confirmed » alors qu'il est seulement dans la file de l'agent.</td><td>Si <code>status == working</code> à l'insertion, rendre « queued, the agent will read it at its next step ».</td></tr>
+<tr><td class="id">F1.5</td><td><span class="sev s-med">moyenne</span></td><td>Dans la boîte de réception, un choix part d'un seul appui et son détail n'existe qu'en <code>title</code> (<code>inbox/CarteAttention.tsx:101</code>).</td><td>En faisant défiler, le pouce tombe sur « Yes, and don't ask again ».</td><td>Détail affiché en ligne, confirmation en deux temps pour les choix à risque (maquette A).</td></tr>
+</table>
+<p class="meta">Liés : B1.10 (le texte est tapé hors saisie libre et devient un nouveau prompt), B1.11 (une confirmation « Set model to » restée à l'écran donne un faux « appliqué »), B1.17 (mémoire « Entrée déjà envoyée » unique pour tous les terminaux), F1.10/F1.11 (pas d'identifiant de requête ni de clé d'idempotence).</p>
+</section>
+
+<section id="backend">
+<h2>Backend Rust — autres constats</h2>
+<table>
+<tr><th>#</th><th>Gravité</th><th>Constat (preuve)</th><th>Correction</th></tr>
+<tr><td class="id">B1.4</td><td><span class="sev s-high">haute</span></td><td><code>turn</code> est lu (<code>port.rs:471</code>) puis jamais réutilisé ; la signature de la veille ne le contient pas (<code>watcher.rs:53</code>). Les tours de moins de 2 s et les <code>done→working→done</code> entre deux passages ne déclenchent aucune notification, et le deuxième « needs you » d'une permission enchaînée est perdu. La déduplication par <code>turn</code> exigée par P4 n'est pas faite.</td><td><code>turn</code> dans <code>AgentView</code> et dans la signature ; notifier sur l'avancée du tour ; déduplication par <code>(pane, turn, statut)</code>.</td></tr>
+<tr><td class="id">B1.5</td><td><span class="sev s-med">moyenne</span></td><td><code>working → unknown</code> envoie « has finished working » (<code>watcher.rs:343</code>, <code>veille.rs:126</code>).</td><td>Pas de push, ou un libellé « status lost ».</td></tr>
+<tr><td class="id">B1.6</td><td><span class="sev s-med">moyenne</span><br><span class="v ok">relu</span></td><td>Un événement publié entre <code>abonne()</code> et <code>dernier_id()</code> est sauté (<code>events.rs:93</code>, <code>:115</code>), par exemple un <code>agent_status</code> working→done.</td><td>Frontière = le curseur du rattrapage.</td></tr>
+<tr><td class="id">B1.7 · B1.9</td><td><span class="sev s-med">moyenne</span></td><td>Un panic laisse <code>en_vol=true</code> pour toujours (<code>application/src/refresh.rs:266</code>, <code>vol.wait()</code> sans délai) ; l'admission par pane fuit son compteur (<code>commands/admission.rs:111</code>). Un seul panic bloque alors toutes les lectures.</td><td>Gardes <code>Drop</code> et <code>wait_timeout</code>.</td></tr>
+<tr><td class="id">B1.8</td><td><span class="sev s-low">basse</span></td><td>Après un réveil de condvar, le cache peut servir une observation périmée (<code>refresh.rs:242</code>).</td><td>Comparer les générations (<code>wait_while</code>).</td></tr>
+<tr><td class="id">B1.12</td><td><span class="sev s-med">moyenne</span></td><td>Une erreur passagère de résolution est prise pour « aucune session » : <code>read_to_string(..).ok()?</code> sur <code>&lt;pid&gt;.json</code> que Claude réécrit sur place (<code>resolver.rs:296</code>), SQLite sans <code>busy_timeout</code> (<code>:336</code>). Résultat : le chat passe en <code>gone</code>.</td><td><code>Result&lt;Option&lt;_&gt;, Cause&gt;</code> de bout en bout ; une erreur est une panne passagère.</td></tr>
+<tr><td class="id">B1.13</td><td><span class="sev s-med">moyenne</span></td><td>La garde contre un PID recyclé (Claude) est tautologique (<code>resolver.rs:298</code>). Un Claude sans premier message rend <code>gone</code> au lieu de <code>Absente</code>. pi, devin et cursor n'exposent aucune cause.</td><td>Comparer <code>procStart</code> et <code>cwd</code> ; rendre <code>Absente</code> ; exposer la cause dans la ligne.</td></tr>
+<tr><td class="id">B1.14</td><td><span class="sev s-med">moyenne</span></td><td>Arrêt :
+  <ul>
+    <li><code>blocked</code>, <code>error</code> et <code>unknown</code> rendent « not-running » (<code>commands/stop.rs:85</code>) ;</li>
+    <li><code>outcome</code> est jeté (<code>port.rs:1264</code>) ;</li>
+    <li>un délai est rendu « Ctrl+C refused » ;</li>
+    <li>la branche <code>NotRunning</code> du port est morte.</li>
+  </ul></td><td>Rendre ces trois états interruptibles, exposer <code>outcome</code>, timeout = « transmise ».</td></tr>
+<tr><td class="id">B1.16</td><td><span class="sev s-med">moyenne</span></td><td>Lancement :
+  <ul>
+    <li>course sur le nom (générer et réserver se font sous deux verrous, <code>launch.rs:191-206</code>) ;</li>
+    <li>démarrage observé 20 s contre 125 s au moteur (<code>port.rs:71</code>), puis <code>terminal.kill</code> sur un CLI lent ;</li>
+    <li><code>Started</code> déclaré dès que le PID change (un <code>git</code> du prompt suffit) ;</li>
+    <li>un délai d'envoi traité comme <code>Failed</code> ;</li>
+    <li>confiance détectée par texte ;</li>
+    <li>échec de fermeture avalé.</li>
+  </ul></td><td>Un seul verrou ; aligner les délais ; preuve de démarrage par <code>status.app</code> ou par l'argv du premier plan ; <code>terminal.run</code> avec <code>argv</code> (voir l'API).</td></tr>
+<tr><td class="id">B1.19</td><td><span class="sev s-low">basse</span></td><td>
+  <ul>
+    <li>Bind IPv6 tailnet refusé (<code>format!("{}:{}")</code> sans crochets) ;</li>
+    <li><code>terminals</code> absent lu comme une liste vide (<code>client.rs:134</code>) ;</li>
+    <li><code>read_line</code> alloue avant le contrôle des 16 Mio ;</li>
+    <li>délai par appel système et non global (jusqu'à 45 s par snapshot) ;</li>
+    <li>réécriture d'une session au même inode non détectée.</li>
+  </ul></td><td>Corrections ponctuelles.</td></tr>
+</table>
+<h3>Sécurité légère</h3>
+<table>
+<tr><th>Gravité</th><th>Constat</th><th>Correction</th></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td>Aucun contrôle de l'en-tête <code>Host</code> : une page tierce ouverte sur le Mac peut lire les GET (sessions, <code>/api/file</code>) par DNS rebinding.</td><td>Liste blanche de <code>Host</code>, 421 sinon.</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td>Une origine loopback est acceptée pour les écritures quel que soit son port (<code>origin.rs:183</code>) : un serveur de développement local peut envoyer un prompt.</td><td>N'accepter que les origines servies.</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td>Les racines de fichiers suivent le <code>cwd</code> du premier pane (commit <code>c1bb7a6</code>) : un shell resté dans <code>~</code> ouvre <code>~/.ssh</code> à <code>/api/file</code>.</td><td>Racines de fichiers distinctes de celles du lancement ; refuser HOME et <code>/</code>.</td></tr>
+<tr><td><span class="sev s-low">basse</span></td><td>Endpoint push validé par <code>https</code> seulement (SSRF depuis le tailnet) ; <code>POST /read</code> accepte un <code>at</code> futur ; pas de <code>nosniff</code> ni de CSP sur <code>/api/file</code> ; <code>Content-Disposition</code> non échappé.</td><td>Liste blanche des services push ; borner <code>at</code> ; en-têtes.</td></tr>
+</table>
+</section>
+
+<section id="front">
+<h2>Front (PWA) — autres constats</h2>
+<table>
+<tr><th>#</th><th>Gravité</th><th>Constat</th><th>Correction</th></tr>
+<tr><td class="id">F1.2</td><td><span class="sev s-high">haute</span><br><span class="v ok">relu</span></td><td><code>error</code> est rangé dans « Needs you » (<code>sections.ts:47</code>) et rendu « The agent is waiting for input… Open to answer » (<code>CarteAttention.tsx:114</code>). C'est un état non vérifié.</td><td>Carte « Stopped with an error », avec la cause et le code de sortie (maquette A).</td></tr>
+<tr><td class="id">F1.3</td><td><span class="sev s-med">moyenne</span></td><td>Fermer une feuille pendant un lancement ou un changement de modèle cache l'issue ; un succès tardif fait naviguer ailleurs.</td><td>Passer par <code>gestes.execute</code> avec toast, et prévenir avant de fermer une feuille occupée.</td></tr>
+<tr><td class="id">F1.7</td><td><span class="sev s-med">moyenne</span></td><td>« Notifications on » ne vérifie pas que le démon connaît l'abonnement (clé VAPID changée, abonnement élagué en 410).</td><td>Vérification serveur et bouton « Send test notification » (maquette E).</td></tr>
+<tr><td class="id">F1.8</td><td><span class="sev s-med">moyenne</span></td><td>Le flux global n'a pas de veille : le battement est un commentaire SSE, invisible pour le JS. Après un réveil iOS, l'indicateur reste « Live » sur un flux mort.</td><td>Événement <code>heartbeat</code> nommé et recréation du flux après 2 battements manqués.</td></tr>
+<tr><td class="id">F1.9</td><td><span class="sev s-med">moyenne</span></td><td>Brouillons, file de 900 ms et envois en attente vivent en mémoire seulement. Si iOS tue la PWA, le message est perdu sans trace (le brouillon a déjà été vidé).</td><td><code>sessionStorage</code> avec une durée de vie courte, et le brouillon gardé jusqu'au départ réel.</td></tr>
+<tr><td class="id">F1.12</td><td><span class="sev s-med">moyenne</span></td><td>Un <code>POST /read</code> part à chaque rafraîchissement tant qu'on regarde un agent au travail ; <code>Math.max(now, derniereActivite)</code> peut marquer « lu » un instant futur.</td><td>Partager seulement quand la lecture avance, au plus toutes les 5 s.</td></tr>
+<tr><td class="id">F1.14</td><td><span class="sev s-med">moyenne</span></td><td>« Start of the conversation » s'affiche après 8 pages vides (<code>flux-session.ts:612</code>) alors que ce n'est pas le début.</td><td>« Older history not loaded » avec Retry.</td></tr>
+<tr><td class="id">F1.15</td><td><span class="sev s-med">moyenne</span></td><td>« Changed files (N) » ne compte que l'historique chargé.</td><td>Libellé « in loaded history » et action « load all ».</td></tr>
+<tr><td class="id">F1.13</td><td><span class="sev s-low">basse</span></td><td>L'offre « Reload » ignore les envois <code>failed</code> et n'est pas abonnée aux brouillons : un texte peut être perdu au rechargement.</td><td>Compter <code>failed</code> et s'abonner aux brouillons.</td></tr>
+<tr><td class="id">—</td><td><span class="sev s-med">moyenne</span></td><td>Aucune alerte dans l'app quand un <b>autre</b> agent passe en « Needs you » pendant qu'une conversation est ouverte : la présence coupe les push et rien ne prend le relais.</td><td>Toast ou bannière dans l'app.</td></tr>
+<tr><td class="id">5.x</td><td><span class="sev s-low">basse</span></td><td>
+  <ul>
+    <li>Cibles tactiles sous 44 px (<code>.moi__etat</code> 22 px, <code>.seg</code> 30 px, <code>.bouton-tri</code> 32 px) ;</li>
+    <li>pas d'inset gauche/droite en paysage ;</li>
+    <li><code>outline:none</code> sans remplacement sur <code>.dock__libre</code> ;</li>
+    <li>boutons placés dans un <code>&lt;output&gt;</code> vivant ;</li>
+    <li><code>scrollTo smooth</code> ignore la réduction des animations ;</li>
+    <li>heure en 12 h ou 24 h selon l'écran.</li>
+  </ul>
+  Contraste conforme (4,86:1 au minimum).</td><td>Correctifs CSS et ARIA.</td></tr>
+</table>
+</section>
+
+<section id="erreurs">
+<h2>Messages d'erreur : de herdr-core à l'écran</h2>
+<p>Le <code>data.kind</code> d'herdr-core survit jusqu'au port (<code>PortError::Upstream{code}</code>), puis disparaît. Côté web, <code>hint</code> et <code>cause</code> ne sont jamais lus, et les erreurs sont reconnues par regex sur des phrases, dont une ne correspond plus à rien.</p>
+<table>
+<tr><th><code>data.kind</code> / cas</th><th>Aujourd'hui</th><th>Cible</th></tr>
+<tr><td><code>not_found</code>, <code>finished</code></td><td>502 « answer failed / Ctrl+C refused / model change failed »</td><td>404 / 410 · « Agent is gone » / « Agent exited (code 1, killed) »</td></tr>
+<tr><td><code>blocked</code></td><td>Message « waiting for a permission answer », même sans <code>kind</code></td><td>409 + <code>kind</code> (permission / question / auth)</td></tr>
+<tr><td><code>status_mismatch</code></td><td>Jamais produit (aucun <code>if</code> envoyé)</td><td>409 « Agent started working — sent as queued? »</td></tr>
+<tr><td><code>unavailable</code>, <code>needs_update</code>, <code>unsupported_generation</code></td><td>502 générique ; <code>/health</code> en 503 sans cause</td><td>503 avec la cause, visible dans <code>/health</code> et dans le centre de santé</td></tr>
+<tr><td>Saturation de la file d'un pane</td><td>502 « refused », sans Retry côté front</td><td>429 + « Busy — retry » avec un bouton</td></tr>
+<tr><td><code>/api/conversations</code> en 5xx</td><td><code>{conversations: []}</code> sans cause ; titre « Offline »</td><td>Cause + trois titres : « Device offline », « Daemon unreachable », « Daemon error (HTTP n) »</td></tr>
+<tr><td>Lecture d'écran en échec</td><td>Ligne <code>blocked</code> sans question ni cause</td><td>« Couldn't read the screen: cause »</td></tr>
+<tr><td>502 HTML de Tailscale Serve</td><td>« unreadable response (502) »</td><td>« The daemon is not answering behind Tailscale Serve »</td></tr>
+<tr><td>Curseur d'historique refusé</td><td>Retry renvoie le même curseur, en boucle</td><td>Relecture par la fin avec <code>reset</code></td></tr>
+<tr><td>Catalogue, conversation illisible, <code>gone</code>, Visionneuse</td><td>Pas de Retry, et pas de délai (push, fichiers, tâches)</td><td>Retry partout et délais nommés</td></tr>
+<tr><td>Cause <code>absente</code> / <code>vide</code></td><td>Mot <b>français</b> affiché (<code>session-vue.ts:71</code>)</td><td>Texte en anglais</td></tr>
+<tr><td>Veille en panne</td><td><code>let _ = self.une_fois()</code> : jamais journalisée ; le fil est démarré par <code>.ok()</code></td><td>Journalisée et exposée dans <code>/health</code> (<code>veille.vivante</code>, <code>dernier_succes</code>)</td></tr>
+</table>
+</section>
+
+<section id="arbres">
+<h2>Arbres de décision : branches manquantes</h2>
+<table>
+<tr><th>Décision</th><th>Branches non traitées ou incohérentes</th></tr>
+<tr><td>Envoi d'un prompt</td><td>
+  <ul>
+    <li><code>working</code> → « confirmed » sans preuve ;</li>
+    <li>question → collage forcé + Entrée ;</li>
+    <li><code>blocked</code> sans <code>kind</code> → message « permission » faux ;</li>
+    <li>terminal absent ou fini → 502 ;</li>
+    <li>un doublon légitime (« yes » deux fois en 60 s) est supprimé même si le tour a avancé (D007.2, levable grâce à <code>turn</code>).</li>
+  </ul></td></tr>
+<tr><td>Interruption</td><td>
+  <ul>
+    <li><code>blocked</code>, <code>error</code> et <code>unknown</code> ne sont pas interruptibles ;</li>
+    <li>les 4 <code>outcome</code> sont fondus en « sent » ;</li>
+    <li>un délai est rendu « refused » ;</li>
+    <li>côté front, pas de suivi « stopped » confirmé.</li>
+  </ul></td></tr>
+<tr><td>Question</td><td>
+  <ul>
+    <li>Pas d'empreinte ;</li>
+    <li>branche sans curseur (opencode) : saisie libre vide non refusée, texte tapé hors saisie libre ;</li>
+    <li>flèches (pi) : texte ignoré ;</li>
+    <li>pas de contrôle <code>blocked</code> avant de répondre.</li>
+  </ul></td></tr>
+<tr><td>Confiance</td><td>
+  <ul>
+    <li>Relecture immédiate, donc souvent « transmise » ;</li>
+    <li>snapshot en échec → « agent gone » ou « no key sequence », deux causes fausses.</li>
+  </ul></td></tr>
+<tr><td>Résolution de session</td><td>
+  <ul>
+    <li>Une erreur passagère devient « sans fil » ou <code>gone</code> ;</li>
+    <li>codex devine le fil ;</li>
+    <li>JSONL pas encore créé → <code>gone</code> ;</li>
+    <li>pi, devin et cursor n'ont pas de cause ;</li>
+    <li>côté front, un seul texte « sans fil » pour 3 causes différentes.</li>
+  </ul></td></tr>
+<tr><td>Notifications</td><td>
+  <ul>
+    <li>Pas de <code>turn</code> ;</li>
+    <li><code>working → unknown</code> = « finished » ;</li>
+    <li><code>error</code> → disparu : rien ;</li>
+    <li>le tag <code>waiting-&lt;pane&gt;</code> n'est pas remplacé par <code>done-&lt;pane&gt;</code> ;</li>
+    <li><code>blocked.kind</code> non distingué (« Permission needed », « Question », « Sign-in needed ») ;</li>
+    <li>l'apparition d'un agent après un parc vide n'est pas annoncée.</li>
+  </ul></td></tr>
+<tr><td>Lancement</td><td>
+  <ul>
+    <li>Course sur le nom ;</li>
+    <li>20 s contre 125 s, puis <code>kill</code> ;</li>
+    <li><code>Started</code> déclaré dès que le PID change ;</li>
+    <li>délai d'envoi = <code>Failed</code> ;</li>
+    <li><code>LaunchFailed{phase, paneId}</code> est déclaré dans le contrat mais <b>jamais émis</b> ;</li>
+    <li>côté front, issue inconnue = échec, étapes invisibles (B08).</li>
+  </ul></td></tr>
+<tr><td>Boîte de réception</td><td>
+  <ul>
+    <li><code>error</code> rendu comme une attente ;</li>
+    <li><code>finished</code> et code de sortie impossibles à représenter ;</li>
+    <li><code>auth</code> rendu comme une attente générique ;</li>
+    <li>démarrage à froid : squelette pendant 5 à 6 s alors que l'overview est prêt.</li>
+  </ul></td></tr>
+<tr><td>Conversation</td><td>
+  <ul>
+    <li><code>blocked</code> pendant que <code>conversations</code> est en échec : pas de dock, et une aide trompeuse ;</li>
+    <li><code>error</code> : pastille seule, composeur ouvert ;</li>
+    <li>erreur sans entrées : pas de Retry.</li>
+  </ul></td></tr>
+</table>
+</section>
+
+<section id="perf">
+<h2>Performance</h2>
+<table>
+<tr><th>Gravité</th><th>Constat (mesure)</th><th>Correction</th></tr>
+<tr><td><span class="sev s-high">haute</span></td><td><b>Cache des assets</b> : environ 12 % des builds ont un <code>-</code> dans l'empreinte, et le JS d'entrée (75 kB gzip) est alors resservi sans cache à chaque démarrage à froid.</td><td>Corriger <code>est_immuable</code>, ou <code>entryFileNames: "[name].[hash].js"</code>, plus un test.</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td><code>/api/conversations</code> fait un <code>terminal.read</code> de 200 lignes par ligne <code>blocked</code> ou sans aperçu, à <b>chaque</b> requête : 3 à 7 ms en général, <b>1,95 s</b> mesurées sur t8. Le premier appel à froid prend 5 à 6 s, contre 3,5 ms pour l'overview.</td><td>Écran mis en cache par <code>(pane, turn, status_ms)</code> ; le front affiche l'overview d'abord.</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td>Le plafond de lectures est créé à chaque requête (<code>conversations.rs:462</code>) : N clients font 4N lectures de session et 16N lectures d'écran.</td><td>Permis global dans <code>Services</code> (TECH §8).</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td>Remontées profondes dans <code>assemblage.rs</code> : jusqu'à 2 Mio par requête pendant qu'un agent travaille, et jusqu'à <b>32 Mio</b> après une absence (sessions mesurées jusqu'à 297 Mo).</td><td>Index incrémental par session, partagé entre la liste et le chat.</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td>La veille recompose tout l'accueil toutes les 2 s : relit les <code>&lt;pid&gt;.json</code>, lance une requête SQLite opencode, ouvre une connexion codex à chaque mouvement du WAL, relit des en-têtes de 64 Kio. La partie herdr-core ne coûte que 5 ms.</td><td>Cache de résolution par <code>(pane, foreground_pid, title, cwd)</code>, puis <code>events.subscribe</code>.</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td><code>demandesEnFile</code> refait <code>JSON.parse</code> de toutes les entrées à chaque delta : 17 ms pour 5 000 entrées et 47 ms pour 20 000 sur un Mac, 2 à 4 fois plus sur un iPhone.</td><td>WeakMap ou préfiltre <code>includes('"queue-operation"')</code>.</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td>Chaque rafraîchissement donne 3 rendus de toute l'app. <code>session_changed</code> déclenche 3 GET (overview, health, conversations). Les lignes ne gardent pas leur identité, <code>Boite</code> n'est pas mémoïsée, et la boîte cachée sur téléphone se redessine quand même.</td><td>Sélecteurs avec égalité, fusion par <code>paneId</code>, <code>memo(Boite)</code>, ne relire que la ligne concernée.</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td>Le fil n'est ni virtualisé ni élagué ; <code>querySelectorAll</code> + <code>getBoundingClientRect</code> parcourent tout le fil à chaque arrêt du défilement.</td><td>Fenêtre glissante par tours et <code>IntersectionObserver</code>.</td></tr>
+<tr><td><span class="sev s-low">basse</span></td><td>
+  <ul>
+    <li><code>effect</code> sur le chemin critique (35 kB gzip) ;</li>
+    <li>chaque <code>/api/events</code> garde un thread bloquant et ne voit la fermeture qu'après 15 s (503 possible sur les reconnexions iOS) ;</li>
+    <li>push livrés en série (un endpoint mort retarde la file de 15 s) ;</li>
+    <li><code>terminal()</code> fait un <code>list</code> complet toutes les 500 ms pendant les attentes ;</li>
+    <li>présence envoyée toutes les 10 s.</li>
+  </ul></td><td>Imports ciblés et préchargement de Conversation, SSE asynchrone, livraisons concurrentes bornées, <code>terminal.get</code>.</td></tr>
+</table>
+</section>
+
+<section id="api">
+<h2>L'API herdr-core : ce qu'on n'utilise pas</h2>
+<p>herdr-core 0.1.19 expose 32 méthodes et 12 types d'événements. Le projet a été écrit sur 0.1.17 ; le démon tourne déjà sur 0.1.19. Les relevés en lecture seule ont été faits sur ton core (24 terminaux).</p>
+<table>
+<tr><th>Valeur</th><th>Capacité</th><th>Usage actuel</th><th>Apport sur le téléphone</th><th>À prouver d'abord (core isolé)</th></tr>
+<tr><td><span class="sev s-high">haute</span></td><td><code>events.subscribe</code></td><td>Non : <code>hello</code> + <code>list</code> + <code>doc.get</code> toutes les 2 s, soit 3 connexions</td><td>Push « done » et « needs you » en moins d'une seconde, plus aucune transition perdue, <code>doc</code> et <code>labels</code> en direct, moins de CPU</td><td>Forme de chaque événement, <code>missed</code> sous charge, reconnexion après <code>restarted</code></td></tr>
+<tr><td><span class="sev s-high">haute</span></td><td><code>records</code> (sous-enregistrements OSC 7501)</td><td>Non <span class="v ok">relu : absent du client</span></td><td><b>Les sous-agents Claude en direct</b> avec leur titre et leur état. t1c en porte 7, et leurs ids correspondent aux fichiers <code>subagents/agent-&lt;id&gt;</code> déjà lus par <code>taches.rs</code>. Cela remplace l'heuristique « inconnu après 30 min ».</td><td>État d'un record à la fin du sous-agent, et événement par record</td></tr>
+<tr><td><span class="sev s-high">haute</span></td><td><code>status.msg</code> / <code>kind</code> / <code>progress</code></td><td><code>msg</code> non ; <code>kind</code> sert seulement au <code>force</code></td><td>« Waiting for CI on the pushed commit » en sous-titre ; push « Permission needed », « Question », « Sign-in needed » ; barre de progression</td><td><code>kind</code> et <code>progress</code> sur un faux agent</td></tr>
+<tr><td><span class="sev s-high">haute</span></td><td><code>terminal.put</code></td><td>Non (aucune méthode dans le client)</td><td><b>Photo ou capture d'écran → agent</b> : upload, <code>put</code>, chemin, <code>send</code> (8 Mo au plus)</td><td>Que chaque agent lit bien une image donnée par son chemin</td></tr>
+<tr><td><span class="sev s-high">haute</span></td><td><code>exit_code</code>, <code>reason</code>, <code>signal</code>, <code>lost</code>, <code>restarted</code>, <code>screen: inexact</code></td><td>Non ; le commentaire de <code>notifications/src/payload.rs</code> dit encore « sans code ni raison »</td><td>« Agent exited with code 1 (killed) », « Agent lost — a shell replaced it », « Core restarted, screen may be incomplete »</td><td>Valeurs de <code>reason</code> par scénario</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td><code>terminal.read</code> : <code>complete</code>, <code>how</code>, <code>why</code></td><td>Seul <code>text</code> est gardé ; <code>source: Visible</code> est écrit en dur (<code>port.rs:888</code>)</td><td>Ne plus afficher un état inventé ; <code>lines: 0</code> quand seul l'écran compte, pour éviter de faire défiler une app plein écran visible sur le Mac</td><td><code>how: stitched</code></td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td>Label <code>where</code></td><td>Non : les noms viennent de <code>workspace-state.json</code>, un fichier privé</td><td>Nom affiché lu sur le core, lisible même Herdr.app fermé ; secours si le fichier change de format</td><td>Mise à jour après un renommage</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td><code>herdr.pinned</code></td><td>Non (seul <code>herdr.seen</code> est utilisé)</td><td>Agents épinglés en tête, comme dans Herdr.app ; épingler depuis le téléphone</td><td>Format de la valeur</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td><code>terminal.get</code> · <code>terminal.wait</code></td><td>Non : un <code>list</code> complet pour un seul terminal ; la confirmation d'envoi relit toutes les 500 ms pendant 6 s</td><td>Lectures ciblées, y compris d'un terminal fini ; confirmation sans boucle</td><td><code>wait</code> sans <code>caller</code></td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td><code>terminal.run</code> avec <code>argv</code>, <code>size</code>, templates, <code>first_message</code></td><td>Partiel : on ouvre un shell, puis on <b>tape</b> la ligne de l'agent (incident oh-my-zsh → <code>laude</code>)</td><td>Lancement sans frappe, à la bonne taille ; rôles prédéfinis avec un « message parti oui / non » réel</td><td>PATH de login avec <code>argv</code></td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td><code>parent</code> / <code>children_of</code> / notes <code>&lt;hc from=…&gt;</code></td><td>Partiel : notes non rendues (aucune occurrence dans le code)</td><td>Arbre des enfants lancés par <code>hc run</code> ; notes rendues comme « rapport d'enfant »</td><td>Forme des notes dans les transcriptions</td></tr>
+<tr><td><span class="sev s-med">moyenne</span></td><td><code>hello.features</code> / <code>methods</code> · <code>server.status</code></td><td>Lus puis ignorés · jamais appelé</td><td>Dégradation propre avant d'utiliser une capacité ; diagnostic (version, holders, uptime) dans les Réglages</td><td>Liste <code>features</code> 0.1.19</td></tr>
+<tr><td><span class="sev s-low">plus tard</span></td><td><code>terminal.attach {observe:true}</code></td><td>Non</td><td>Terminal en direct, en lecture seule, pour les agents sans fil (Pi, devin), les builds et les invites inattendues</td><td>Tout le protocole par trames</td></tr>
+<tr><td><span class="sev s-low">plus tard</span></td><td><code>machine.*</code>, <code>on</code>, <code>file.read {on}</code>, <code>doc.get {on}</code></td><td>Non</td><td>Agents sur un VPS, avec leur disposition et leurs sessions</td><td>Tout</td></tr>
+</table>
+<div class="callout"><b>Compatibilité.</b>
+  <ul>
+    <li>Fixer une version minimale (0.1.19 ?) et contrôler <code>features</code> au démarrage. On ne sait pas si un core plus ancien rejette un paramètre inconnu ou l'ignore : c'est décisif avant d'envoyer <code>size</code> ou <code>display</code>.</li>
+    <li>Le format de <code>herdr.seen</code>, <code>herdr.pinned</code>, <code>where</code> et du doc <code>herdr-app</code> appartient à Herdr.app (0.1.14 est déjà annoncée) : fixture versionnée, et jamais de <code>doc.set</code> sur <code>herdr-app</code>.</li>
+    <li>Les adresses <code>machine/t7</code> doivent passer dans <code>PaneId</code> et dans les URL.</li>
+  </ul></div>
+</section>
+
+<section id="maquettes">
+<h2>Maquettes</h2>
+<p class="legend">Les maquettes sont en 390×844, avec les jetons de <code>tokens.css</code> (la couleur porte l'état, le reste est à l'encre). Le texte de l'interface est en anglais (AGENTS §1.8), et le thème sombre suit celui du système. Chaque écran n'utilise que des données qui existent déjà côté herdr-core ou dans les sessions.</p>
+
+<div class="gallery">
+
+<!-- A. Boîte de réception de triage -->
+<figure>
+<div class="phone"><div class="island"></div>
+  <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+  <div class="hdr"><div class="t"><b>Agents</b><span>herdr-core 0.1.19 · live</span></div><span class="pill ok"><span class="dot"></span>Live</span></div>
+  <div class="scroll">
+    <div class="sec"><span>Needs you</span><span class="c">3</span></div>
+    <div class="card attn">
+      <div class="idrow"><span class="logo l-c">C</span><span class="p">herdr-core-chat</span>· tab 2 · <span>2 min ago</span></div>
+      <div class="q">Allow this Bash command?</div>
+      <div class="cmd">rm -rf apps/web/dist &amp;&amp; bun run build</div>
+      <button class="choice"><b>1. Yes</b><small>Run once</small></button>
+      <button class="choice risk arm"><b>Tap again to confirm</b><small>2. Yes, and don't ask again for <code>rm -rf</code> in this project</small></button>
+      <button class="choice risk"><b>3. No, and tell Claude what to do</b><small>Opens the composer</small></button>
+      <div class="foot"><span class="ctx">Read from screen 09:40:58</span><span class="lnk">Open</span></div>
+    </div>
+    <div class="card err">
+      <div class="idrow"><span class="logo l-x">X</span><span class="p">pi-lab</span>· tab 1</div>
+      <div class="q" style="color:var(--err)">Stopped with an error</div>
+      <div class="ctx">Exited with code 1 · killed · 09:31</div>
+      <div class="cmd">Error: rate limit exceeded (429). Retry after 60s.</div>
+      <div class="foot"><span class="ctx">Last status from codex</span><span class="lnk">Open</span></div>
+    </div>
+    <div class="card attn">
+      <div class="idrow"><span class="logo l-oc">O</span><span class="p">site-perso</span>· tab 3</div>
+      <div class="q">Sign-in required</div>
+      <div class="ctx">opencode is waiting for authentication. Finish sign-in on the Mac.</div>
+    </div>
+  </div>
+</div>
+<figcaption><b>A. Boîte de réception de triage.</b>
+  <ul>
+    <li>Le détail de chaque choix est visible.</li>
+    <li>Les choix à risque (contour pointillé) demandent une confirmation en deux temps.</li>
+    <li>Variantes de carte selon <code>blocked.kind</code> (permission, question, <code>auth</code>), plus une carte « Stopped with an error » qui affiche <code>exit_code</code>/<code>reason</code>.</li>
+  </ul>
+  Corrige B1.1 (la carte envoie l'empreinte de la question), F1.2 et F1.5.</figcaption>
+</figure>
+
+<!-- A'. Lignes « working » avec status.msg, progress, records -->
+<figure>
+<div class="phone"><div class="island"></div>
+  <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+  <div class="hdr"><div class="t"><b>Agents</b><span>herdr-core 0.1.19 · live</span></div><span class="pill ok"><span class="dot"></span>Live</span></div>
+  <div class="scroll">
+    <div class="sec"><span>Pinned</span><span>📌 shared with Herdr.app</span></div>
+    <div class="card" style="padding:4px 12px">
+      <div class="row"><span class="logo l-c">C</span><div class="m"><b>herdr-core-chat · audit</b>
+        <div class="s live">Waiting for CI on the pushed commit</div>
+        <div class="subs"><span class="sub w"><span class="dot"></span>Audit backend Rust</span><span class="sub w"><span class="dot"></span>Audit front PWA</span><span class="sub d"><span class="dot"></span>API gaps</span><span class="sub">+4</span></div>
+      </div><span class="pill work"><span class="dot"></span>Working</span></div>
+    </div>
+    <div class="sec"><span>Working</span><span>2</span></div>
+    <div class="card" style="padding:4px 12px">
+      <div class="row"><span class="logo l-c">C</span><div class="m"><b>pi-lab · release</b>
+        <div class="s live">Building PWA and local release archive</div>
+        <div class="prog"><i style="width:62%"></i></div>
+      </div><span class="pill work">62%</span></div>
+      <div class="row"><span class="logo l-x">X</span><div class="m"><b>site-perso</b><div class="s live">Running tests (bun test)</div></div><span class="pill work"><span class="dot"></span>4 min</span></div>
+    </div>
+    <div class="sec"><span>Recent</span><span>5</span></div>
+    <div class="card" style="padding:4px 12px">
+      <div class="row"><span class="logo l-c">C</span><div class="m"><b>dotfiles ●</b><div class="s">Finished · "Done — zshrc split into 4 files"</div></div><span class="pill ok">Done</span></div>
+      <div class="row"><span class="logo l-pi">π</span><div class="m"><b>notes</b><div class="s">No conversation: Pi sessions aren't linked yet</div></div><span class="pill mute">Idle</span></div>
+      <div class="row"><span class="logo l-x">X</span><div class="m"><b>scratch</b><div class="s" style="color:var(--err)">Exited · code 0 · 08:12</div></div><span class="pill mute">Finished</span></div>
+    </div>
+  </div>
+</div>
+<figcaption><b>A'. Liste vivante.</b>
+  <ul>
+    <li><code>status.msg</code> en sous-titre, <code>progress</code> en barre.</li>
+    <li>Les sous-agents viennent de <code>records</code> : un toucher ouvre leur transcription (H21 existe déjà).</li>
+    <li>La section « Pinned » suit <code>herdr.pinned</code>.</li>
+    <li>Les terminaux finis restent visibles avec leur code de sortie (<code>terminal.list {all}</code>).</li>
+    <li>La cause « sans fil » est explicite.</li>
+  </ul></figcaption>
+</figure>
+
+<!-- F. Résultat du tour -->
+<figure>
+<div class="phone"><div class="island"></div>
+  <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+  <div class="hdr"><span class="back">‹</span><div class="t"><b>dotfiles</b><span>Claude · Opus 5.5 · tab 1</span></div><span class="pill ok">Done</span></div>
+  <div class="scroll">
+    <div class="result">
+      <h4><span>✓ Finished · 12 min</span><span style="font-weight:500">09:28</span></h4>
+      <p>Done — zshrc split into 4 files under <code>zsh/</code>, sourced in order. Startup goes from 410 ms to 160 ms. I left the oh-my-zsh plugins untouched.</p>
+      <div class="ctx" style="margin:8px 0 4px">Files touched (from tool calls) · 5</div>
+      <div class="files"><span>+38</span> zsh/aliases.zsh<br><span>+52</span> zsh/path.zsh<br><span>+21</span> <em>−140</em> .zshrc<br><span style="color:var(--ink-3)">2 more…</span></div>
+      <div class="foot"><span class="ctx">3 subagents · 41k tokens</span><span class="lnk">Show all</span></div>
+    </div>
+    <div class="bub">Split my zshrc into smaller files, keep startup fast</div>
+    <div class="newsince">New since you last read · 09:16</div>
+    <div class="tool">▸ Read .zshrc · Ran <code>hyperfine 'zsh -i -c exit'</code></div>
+    <div class="agent">The slowest part is <code>nvm</code> loading eagerly (220 ms). I'll lazy-load it…</div>
+    <div class="tool">▸ Edited 4 files · +111 −140</div>
+  </div>
+  <div class="comp"><div class="field"><div class="clip">＋</div><div class="ta">Message dotfiles…</div><div class="send">↑</div></div></div>
+</div>
+<figcaption><b>F. Carte « Résultat du tour »</b> en tête d'un agent <code>done</code> non lu : durée, réponse finale, fichiers tirés des appels d'outils (pas de l'arbre de travail), sous-agents et jetons du tour. Un séparateur marque « New since you last read ». Variante partielle : « Older history not loaded — Load ».</figcaption>
+</figure>
+
+<!-- E. Composeur avec pièces jointes -->
+<figure>
+<div class="phone"><div class="island"></div>
+  <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+  <div class="hdr"><span class="back">‹</span><div class="t"><b>site-perso</b><span>Claude · idle · tab 3</span></div><span class="pill mute">Idle</span></div>
+  <div class="scroll">
+    <div class="agent">The header now collapses under 640 px. Can you check it on your phone?</div>
+  </div>
+  <div class="scrim"></div>
+  <div class="sheet" style="bottom:0">
+    <div class="grab"></div>
+    <h5>Attach <span class="lnk" style="font-size:14px">Done</span></h5>
+    <div class="ctx" style="margin-bottom:8px">Recent screenshots</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px">
+      <div class="thumb" style="width:auto;height:90px;outline:3px solid var(--ink);outline-offset:-3px"></div>
+      <div class="thumb" style="width:auto;height:90px;background:linear-gradient(135deg,#c9d6c0,#e4e8ef)"></div>
+      <div class="thumb" style="width:auto;height:90px;background:linear-gradient(135deg,#e7c9c9,#d9dce3)"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px"><span class="btn" style="flex:1">Photo library</span><span class="btn" style="flex:1">Files</span></div>
+    <div class="chips">
+      <div class="chip"><div class="thumb"></div><div><span class="n">IMG_2041.png</span><span class="z">Placed next to the terminal</span></div><span>×</span></div>
+    </div>
+    <div class="chips">
+      <div class="chip up"><div class="thumb" style="background:linear-gradient(135deg,#c9d6c0,#e4e8ef)"></div><div><span class="n">IMG_2042.heic</span><span class="z">Uploading · 1.4 / 2.1 MB</span></div></div>
+      <div class="chip bad"><div class="thumb" style="background:#ddd"></div><div><span class="n">screen.mov</span><span class="z">Too large (12 MB &gt; 8 MB)</span></div></div>
+    </div>
+    <div class="field"><div class="clip">📎</div><div class="ta" style="color:var(--ink)">Header overlaps the logo, see screenshots</div><div class="send">↑</div></div>
+    <div class="why">Send is available once uploads finish.</div>
+  </div>
+</div>
+<figcaption><b>E. Pièces jointes</b> via <code>terminal.put</code> (8 Mo au plus, HEIC converti côté client). Chaque puce passe par uploading → placed (le chemin est renvoyé par le core) → envoyée avec le prompt ; en cas d'échec, la cause est affichée. L'envoi reste bloqué tant qu'un upload est en cours, avec la raison écrite dessous.</figcaption>
+</figure>
+
+<!-- C. Lancement avec étapes -->
+<figure>
+<div class="phone"><div class="island"></div>
+  <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+  <div class="hdr"><div class="t"><b>Agents</b><span>herdr-core 0.1.19</span></div></div>
+  <div class="scroll"></div>
+  <div class="scrim"></div>
+  <div class="sheet">
+    <div class="grab"></div>
+    <h5>Launching Claude <span class="ctx" style="font-weight:400">in herdr-core-chat</span></h5>
+    <ul class="steps">
+      <li><span class="ic done">✓</span><div class="l"><b>Validate project &amp; agent</b><small>~/projects/perso/herdr-core-chat · claude 2.1.317</small></div><span class="d">0.1 s</span></li>
+      <li><span class="ic done">✓</span><div class="l"><b>Create tab</b><small>"claude 3" · t1x</small></div><span class="d">0.4 s</span></li>
+      <li><span class="ic done">✓</span><div class="l"><b>Start agent</b><small>argv: claude --model opus</small></div><span class="d">2.1 s</span></li>
+      <li><span class="ic unk">?</span><div class="l"><b>Detect session</b><small>No answer from the daemon after 180 s</small></div><span class="d">—</span></li>
+      <li><span class="ic"></span><div class="l"><b style="color:var(--ink-3)">Ready</b></div></li>
+    </ul>
+    <div class="banner attn"><b>Outcome unknown — checking…</b><br>The connection dropped. A new agent in this project may already be running.</div>
+    <span class="btn pri full" style="margin-bottom:8px">Found "claude 3" — Open</span>
+    <span class="btn ghost full" style="border-style:dashed">Launch another anyway (may create a second agent)</span>
+  </div>
+</div>
+<figcaption><b>C. Lancement avec chronologie.</b> Les étapes s'appuient sur <code>LaunchFailed{phase, paneId}</code>, déjà dans le contrat. Une issue inconnue n'est jamais présentée comme un échec : la liste est relue, puis on propose « Found it » ou une relance clairement marquée. Une feuille fermée laisse place à un toast « Claude started in X — Open ». Corrige F1.1, F1.3, F3.4 et B08.</figcaption>
+</figure>
+
+<!-- B. Centre de santé -->
+<figure>
+<div class="phone"><div class="island"></div>
+  <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+  <div class="hdr"><div class="t"><b>Agents</b><span>herdr-core 0.1.19</span></div><span class="pill attn"><span class="dot"></span>Degraded</span></div>
+  <div class="scroll"></div>
+  <div class="scrim"></div>
+  <div class="sheet">
+    <div class="grab"></div>
+    <h5>Connection</h5>
+    <div class="hl"><span class="st g"></span><div class="m"><b>This device</b><small>Online · Wi-Fi</small></div></div>
+    <div class="hl"><span class="st g"></span><div class="m"><b>Daemon via Tailscale Serve</b><small>HTTP 200 · 38 ms · checked 09:41:02</small></div></div>
+    <div class="hl"><span class="st g"></span><div class="m"><b>herdr-core</b><small>0.1.19 · generation 1 · 24 terminals · up 3 d</small></div></div>
+    <div class="hl"><span class="st o"></span><div class="m"><b>Live updates</b><small>No heartbeat for 41 s — reconnecting (attempt 2)</small></div><span class="a">Reconnect now</span></div>
+    <div class="hl"><span class="st o"></span><div class="m"><b>Watcher</b><small>Last refresh 09:40:12 · 3 errors in 5 min<br><span class="mono">doc `herdr-app` v31: unknown field "groups"</span></small></div></div>
+    <div class="hl"><span class="st r"></span><div class="m"><b>Push notifications</b><small>On for this device · <b style="display:inline;color:var(--err)">unknown to the daemon</b> (VAPID key changed)</small></div><span class="a">Re-subscribe</span></div>
+    <div style="display:flex;gap:8px;margin-top:14px"><span class="btn" style="flex:1">Send test notification</span><span class="btn" style="flex:1">Copy diagnostics</span></div>
+    <div class="why">Diagnostics never include message content.</div>
+  </div>
+</div>
+<figcaption><b>B. Centre de connexion</b>, ouvert depuis l'indicateur « Live », qui prend la pire couleur des six lignes. Il remplace le « Offline » fourre-tout (F3.7) et vérifie le push auprès du démon (F1.7). Il expose la veille et le core (<code>server.status</code>, <code>/health</code> enrichi) ainsi que le battement SSE (F1.8).</figcaption>
+</figure>
+
+<!-- D. Boîte d'envoi -->
+<figure>
+<div class="phone"><div class="island"></div>
+  <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+  <div class="hdr"><span class="back">‹</span><div class="t"><b>Unconfirmed sends</b><span>2 need a look</span></div></div>
+  <div class="scroll">
+    <div class="card" style="padding:2px 14px">
+      <div class="ob"><span class="logo l-c">C</span><div class="m">
+        <div class="idrow"><span class="p">herdr-core-chat</span>· 3 min ago · <span class="pill attn" style="padding:0 7px">Not confirmed</span></div>
+        <div class="x">Run the full verify and push if green, then open the PR against main</div>
+        <div class="ctx">The connection dropped after sending. It may have reached the agent.</div>
+        <div class="acts"><span class="btn">Open to check</span><span class="btn ghost">Retry (may arrive twice)</span></div>
+      </div></div>
+      <div class="ob" style="border-bottom:none"><span class="logo l-x">X</span><div class="m">
+        <div class="idrow"><span class="p">site-perso</span>· 8 min ago · <span class="pill err" style="padding:0 7px">Busy</span></div>
+        <div class="x">continue</div>
+        <div class="ctx">8 operations already queued for this agent. Nothing was sent.</div>
+        <div class="acts"><span class="btn pri">Retry</span><span class="btn ghost">Edit</span><span class="btn ghost">Dismiss</span></div>
+      </div></div>
+    </div>
+    <p class="why" style="text-align:center;margin-top:16px">Unsent text lives on this device until you close the app.</p>
+  </div>
+</div>
+<figcaption><b>D. Boîte d'envoi globale</b> : les envois non résolus de tous les agents, accessibles par une pastille dans l'en-tête. Elle distingue « not confirmed » (qui peut être arrivé) de « busy » (rien n'est parti, Retry sûr). Elle répond à F1.9, F1.13 et F3.3.</figcaption>
+</figure>
+
+<!-- G. Terminal live -->
+<figure>
+<div class="phone"><div class="island"></div>
+  <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+  <div class="hdr"><span class="back">‹</span><div class="t"><b>notes</b><span>Pi · screen, read-only · t1f</span></div><span class="pill mute">Observe</span></div>
+  <div class="scroll" style="padding:10px">
+    <div class="term"><span class="dim">~/notes</span> <span class="g">❯</span> pi
+<span class="b">π</span> pi 0.71 · deepseek-v4.1
+
+<span class="dim">› summarise this week's notes into weekly.md</span>
+
+  Reading 14 files…
+  <span class="g">✓</span> read  notes/2026-11-03.md
+  <span class="g">✓</span> read  notes/2026-11-04.md
+  <span class="g">✓</span> write weekly.md (+86)
+
+<span class="y">? Commit weekly.md?</span>
+  <span class="b">❯ 1. Yes</span>
+    2. No
+
+<span class="dim">────────────────────────────</span>
+<span class="dim">screen exact · 09:41:03</span></div>
+    <div class="keys"><span class="key">Esc</span><span class="key">↑</span><span class="key">↓</span><span class="key">Tab</span><span class="key">⏎</span><span class="key" style="color:var(--err)">Ctrl-C</span></div>
+    <div class="why">Keys are sent only after you tap; the view never resizes the Mac's terminal.</div>
+  </div>
+</div>
+<figcaption><b>G. Plus tard : vue terminal</b> par <code>terminal.attach {observe:true}</code> (lecture seule, jamais de redimensionnement), pour les agents sans fil comme Pi et devin. La rangée de touches passe par <code>terminal.keys</code>, déjà prouvé. Effort élevé : tout le protocole par trames reste à prouver sur un core isolé.</figcaption>
+</figure>
+
+</div>
+</section>
+
+<section id="docs">
+<h2>Documentation devenue fausse</h2>
+<ul>
+  <li>L'en-tête de <code>docs/PROTOCOL.md</code> indique 0.1.17 / 0.1.12. Il manque <code>terminal.get</code>, <code>terminal.wait</code>, <code>templates.list</code>, <code>machine.*</code>, <code>file.*</code>, les nouveaux params de <code>run</code>, <code>send</code> et <code>read</code>, et les erreurs <code>invalid_template</code>, <code>unreachable</code>, <code>incompatible</code>… ; <code>timeout</code> a disparu du schéma.</li>
+  <li><code>notifications/src/payload.rs</code> dit « Herdr rend pane.exited sans code ni raison » : c'était vrai pour 0.9.3, c'est faux pour herdr-core.</li>
+  <li><code>docs/IDEAS.md</code> §2/§6 (« pas de statut error », « sous-agents sans source ») et <code>RELEASE_BACKLOG</code> (« pas d'upload ») sont contredits par <code>status.error</code>, <code>records</code> et <code>terminal.put</code>.</li>
+  <li>La fixture de test <code>hello</code> renvoie encore <code>"0.1.17"</code> (<code>crates/herdr-core-client/tests/unit/transport.rs:16</code>).</li>
+</ul>
+<p class="meta">Le schéma OpenRPC complet de 0.1.19 et le relevé <code>hc get</code> des 24 terminaux sont dans le scratchpad de la session : <code>schema.json</code> et <code>gets.jsonl</code>.</p>
+</section>
+
+</main>
+</body>
+</html>
