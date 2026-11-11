@@ -120,6 +120,7 @@ impl ControlPort for FauxPort {
             // là ? Un agent minimal suffit — le répondeur ne lit que l'id.
             let agents = if vivant {
                 vec![domain::observation::AgentObservation {
+                    faits: Default::default(),
                     pane_id: PaneId::from(String::from("wA:p1")),
                     tab_id: TabId::from(String::from("wA:t1")),
                     workspace_id: domain::ids::WorkspaceId::from(String::from("wA")),
@@ -137,6 +138,9 @@ impl ControlPort for FauxPort {
                     state_change_seq: None,
                     session: None,
                     seen_at: None,
+                    status_msg: None,
+                    blocked_kind: None,
+                    exit: None,
                 }]
             } else {
                 Vec::new()

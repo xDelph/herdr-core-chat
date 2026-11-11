@@ -49,11 +49,36 @@ pub struct ConversationSummary {
     /// appareils (H22) — absent tant qu'aucun ne l'a ouverte.
     #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
     pub read_at: Field<u64>,
+    /// Ce que l'agent dit, dans ses mots (`status.msg` de herdr-core),
+    /// seulement pendant qu'il travaille, attend ou est en erreur — absent
+    /// quand il ne dit rien (un message d'un tour fini serait périmé).
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub activity: Field<String>,
     pub title: String,
     pub status: AgentStatus,
     pub workspace_id: String,
     pub tab_id: String,
     pub pane_id: String,
+    /// Le tour de herdr-core (`turn`) — il avance à chaque sortie de
+    /// `working` (B1.4).
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub turn: crate::presence::Field<u64>,
+    /// Ce qu'un agent `blocked` attend : `permission | question | auth` —
+    /// absent quand il ne le dit pas.
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub blocked_kind: crate::presence::Field<crate::BlockedKind>,
+    /// La fin du terminal (code, raison, signal) quand herdr-core le dit fini.
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub exit: crate::presence::Field<crate::http::overview::AgentExit>,
+    /// Épinglé (Herdr.app ou téléphone) — présent seulement quand vrai.
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub pinned: crate::presence::Field<bool>,
+    /// Les sous-agents en direct (records 7501).
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub subagents: crate::presence::Field<Vec<crate::http::overview::Subagent>>,
+    /// L'écran peut être incomplet (crash du core).
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub screen_inexact: crate::presence::Field<bool>,
 }
 
 /// La réponse conversations (`ConversationsResponse`).

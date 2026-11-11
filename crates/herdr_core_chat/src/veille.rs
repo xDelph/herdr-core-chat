@@ -14,8 +14,7 @@
 
 use application::events::subscription::ServiceAbonnements;
 use application::events::watcher::{
-    BoucleDeVeille, Changement, CibleDeChangement, PublicateurDeChangements, SourceDeVues,
-    Veilleur, faut_notifier,
+    BoucleDeVeille, Changement, CibleDeChangement, PublicateurDeChangements, SourceDeVues, Veilleur,
 };
 use application::noyau::{AgentStatus, AgentView};
 use application::overview::ComposeurOverview;
@@ -23,9 +22,10 @@ use application::refresh::SourceMaintenant;
 use http_api::services::Services;
 use notifications::notifieur::Notifieur;
 use notifications::payload::{
-    IdentiteNotification, PayloadNotification, StatutDeFin, nom_de_notification,
-    payload_de_notification,
+    IdentiteNotification, PayloadNotification, PrecisionsDeFin, StatutDeFin, nom_de_notification,
+    payload_de_notification, precise,
 };
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -61,10 +61,18 @@ impl VuesDesServices {
 
 impl SourceDeVues for VuesDesServices {
     fn vues(&self) -> Result<Vec<AgentView>, String> {
+        /*
+          ⚠️ **La veille lit FRAIS (lot 4).** Réveillée par un événement de
+          herdr-core, elle lisait le cache de snapshot (≤ 2 s) : l'état d'AVANT
+          l'événement, et le changement attendait le passage suivant — 2 à 8 s
+          mesurées sur un core isolé. Une lecture forcée coûte un aller-retour
+          local (≈ 5 ms) au plus 1,3 fois par seconde, et elle rafraîchit le
+          cache des routes au passage.
+        */
         let borne = self
             .services
             .snapshots
-            .lecture()
+            .lecture_forcee()
             .map_err(|cause| format!("observation unavailable: {cause:?}"))?;
         let vue = ComposeurOverview::nouveau().compose(&borne, self.services.resout.as_ref());
         Ok(vue.agents)
@@ -118,7 +126,7 @@ pub fn notification_de_changement(
     changement: &Changement,
     vues: &[AgentView],
 ) -> Option<PayloadNotification> {
-    if !faut_notifier(changement.de, changement.a) {
+    if !changement.faut_notifier() {
         return None;
     }
     let (statut, vue) = match changement.a {
@@ -133,10 +141,16 @@ pub fn notification_de_changement(
         ),
     };
     let identite = vue.map(IdentiteNotification::depuis_vue);
-    Some(payload_de_notification(
-        &nom_de_notification(identite.as_ref()),
-        Some(changement.pane_id.as_str()),
+    let nom = nom_de_notification(identite.as_ref());
+    let precisions = PrecisionsDeFin {
+        attente: vue.and_then(|vue| vue.blocked_kind),
+        sortie: vue.and_then(|vue| vue.exit.clone()),
+    };
+    Some(precise(
+        payload_de_notification(&nom, Some(changement.pane_id.as_str()), statut),
+        &nom,
         statut,
+        &precisions,
     ))
 }
 
@@ -149,6 +163,10 @@ pub fn notification_de_changement(
 pub struct PublieDansLeJournal {
     journal: Arc<ServiceAbonnements>,
     notifications: Option<(Arc<Notifieur>, DernieresVues)>,
+    /// Le dernier push de chaque pane : `(tour, tag)`. Le même tour au même
+    /// statut ne sonne qu'une fois — un statut qui clignote (`blocked →
+    /// unknown → blocked`) ne redemande pas l'utilisateur (B1.4).
+    deja_notifies: Mutex<HashMap<String, (Option<u64>, String)>>,
 }
 
 impl PublieDansLeJournal {
@@ -157,6 +175,7 @@ impl PublieDansLeJournal {
         Self {
             journal,
             notifications: None,
+            deja_notifies: Mutex::new(HashMap::new()),
         }
     }
 
@@ -178,6 +197,14 @@ impl PublieDansLeJournal {
             let Some(payload) = notification_de_changement(changement, &vues) else {
                 continue;
             };
+            let tour = changement.tour_apres.or(changement.tour_avant);
+            if !self.premiere_fois(changement.pane_id.as_str(), tour, &payload.tag) {
+                info!(
+                    "notification push « {} » ({}) déjà envoyée pour ce tour — ignorée",
+                    payload.title, payload.tag
+                );
+                continue;
+            }
             match notifieur.notifie(&payload) {
                 Ok(vises) => info!(
                     "notification push « {} » ({}) enfilée vers {vises} abonnement(s)",
@@ -191,6 +218,23 @@ impl PublieDansLeJournal {
                 ),
             }
         }
+    }
+}
+
+impl PublieDansLeJournal {
+    /// Retient `(tour, tag)` pour ce pane ; `false` s'il vient d'être
+    /// notifié à l'identique. Un tour inconnu ne déduplique rien.
+    fn premiere_fois(&self, pane: &str, tour: Option<u64>, tag: &str) -> bool {
+        let mut deja = self
+            .deja_notifies
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let cle = (tour, tag.to_string());
+        if tour.is_some() && deja.get(pane) == Some(&cle) {
+            return false;
+        }
+        deja.insert(pane.to_string(), cle);
+        true
     }
 }
 
@@ -215,6 +259,24 @@ impl PublicateurDeChangements for PublieDansLeJournal {
 pub struct Veille {
     boucle: Arc<BoucleDeVeille>,
     fil: Option<JoinHandle<()>>,
+    /// Le flux d'événements de herdr-core qui réveille la boucle (lot 4) —
+    /// `None` : il n'a pas démarré, la boucle garde sa cadence de 2 s.
+    evenements: Option<herdr_core_client::abonnement::Abonnement>,
+}
+
+/// Le pont flux → veille : un fait qui compte réveille la boucle.
+struct ReveilDeVeille(Arc<BoucleDeVeille>);
+
+impl herdr_core_client::abonnement::RecepteurEvenements for ReveilDeVeille {
+    fn branche(&self, branche: bool) {
+        self.0.note_flux(branche);
+    }
+    fn signe_de_vie(&self) {
+        self.0.note_evenement();
+    }
+    fn reveille(&self) {
+        self.0.reveille();
+    }
 }
 
 impl Veille {
@@ -247,16 +309,46 @@ impl Veille {
             maintenant,
             INTERVALLE_VEILLE_PRODUCTION,
         ));
+        let _ = services.veille.set(Arc::clone(&boucle));
         let pour_fil = Arc::clone(&boucle);
-        let fil = std::thread::Builder::new()
+        // ⚠️ Un fil qui ne démarre pas se DIT (il était avalé par `.ok()`) :
+        // sans lui, plus aucun statut en direct ni push.
+        let fil = match std::thread::Builder::new()
             .name(String::from("veille-herdr"))
             .spawn(move || pour_fil.boucle())
-            .ok();
-        Self { boucle, fil }
+        {
+            Ok(fil) => Some(fil),
+            Err(cause) => {
+                warn!("veille : le fil n'a pas démarré — {cause}");
+                boucle.arreter();
+                None
+            }
+        };
+        // ⚠️ Le flux d'événements de herdr-core : un « done » ou un « needs
+        // you » publié en moins d'une seconde, au lieu de 2 s au pire — et
+        // un tour court n'échappe plus à la veille. Sans lui, rien ne change.
+        let evenements = match herdr_core_client::abonnement::Abonnement::demarre(
+            std::path::PathBuf::from(&services.socket),
+            Arc::new(ReveilDeVeille(Arc::clone(&boucle))),
+        ) {
+            Ok(abonnement) => Some(abonnement),
+            Err(cause) => {
+                warn!("événements herdr-core : le fil n'a pas démarré — {cause}");
+                None
+            }
+        };
+        Self {
+            boucle,
+            fil,
+            evenements,
+        }
     }
 
     /// Arrête la veille et attend la fin du fil (au plus une itération).
     pub fn arrete(&mut self) {
+        if let Some(evenements) = self.evenements.take() {
+            evenements.arrete();
+        }
         self.boucle.arreter();
         if let Some(fil) = self.fil.take() {
             let _ = fil.join();

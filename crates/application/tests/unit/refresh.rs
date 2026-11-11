@@ -523,3 +523,100 @@ fn l_horloge_reelle_est_utilisable_mais_independante_des_tests() {
     let second = reel.maintenant();
     assert!(second >= premier);
 }
+
+/// Le port dont le PREMIER snapshot panique (B1.7) — tout le reste délègue
+/// au faux.
+struct PortQuiPanique {
+    faux: HerdrFaux,
+    deja: std::sync::atomic::AtomicBool,
+}
+
+impl domain::ports::ControlPort for PortQuiPanique {
+    fn ping(&self) -> domain::ports::PortFuture<'_, UpstreamPing> {
+        self.faux.ping()
+    }
+    fn snapshot(&self) -> domain::ports::PortFuture<'_, Snapshot> {
+        if !self.deja.swap(true, Ordering::SeqCst) {
+            return Box::pin(async { panic!("le lecteur amont a paniqué") });
+        }
+        self.faux.snapshot()
+    }
+    fn list_agents(
+        &self,
+    ) -> domain::ports::PortFuture<'_, domain::observation::AgentListObservation> {
+        self.faux.list_agents()
+    }
+    fn read_screen(
+        &self,
+        request: domain::ports::ScreenRead,
+    ) -> domain::ports::PortFuture<'_, domain::observation::ScreenObservation> {
+        self.faux.read_screen(request)
+    }
+    fn prompt(
+        &self,
+        request: domain::ports::TargetedPrompt,
+    ) -> domain::ports::PortFuture<'_, domain::ports::PromptEvidence> {
+        self.faux.prompt(request)
+    }
+    fn send_text(
+        &self,
+        request: domain::ports::TargetedText,
+    ) -> domain::ports::PortFuture<'_, domain::ports::TransportEvidence> {
+        self.faux.send_text(request)
+    }
+    fn send_keys(
+        &self,
+        request: domain::ports::TargetedKeys,
+    ) -> domain::ports::PortFuture<'_, domain::ports::TransportEvidence> {
+        self.faux.send_keys(request)
+    }
+    fn focus(&self, pane: PaneId) -> domain::ports::PortFuture<'_, domain::ports::FocusEvidence> {
+        self.faux.focus(pane)
+    }
+    fn create_tab(
+        &self,
+        request: domain::ports::CreateTab,
+    ) -> domain::ports::PortFuture<'_, CreatedTab> {
+        self.faux.create_tab(request)
+    }
+    fn start_agent(
+        &self,
+        request: domain::ports::StartAgent,
+    ) -> domain::ports::PortFuture<'_, StartEvidence> {
+        self.faux.start_agent(request)
+    }
+    fn fermer_onglet(&self, tab: TabId) -> domain::ports::PortFuture<'_, ()> {
+        self.faux.fermer_onglet(tab)
+    }
+    fn stop(&self, pane: PaneId) -> domain::ports::PortFuture<'_, domain::ports::StopEvidence> {
+        self.faux.stop(pane)
+    }
+}
+
+#[test]
+fn un_lecteur_qui_panique_ne_gele_pas_les_lectures_suivantes() {
+    // B1.7 : le panic du porteur laissait `en_vol = true` pour toujours —
+    // la lecture suivante attendait un verdict qui ne viendrait jamais.
+    let faux = HerdrFaux::nouveau();
+    faux.repond_snapshot(photo_non_vide());
+    let service = Arc::new(ServiceSnapshots::nouveau(
+        Arc::new(PortQuiPanique {
+            faux,
+            deja: std::sync::atomic::AtomicBool::new(false),
+        }),
+        Arc::new(MaintenantReelle),
+    ));
+    let pour_fil = Arc::clone(&service);
+    let premier = std::thread::spawn(move || pour_fil.lecture());
+    assert!(premier.join().is_err(), "le premier lecteur a paniqué");
+    let (envoi, reception) = std::sync::mpsc::channel();
+    let pour_fil = Arc::clone(&service);
+    std::thread::spawn(move || {
+        let _ = envoi.send(pour_fil.lecture());
+    });
+    match reception.recv_timeout(Duration::from_secs(5)) {
+        Ok(Ok(borne)) => assert_eq!(borne.snapshot, photo_non_vide()),
+        Ok(Err(erreur)) => panic!("la reprise rafraîchit : {erreur:?}"),
+        Err(_) => panic!("la lecture suivante est restée gelée"),
+    }
+}

@@ -112,3 +112,40 @@ fn le_ping_amon_ne_dit_que_version_et_protocole() {
     let pane = PaneId::from("wA:p7".to_string());
     assert_eq!(pane.as_str(), "wA:p7");
 }
+
+#[test]
+fn la_fin_d_un_terminal_est_expliquee_avec_les_mots_du_schema() {
+    use domain::status::AgentExit;
+    let fin = |code: Option<i64>, raison: Option<&str>, signal: Option<&str>| AgentExit {
+        code,
+        reason: raison.map(String::from),
+        signal: signal.map(String::from),
+    };
+    assert_eq!(
+        fin(Some(0), Some("exited"), None).explication(),
+        "exited with code 0"
+    );
+    assert_eq!(
+        fin(Some(1), Some("killed"), None).explication(),
+        "was killed (code 1)"
+    );
+    assert_eq!(
+        fin(None, Some("signaled"), Some("9")).explication(),
+        "died from signal 9"
+    );
+    assert_eq!(
+        fin(None, Some("holder_lost"), None).explication(),
+        "was lost: the process holding it died"
+    );
+    assert!(fin(None, Some("holder_lost"), None).perdu());
+    assert_eq!(
+        fin(None, Some("stopped_by_restart"), None).explication(),
+        "was not running any more after herdr-core restarted"
+    );
+    assert_eq!(fin(None, None, None).explication(), "exited");
+    // Un mot inconnu est montré tel quel, jamais traduit au hasard.
+    assert_eq!(
+        fin(Some(2), Some("evaporated"), None).explication(),
+        "ended (evaporated) (code 2)"
+    );
+}

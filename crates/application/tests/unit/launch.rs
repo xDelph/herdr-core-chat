@@ -81,6 +81,7 @@ fn workspace_avec_chemin(libelle: &str, chemin: &str) -> WorkspaceObservation {
 
 fn agent_nomme(pane: &str, nom: &str) -> AgentObservation {
     AgentObservation {
+        faits: Default::default(),
         pane_id: PaneId::from(String::from(pane)),
         tab_id: TabId::from(String::from("t-voisin")),
         workspace_id: WorkspaceId::from(String::from("w1")),
@@ -98,6 +99,9 @@ fn agent_nomme(pane: &str, nom: &str) -> AgentObservation {
         state_change_seq: None,
         session: None,
         seen_at: None,
+        status_msg: None,
+        blocked_kind: None,
+        exit: None,
     }
 }
 

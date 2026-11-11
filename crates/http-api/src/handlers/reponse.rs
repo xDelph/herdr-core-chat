@@ -20,10 +20,15 @@ use domain::errors::ErreurDomaine;
 use domain::ids::PaneId;
 use std::sync::Arc;
 
-/// Le corps exact du fil : `{ numero: number, texte?: string }`.
+/// Le corps exact du fil : `{ numero: number, empreinte: string, texte?: string }`.
+///
+/// ⚠️ **L'empreinte est requise** (B1.1) : c'est celle de la question que le
+/// téléphone a AFFICHÉE. Sans elle, un numéro validait n'importe quelle
+/// question arrivée entre-temps.
 #[derive(serde::Deserialize)]
 struct Corps {
     numero: i64,
+    empreinte: String,
     #[serde(default)]
     texte: Option<String>,
 }
@@ -38,7 +43,7 @@ async fn reponse_sur_place(
         return (
             axum::http::StatusCode::BAD_REQUEST,
             axum::Json(serde_json::json!({
-                "error": "invalid body: `numero` (integer) required"
+                "error": "invalid body: `numero` (integer) and `empreinte` (string) required — reload the app"
             })),
         )
             .into_response();
@@ -49,13 +54,27 @@ async fn reponse_sur_place(
         &cible,
         corps.numero,
         corps.texte.as_deref(),
+        Some(&corps.empreinte),
     ) {
+        // La question a changé : 409, rien n'est parti. Le corps garde la
+        // forme du contrat (`refusee`) — le client affiche la cause.
+        Ok(reponse) if reponse.etat == EtatReponse::Perimee => (
+            axum::http::StatusCode::CONFLICT,
+            axum::Json(QuestionAnsweredResponse {
+                detail: reponse.detail,
+                state: AnswerState::Refusee,
+                status: AnsweredStatus::QuestionAnswered,
+                code: contracts::presence::Field::de_option(Some(String::from("screen_changed"))),
+            }),
+        )
+            .into_response(),
         Ok(reponse) => (
             axum::http::StatusCode::OK,
             axum::Json(QuestionAnsweredResponse {
                 detail: reponse.detail,
                 state: etat_de_fil(reponse.etat),
                 status: AnsweredStatus::QuestionAnswered,
+                code: contracts::presence::Field::de_option(None),
             }),
         )
             .into_response(),
@@ -71,13 +90,15 @@ async fn reponse_sur_place(
                 ),
                 state: AnswerState::Transmise,
                 status: AnsweredStatus::QuestionAnswered,
+                code: contracts::presence::Field::de_option(Some(String::from("timeout"))),
             }),
         )
             .into_response(),
         // L'échec Herdr est un 502 : le corps porte la cause réelle.
         Err(cause) => crate::handlers::repondre_erreur(
             RouteId::ReponseQuestion,
-            &ErreurDomaine::amont_refus(format!("answer failed: {}", cause.description())),
+            &ErreurDomaine::amont_refus(format!("answer failed: {}", cause.description()))
+                .avec_port(&cause),
         ),
     }
 }
@@ -88,7 +109,7 @@ pub fn etat_de_fil(etat: EtatReponse) -> AnswerState {
     match etat {
         EtatReponse::Appliquee => AnswerState::Appliquee,
         EtatReponse::Transmise => AnswerState::Transmise,
-        EtatReponse::Refusee => AnswerState::Refusee,
+        EtatReponse::Refusee | EtatReponse::Perimee => AnswerState::Refusee,
     }
 }
 

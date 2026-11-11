@@ -135,6 +135,7 @@ fn agent(
     name: Option<&str>,
 ) -> AgentObservation {
     AgentObservation {
+        faits: Default::default(),
         pane_id: PaneId::from(String::from(pane)),
         tab_id: TabId::from(String::from("t1")),
         workspace_id: WorkspaceId::from(String::from("w1")),
@@ -152,6 +153,9 @@ fn agent(
         state_change_seq: None,
         session: None,
         seen_at: None,
+        status_msg: None,
+        blocked_kind: None,
+        exit: None,
     }
 }
 
@@ -273,6 +277,27 @@ fn le_titre_suit_l_ordre_du_fil() {
     let port = HerdrFaux::nouveau();
     let lignes = service.lignes(&port, &borne(vec![particulier]));
     assert_eq!(lignes[0].title, "mon titre", "trimé, pas inventé");
+}
+
+#[test]
+fn l_activite_dite_par_l_agent_n_est_montree_que_pendant_le_travail() {
+    // `status.msg` décrit ce que l'agent fait MAINTENANT : sur un agent au
+    // repos, le dernier message dirait un travail fini.
+    let mut au_travail = agent("p1", Some("claude"), AgentStatus::Working, None);
+    au_travail.status_msg = Some(String::from("Running the test suite"));
+    let mut au_repos = agent("p2", Some("claude"), AgentStatus::Idle, None);
+    au_repos.status_msg = Some(String::from("Running the test suite"));
+    let service = service(FauxSessions::nouveau());
+    let port = HerdrFaux::nouveau();
+    let lignes = service.lignes(&port, &borne(vec![au_travail, au_repos]));
+    let activite = |pane: &str| {
+        lignes
+            .iter()
+            .find(|ligne| ligne.pane_id.as_str() == pane)
+            .and_then(|ligne| ligne.activite.clone())
+    };
+    assert_eq!(activite("p1").as_deref(), Some("Running the test suite"));
+    assert_eq!(activite("p2"), None, "au repos : rien de dit au présent");
 }
 
 #[test]
@@ -927,4 +952,199 @@ fn une_demande_pendant_une_tache_de_fond_continue_le_meme_travail() {
         .avec_taches(Ok(vec![finie]));
     let lignes = service(faux).lignes(&HerdrFaux::nouveau(), &agents);
     assert_eq!(lignes[0].tour_debut, Some(5_000));
+}
+
+fn lectures_d_ecran(port: &HerdrFaux) -> usize {
+    port.actions()
+        .iter()
+        .filter(|action| action.op == Op::LectureEcran)
+        .count()
+}
+
+fn ecran_hooks(port: &HerdrFaux, pane: &str) {
+    port.remplace_ecran(ScreenObservation {
+        pane_id: PaneId::from(String::from(pane)),
+        text: Some(String::from(
+            "Hooks need review\n\n1. Run all hooks\n2. Skip hooks\n\nEnter to submit | esc to cancel",
+        )),
+        truncated: None,
+        source: None,
+    });
+}
+
+#[test]
+fn l_ecran_est_retenu_tant_que_rien_ne_l_a_change() {
+    // Lot 3 : la liste relisait l'écran de chaque ligne bloquée à CHAQUE
+    // requête (1,95 s mesurées sur un pane). Même tour, même statut, même
+    // instant de changement, aucun geste : l'écran est resservi.
+    let port = HerdrFaux::nouveau();
+    ecran_hooks(&port, "p-ecran-1");
+    let service = service(FauxSessions::nouveau());
+    let mut bloque = agent("p-ecran-1", Some("codex"), AgentStatus::Blocked, None);
+    bloque.state_change_seq = Some(1_000);
+    for _ in 0..4 {
+        let lignes = service.lignes(&port, &borne(vec![bloque.clone()]));
+        assert!(lignes[0].question.is_some(), "la question reste montrée");
+    }
+    assert_eq!(
+        lectures_d_ecran(&port),
+        1,
+        "un seul aller-retour pour quatre requêtes"
+    );
+
+    // Le statut a changé depuis (nouvel instant) : l'écran est relu.
+    bloque.state_change_seq = Some(2_000);
+    let _ = service.lignes(&port, &borne(vec![bloque.clone()]));
+    assert_eq!(lectures_d_ecran(&port), 2);
+
+    // Un nouveau tour : relu aussi.
+    bloque.revision += 1;
+    let _ = service.lignes(&port, &borne(vec![bloque.clone()]));
+    assert_eq!(lectures_d_ecran(&port), 3);
+}
+
+#[test]
+fn un_geste_du_demon_sur_le_pane_fait_relire_l_ecran() {
+    // Une réponse envoyée du téléphone change l'écran sans que le statut
+    // ait encore bougé : la liste ne doit pas remontrer l'ancienne question.
+    let port = HerdrFaux::nouveau();
+    ecran_hooks(&port, "p-ecran-geste");
+    let service = service(FauxSessions::nouveau());
+    let bloque = agent("p-ecran-geste", Some("codex"), AgentStatus::Blocked, None);
+    let _ = service.lignes(&port, &borne(vec![bloque.clone()]));
+    let _ = service.lignes(&port, &borne(vec![bloque.clone()]));
+    assert_eq!(lectures_d_ecran(&port), 1);
+    let pane = PaneId::from(String::from("p-ecran-geste"));
+    let _ = application::commands::admission::partage().admet(&pane, || Ok::<(), ()>(()));
+    let _ = service.lignes(&port, &borne(vec![bloque]));
+    assert_eq!(
+        lectures_d_ecran(&port),
+        2,
+        "le geste a invalidé l'écran retenu"
+    );
+}
+
+#[test]
+fn un_ecran_illisible_n_est_pas_retenu() {
+    let port = HerdrFaux::nouveau();
+    port.remplace_ecran(ScreenObservation {
+        pane_id: PaneId::from(String::from("p-ecran-vide")),
+        text: None,
+        truncated: None,
+        source: None,
+    });
+    let service = service(FauxSessions::nouveau());
+    let bloque = agent("p-ecran-vide", Some("codex"), AgentStatus::Blocked, None);
+    let _ = service.lignes(&port, &borne(vec![bloque.clone()]));
+    let _ = service.lignes(&port, &borne(vec![bloque]));
+    assert_eq!(lectures_d_ecran(&port), 2, "rien de lu, rien de retenu");
+}
+
+#[test]
+fn le_permis_est_partage_par_les_requetes_simultanees() {
+    // Lot 3 : le plafond était créé à chaque requête — deux clients
+    // ouvraient 8 lectures. Deux listes en même temps : 4 au plus, en tout.
+    let mut faux = FauxSessions::nouveau();
+    for index in 1..=8 {
+        let pane = format!("p{index}");
+        faux.sources.insert(
+            PaneId::from(pane.clone()),
+            Some(source(&format!("/sessions/{pane}.jsonl"))),
+        );
+        faux.lectures.insert(PaneId::from(pane), Ok(Vec::new()));
+    }
+    let pic = faux.pic.clone();
+    let porte = faux.porte.clone();
+    faux.ferme_la_porte();
+    let agents: Vec<AgentObservation> = (1..=8)
+        .map(|index| agent(&format!("p{index}"), Some("pi"), AgentStatus::Done, None))
+        .collect();
+    let service = Arc::new(service(faux));
+    let porteurs: Vec<_> = (0..2)
+        .map(|_| {
+            let service = Arc::clone(&service);
+            let agents = agents.clone();
+            std::thread::spawn(move || service.lignes(&HerdrFaux::nouveau(), &borne(agents)))
+        })
+        .collect();
+    std::thread::sleep(Duration::from_millis(150));
+    {
+        let mut verrou = porte.0.lock().unwrap_or_else(PoisonError::into_inner);
+        *verrou = true;
+    }
+    porte.1.notify_all();
+    for porteur in porteurs {
+        let lignes = porteur.join().unwrap_or_else(|_| panic!("porteur paniqué"));
+        assert_eq!(lignes.len(), 8);
+    }
+    let pic = pic.load(Ordering::SeqCst);
+    assert!(
+        (1..=MAX_SESSION_READS as u64).contains(&pic),
+        "deux requêtes partagent le plafond de {MAX_SESSION_READS}, pic = {pic}"
+    );
+}
+
+#[test]
+fn une_place_est_rendue_meme_si_le_lecteur_panique() {
+    // Lot 3 : le sas de la liste est partagé par tout le démon. Une place
+    // perdue par panique serait perdue pour toujours.
+    let sas = application::permis::SasDeLecture::nouveau(1);
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _place = sas.place();
+        panic!("lecteur en panique");
+    }));
+    assert!(sas.tente_acquiere(), "la place est revenue");
+}
+
+fn sous_agent(id: &str, status: AgentStatus, titre: Option<&str>) -> domain::status::SousAgent {
+    domain::status::SousAgent {
+        id: String::from(id),
+        status,
+        title: titre.map(String::from),
+        msg: Some(String::from("reading files")),
+    }
+}
+
+#[test]
+fn un_sous_agent_en_direct_l_emporte_sur_l_heuristique_des_fichiers() {
+    // Lot 4 : le record 7501 du sous-agent (même id que `agent-<id>`) dit
+    // l'état que le programme DÉCLARE ; un record sans fichier devient une
+    // tâche à part, sans transcription.
+    let mut ancienne = tache("abc", StatutTache::Inconnu);
+    ancienne.description = None;
+    let fusion = application::conversations::avec_sous_agents(
+        Some(vec![ancienne, tache("def", StatutTache::Terminee)]),
+        &[
+            sous_agent("agent-abc", AgentStatus::Working, Some("Explore repo")),
+            sous_agent("zzz", AgentStatus::Error, None),
+        ],
+    )
+    .unwrap_or_else(|| panic!("des tâches"));
+    assert_eq!(fusion.len(), 3);
+    assert_eq!(fusion[0].statut, StatutTache::EnCours);
+    assert_eq!(fusion[0].description.as_deref(), Some("Explore repo"));
+    assert_eq!(fusion[0].resume.as_deref(), Some("reading files"));
+    assert_eq!(
+        fusion[1].statut,
+        StatutTache::Terminee,
+        "un fichier sans record ne bouge pas"
+    );
+    assert_eq!(fusion[2].id, "zzz");
+    assert_eq!(fusion[2].statut, StatutTache::Echouee);
+    assert!(!fusion[2].transcription);
+    // Sans record : rien ne change, `None` reste `None`.
+    assert!(application::conversations::avec_sous_agents(None, &[]).is_none());
+}
+
+#[test]
+fn un_agent_sans_session_compte_ses_sous_agents_en_direct() {
+    let service = service(FauxSessions::nouveau());
+    let mut travaille = agent("p-sous", Some("claude"), AgentStatus::Working, None);
+    travaille.faits.sous_agents = vec![sous_agent("agent-1", AgentStatus::Working, None)];
+    let lignes = service.lignes(&HerdrFaux::nouveau(), &borne(vec![travaille]));
+    let compte = lignes[0]
+        .taches_de_fond
+        .unwrap_or_else(|| panic!("le sous-agent est compté"));
+    assert_eq!((compte.en_cours, compte.total), (1, 1));
+    assert_eq!(lignes[0].faits.sous_agents.len(), 1);
 }

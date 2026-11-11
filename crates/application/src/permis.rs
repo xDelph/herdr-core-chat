@@ -35,6 +35,15 @@ impl SasDeLecture {
         *en_vol += 1;
     }
 
+    /// Prend une place et la rend à la chute de la garde — même si le
+    /// lecteur panique : un sas PARTAGÉ (lot 3) qui perdrait une place à
+    /// chaque panique finirait fermé pour tout le démon.
+    #[must_use]
+    pub fn place(&self) -> Place<'_> {
+        self.acquiere();
+        Place { sas: self }
+    }
+
     /// Rend la place — réveille un attendant.
     pub fn relache(&self) {
         let mut en_vol = self.en_vol.lock().unwrap_or_else(PoisonError::into_inner);
@@ -76,6 +85,17 @@ impl GardeDePermis {
 }
 
 impl Drop for GardeDePermis {
+    fn drop(&mut self) {
+        self.sas.relache();
+    }
+}
+
+/// Une place prise dans un sas, rendue à sa chute (voir [`SasDeLecture::place`]).
+pub struct Place<'a> {
+    sas: &'a SasDeLecture,
+}
+
+impl Drop for Place<'_> {
     fn drop(&mut self) {
         self.sas.relache();
     }

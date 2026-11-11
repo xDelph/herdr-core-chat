@@ -42,6 +42,10 @@ pub enum Op {
     /// Le « vu » partagé avec l'amont (`herdr.seen`) — capturé pour prouver
     /// qu'une lecture le transmet, avec l'instant lu.
     MarqueVu,
+    /// L'épingle partagée (`herdr.pinned`) — lot 4.
+    Epingle,
+    /// Un fichier posé à côté du terminal (`terminal.put`) — lot 4.
+    Depot,
 }
 
 /// Une action capturée : quoi (opération), sur qui (cible), quel fait.
@@ -506,6 +510,42 @@ impl ControlPort for HerdrFaux {
             });
             Self::note_panne(&interieur, Op::MarqueVu)?;
             Ok(interieur.vu)
+        })
+    }
+
+    fn epingle(&self, pane: PaneId, epingle: bool) -> PortFuture<'_, ()> {
+        let cible = pane.as_str().to_string();
+        Box::pin(async move {
+            let mut interieur = self.verrou();
+            interieur.actions.push(ActionCapturee {
+                op: Op::Epingle,
+                cible,
+                detail: format!("épinglé : {epingle}"),
+            });
+            Self::note_panne(&interieur, Op::Epingle)?;
+            Ok(())
+        })
+    }
+
+    fn depose(
+        &self,
+        pane: PaneId,
+        nom: String,
+        octets: Vec<u8>,
+    ) -> PortFuture<'_, domain::ports::FichierDepose> {
+        let cible = pane.as_str().to_string();
+        Box::pin(async move {
+            let mut interieur = self.verrou();
+            interieur.actions.push(ActionCapturee {
+                op: Op::Depot,
+                cible: cible.clone(),
+                detail: format!("{nom} ({} octets)", octets.len()),
+            });
+            Self::note_panne(&interieur, Op::Depot)?;
+            Ok(domain::ports::FichierDepose {
+                chemin: format!("/core/files/{cible}/{nom}"),
+                octets: octets.len() as u64,
+            })
         })
     }
 

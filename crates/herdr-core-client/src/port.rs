@@ -272,13 +272,95 @@ impl PortCore {
     /// (guide de Herdr.app). Le core garde le mot `done` ; c'est
     /// `herdr.seen >= turn` qui dit « regardé ». Sans ce label, un agent vu
     /// sur le Mac restait « done, non lu » sur le téléphone.
+    ///
+    /// ⚠️ **Un terminal fini ne travaille plus.** Le core garde le dernier
+    /// mot du programme : un agent tué en plein tour restait « working »
+    /// pour toujours. Fini en échec (code non nul, signal) : `error` ; fini
+    /// proprement : `done`, puis la règle du « vu ».
     #[must_use]
     pub fn statut_affiche(term: &Terminal) -> AgentStatus {
-        match Self::agent_status_depuis(term.status.as_ref()) {
+        let statut = match Self::fin_de(term) {
+            Some(fin) if fin.en_echec() => AgentStatus::Error,
+            Some(_) => AgentStatus::Done,
+            None => Self::agent_status_depuis(term.status.as_ref()),
+        };
+        match statut {
             AgentStatus::Done if Self::tour_vu(term).is_some_and(|vu| vu >= term.turn) => {
                 AgentStatus::Idle
             }
             statut => statut,
+        }
+    }
+
+    /// La fin d'un terminal que le core dit fini ; vivant : `None`.
+    #[must_use]
+    pub fn fin_de(term: &Terminal) -> Option<domain::status::AgentExit> {
+        (term.state == "finished").then(|| domain::status::AgentExit {
+            code: term.exit_code,
+            reason: term.reason.clone(),
+            signal: term.signal.clone(),
+        })
+    }
+
+    /// Ce qu'attend un agent bloqué (`status.kind`) ; pas bloqué, ou mot
+    /// inconnu : `None`.
+    #[must_use]
+    pub fn nature_du_blocage(term: &Terminal) -> Option<domain::status::BlockedKind> {
+        if Self::statut_affiche(term) != AgentStatus::Blocked {
+            return None;
+        }
+        term.status
+            .as_ref()
+            .and_then(|statut| statut.get("kind"))
+            .and_then(Value::as_str)
+            .and_then(domain::status::BlockedKind::depuis_mot)
+    }
+
+    /// Les faits du core au-delà du statut (lot 4) :
+    /// - les **records 7501** (`records`, un par id) : les sous-agents en
+    ///   direct — `state: clear` les retire côté core, un record illisible
+    ///   (sans `state` connu) est ignoré, jamais deviné ;
+    /// - l'**épingle** partagée avec Herdr.app : `herdr.pinned = "1"`
+    ///   (lu dans Herdr.app 0.1.13 ; retirée par `herdr.pinned=`) ;
+    /// - `screen: inexact` après un crash du core.
+    #[must_use]
+    pub fn faits_de(term: &Terminal) -> domain::status::FaitsDuTerminal {
+        let sous_agents = term
+            .records
+            .iter()
+            .filter_map(|(id, record)| {
+                let mot = record.get("state").and_then(Value::as_str)?;
+                let status = match mot {
+                    "idle" => AgentStatus::Idle,
+                    "working" => AgentStatus::Working,
+                    "done" => AgentStatus::Done,
+                    "blocked" => AgentStatus::Blocked,
+                    "error" => AgentStatus::Error,
+                    _ => return None,
+                };
+                let texte = |cle: &str| {
+                    record
+                        .get(cle)
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .filter(|t| !t.is_empty())
+                        .map(String::from)
+                };
+                Some(domain::status::SousAgent {
+                    id: id.clone(),
+                    status,
+                    title: texte("title"),
+                    msg: texte("msg"),
+                })
+            })
+            .collect();
+        domain::status::FaitsDuTerminal {
+            sous_agents,
+            epingle: term
+                .labels
+                .get(LABEL_EPINGLE)
+                .is_some_and(|valeur| !valeur.is_empty() && valeur != "0" && valeur != "false"),
+            ecran_inexact: term.screen.as_deref() == Some("inexact"),
         }
     }
 
@@ -462,8 +544,44 @@ fn nom_de_dossier(chemin: &str) -> String {
         .unwrap_or_else(|| chemin.to_string())
 }
 
+/// Le label `where` que Herdr.app tient à jour sur chaque terminal :
+/// `« <espace> / <onglet> »` — ses noms AFFICHÉS, calculés en direct.
+///
+/// ⚠️ Il n'est cru que s'il parle de CET espace et de CET onglet (labels
+/// `herdr.space`/`herdr.tab`, quand ils sont posés) : un terminal déplacé
+/// garderait sinon le nom de son ancien espace. Un nom d'onglet connu du doc
+/// est retiré tel quel (il peut contenir « / ») ; sinon on coupe au dernier
+/// séparateur.
+fn lieu_de(
+    term: &Terminal,
+    espace: &str,
+    onglet: &str,
+    nom_onglet: &str,
+) -> Option<(String, String)> {
+    let autre = |cle: &str, attendu: &str| term.labels.get(cle).is_some_and(|v| v != attendu);
+    if autre("herdr.space", espace) || autre("herdr.tab", onglet) {
+        return None;
+    }
+    let lieu = term.labels.get("where")?;
+    let (nom_espace, nom) = if nom_onglet.is_empty() {
+        lieu.rsplit_once(" / ")?
+    } else {
+        (
+            lieu.strip_suffix(nom_onglet)?.strip_suffix(" / ")?,
+            nom_onglet,
+        )
+    };
+    let nom_espace = nom_espace.trim();
+    let nom = nom.trim();
+    (!nom_espace.is_empty() && !nom.is_empty()).then(|| (nom_espace.to_string(), nom.to_string()))
+}
+
+/// Le label d'épingle de Herdr.app (`terminal.pin`) : `"1"` épingle, vide retire.
+pub const LABEL_EPINGLE: &str = "herdr.pinned";
+
 fn agent_de(term: &Terminal, espace: &str, onglet: &str) -> AgentObservation {
     AgentObservation {
+        faits: PortCore::faits_de(term),
         pane_id: PaneId::from(term.address.clone()),
         tab_id: TabId::from(onglet.to_string()),
         workspace_id: WorkspaceId::from(espace.to_string()),
@@ -482,9 +600,21 @@ fn agent_de(term: &Terminal, espace: &str, onglet: &str) -> AgentObservation {
         foreground_pid: term.foreground_pid,
         foreground_cwd: term.foreground_cwd.clone(),
         completion_seq: None,
-        state_change_seq: None,
+        // L'instant du dernier changement de statut (`status_ms`) : la clé
+        // du cache d'écran de la liste (lot 3).
+        state_change_seq: term.status_ms,
         session: None,
         seen_at: PortCore::vu_a(term),
+        status_msg: term
+            .status
+            .as_ref()
+            .and_then(|statut| statut.get("msg"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|msg| !msg.is_empty())
+            .map(String::from),
+        blocked_kind: PortCore::nature_du_blocage(term),
+        exit: PortCore::fin_de(term),
     }
 }
 
@@ -559,12 +689,55 @@ pub fn snapshot_depuis(
     let mut place: BTreeMap<String, (String, String)> = BTreeMap::new();
 
     for espace in &disposition.spaces {
+        let mut onglets = Vec::new();
+        // Le nom VIVANT de l'espace, lu sur le label `where` d'un de ses
+        // terminaux (le premier qui en porte un, dans l'ordre du doc).
+        let mut nom_vivant: Option<String> = None;
+        for onglet in &espace.onglets {
+            let presents: Vec<String> = onglet
+                .terminaux
+                .iter()
+                .filter(|adresse| connus.contains_key(adresse.as_str()))
+                .cloned()
+                .collect();
+            let lieu = presents
+                .iter()
+                .filter_map(|adresse| connus.get(adresse.as_str()))
+                .find_map(|term| lieu_de(term, &espace.id, &onglet.id, &onglet.name));
+            if let Some((nom_espace, _)) = &lieu
+                && nom_vivant.is_none()
+            {
+                nom_vivant = Some(nom_espace.clone());
+            }
+            let nom_etat = etat
+                .and_then(|e| e.tabs.get(&onglet.id))
+                .map(|e| e.name.clone())
+                .filter(|nom| !nom.is_empty());
+            let label = Some(onglet.name.clone())
+                .filter(|nom| !nom.is_empty())
+                .or(lieu.map(|(_, nom_onglet)| nom_onglet))
+                .or(nom_etat);
+            for adresse in &presents {
+                place.insert(adresse.clone(), (espace.id.clone(), onglet.id.clone()));
+            }
+            onglets.push((onglet.id.clone(), label, presents));
+        }
         let nom_etat = etat
             .and_then(|e| e.spaces.get(&espace.id))
             .map(|e| e.name.clone())
             .filter(|nom| !nom.is_empty());
+        /*
+          ⚠️ **Le label `where` passe avant `workspace-state.json` et avant le
+          dossier déclaré.** Le fichier du mod n'est réécrit que de loin en
+          loin (relevé le 2026-11-08 : 22 h de retard) et ignore les espaces
+          créés depuis ; le dossier déclaré est celui de la CRÉATION. Un
+          nouvel espace ouvert depuis `…/orchard` puis passé dans
+          `…/print-dashboard` s'affichait « orchard » — comme l'espace
+          « orchard » voisin : l'agent semblait rattaché à un autre espace.
+        */
         let label = Some(espace.name.clone())
             .filter(|nom| !nom.is_empty())
+            .or(nom_vivant)
             .or(nom_etat)
             // Dernier recours (Herdr.app fermé, sans son état) : le NOM du
             // dossier, pas son chemin complet — il sert aussi de base au nom
@@ -574,26 +747,6 @@ pub fn snapshot_depuis(
                     .filter(|d| !d.is_empty())
                     .map(|d| nom_de_dossier(&d))
             });
-        let mut onglets = Vec::new();
-        for onglet in &espace.onglets {
-            let nom_etat = etat
-                .and_then(|e| e.tabs.get(&onglet.id))
-                .map(|e| e.name.clone())
-                .filter(|nom| !nom.is_empty());
-            let label = Some(onglet.name.clone())
-                .filter(|nom| !nom.is_empty())
-                .or(nom_etat);
-            let presents: Vec<String> = onglet
-                .terminaux
-                .iter()
-                .filter(|adresse| connus.contains_key(adresse.as_str()))
-                .cloned()
-                .collect();
-            for adresse in &presents {
-                place.insert(adresse.clone(), (espace.id.clone(), onglet.id.clone()));
-            }
-            onglets.push((onglet.id.clone(), label, presents));
-        }
         groupes.push(Groupe {
             id: espace.id.clone(),
             label,
@@ -969,10 +1122,14 @@ impl ControlPort for PortCore {
             Ok(terminal) => terminal,
             Err(erreur) => return pret(Err(erreur)),
         };
-        let question = terminal.status.as_ref().is_some_and(|status| {
-            status.get("state").and_then(Value::as_str) == Some("blocked")
-                && status.get("kind").and_then(Value::as_str) == Some("question")
-        });
+        // ⚠️ `force` colle PUIS appuie sur Entrée dans un agent bloqué : sur
+        // un sélecteur, Entrée valide l'option surlignée. Seule la réponse
+        // libre (le curseur déjà dans « Type something ») y a droit (B1.2).
+        let question = request.reponse_libre
+            && terminal.status.as_ref().is_some_and(|status| {
+                status.get("state").and_then(Value::as_str) == Some("blocked")
+                    && status.get("kind").and_then(Value::as_str) == Some("question")
+            });
         // ⚠️ Un refus du core est une **erreur**, pas une preuve « refusée » :
         // l'appelant qui enchaîne `enter` (`les_frappes`, réponses) s'arrête
         // au `?`. Rendu en `Ok(Refused)`, le refus d'un collage sur une
@@ -1073,6 +1230,41 @@ impl ControlPort for PortCore {
                 .map_err(erreur_port)
         });
         pret(resultat.map(|()| Some(terminal.turn)))
+    }
+
+    fn epingle(&self, pane: PaneId, epingle: bool) -> PortFuture<'_, ()> {
+        let adresse = pane.to_string();
+        // Le terminal doit exister ICI : un label posé sur une adresse
+        // inconnue serait une erreur muette du côté de Herdr.app.
+        if let Err(erreur) = self.terminal(&adresse) {
+            return pret(Err(erreur));
+        }
+        let labels: BTreeMap<String, String> = [(
+            String::from(LABEL_EPINGLE),
+            String::from(if epingle { "1" } else { "" }),
+        )]
+        .into_iter()
+        .collect();
+        pret(self.verrouiller().and_then(|mut client| {
+            client
+                .terminal_label(&adresse, &labels)
+                .map_err(erreur_port)
+        }))
+    }
+
+    fn depose(
+        &self,
+        pane: PaneId,
+        nom: String,
+        octets: Vec<u8>,
+    ) -> PortFuture<'_, domain::ports::FichierDepose> {
+        let adresse = pane.to_string();
+        pret(self.verrouiller().and_then(|mut client| {
+            client
+                .terminal_put(&adresse, &nom, &octets)
+                .map(|(chemin, octets)| domain::ports::FichierDepose { chemin, octets })
+                .map_err(erreur_port)
+        }))
     }
 
     fn focus(&self, _pane: PaneId) -> PortFuture<'_, FocusEvidence> {
@@ -1269,7 +1461,7 @@ impl ControlPort for PortCore {
                 .map_err(erreur_port)
                 .map(|outcome| {
                     tracing::info!(terminal = %adresse, outcome, "herdr-core : interruption");
-                    StopEvidence::InterruptSent
+                    StopEvidence::Interrupted(domain::ports::StopOutcome::depuis_mot(&outcome))
                 })
         });
         pret(resultat)

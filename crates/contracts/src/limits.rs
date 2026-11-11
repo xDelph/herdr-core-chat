@@ -29,6 +29,10 @@ pub const MIN_TEXT_CONTRAST: f64 = 4.5;
 /// (CURRENT.md §2, branche de rejet commune).
 pub const MAX_BODY_BYTES: usize = 64 * 1024;
 
+/// La taille maximale d'une pièce jointe (H26) : la borne de `terminal.put`
+/// chez herdr-core (8 Mo de données brutes).
+pub const MAX_ATTACHMENT_BYTES: usize = 8 * 1024 * 1024;
+
 /// Limite propre au prompt (H05) : texte au-delà → 413, compté en octets
 /// UTF-8 (CURRENT.md §2, H05).
 pub const MAX_PROMPT_BYTES: usize = 32 * 1024;

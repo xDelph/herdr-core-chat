@@ -159,6 +159,28 @@ fn un_evenement_publie_apres_l_abonnement_arrive_par_la_sonnette() {
 }
 
 #[test]
+fn la_frontiere_du_flux_est_celle_de_l_inscription_pas_celle_du_journal_relu() {
+    // Un événement publié entre l'inscription et le préambule du flux arrive
+    // par la sonnette : la frontière doit rester AVANT lui. Relire le
+    // journal (`dernier_id`) la plaçait dessus, et le flux le jetait comme
+    // « déjà émis ».
+    let (service, _journal) = service();
+    let _avant = publie(&service, "a");
+    let abonnement = service.abonne("").unwrap_or_else(|_| panic!("abonné"));
+    let pendant = publie(&service, "b");
+    let frontiere = abonnement.rattrapage().reprendre_de.sequence;
+    assert!(
+        frontiere < pendant.id.sequence,
+        "la frontière {frontiere} couvrirait l'événement {}",
+        pendant.id.sequence
+    );
+    let recu = abonnement
+        .attend(Duration::from_millis(100))
+        .unwrap_or_else(|| panic!("l'événement publié pendant l'ouverture arrive"));
+    assert_eq!(recu.id, pendant.id);
+}
+
+#[test]
 fn la_sonnette_bornee_ne_grossit_pas_la_memoire() {
     // T043 : un consommateur lent ne fait pas grossir la mémoire — le canal
     // live est borné, les événements au-delà restent dans le journal.

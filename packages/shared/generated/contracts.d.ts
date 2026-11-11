@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (75 définitions).
+// Source : contracts.schema.json (78 définitions).
 
 /**
  * Un focus appliqué (`AgentFocusedResponse`).
@@ -105,6 +105,11 @@ export interface AgentView {
    */
   agent: string | null;
   /**
+   * Ce qu'un agent `blocked` attend : `permission | question | auth` —
+   * absent quand il ne le dit pas.
+   */
+  blockedKind?: "permission" | "question" | "auth";
+  /**
    * Une valeur **présente** qui peut valoir null — l'homologue exact de
    * `Schema.NullOr(Schema.X)`.
    *
@@ -123,6 +128,14 @@ export interface AgentView {
    * représentation réelle, pas la représentation par défaut étiquetée.
    */
   cwd: string | null;
+  /**
+   * La fin du terminal (code, raison, signal) quand herdr-core le dit fini.
+   */
+  exit?: {
+    code?: number;
+    reason?: string;
+    signal?: string;
+  };
   focused: boolean;
   /**
    * Une valeur **présente** qui peut valoir null — l'homologue exact de
@@ -182,6 +195,15 @@ export interface AgentView {
    * représentation réelle, pas la représentation par défaut étiquetée.
    */
   parentSession: string | null;
+  /**
+   * Épinglé, sur le Mac (Herdr.app) ou depuis le téléphone — présent
+   * seulement quand vrai.
+   */
+  pinned?: boolean;
+  /**
+   * L'écran peut être incomplet : herdr-core a crashé (`screen: inexact`).
+   */
+  screenInexact?: boolean;
   /**
    * Une valeur **présente** qui peut valoir null — l'homologue exact de
    * `Schema.NullOr(Schema.X)`.
@@ -272,6 +294,25 @@ export interface AgentView {
    * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
    */
   status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
+  /**
+   * Les sous-agents en direct (records 7501) — absent quand il n'y en a pas.
+   *
+   * Items: Un sous-agent en direct : un record 7501 du programme, ses mots à lui.
+   */
+  subagents?: {
+    id: string;
+    msg?: string;
+    /**
+     * État d'un agent : `idle | working | blocked | done | error | unknown`.
+     *
+     * Les cinq premiers sont les mots du programme (OSC 7501, `Status.state` de
+     * herdr-core 0.1.17 : « idle, working, done, blocked or error »).
+     * ⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont
+     * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
+     */
+    status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
+    title?: string;
+  }[];
   tabId: string;
   /**
    * Une valeur **présente** qui peut valoir null — l'homologue exact de
@@ -331,6 +372,11 @@ export interface AgentView {
    * représentation réelle, pas la représentation par défaut étiquetée.
    */
   title: string | null;
+  /**
+   * Le tour de herdr-core (`turn`) — il avance à chaque sortie de
+   * `working` (B1.4).
+   */
+  turn?: number;
   workspaceId: string;
   /**
    * Une valeur **présente** qui peut valoir null — l'homologue exact de
@@ -378,8 +424,31 @@ export interface ApiErrorResponse {
    * seulement quand l'erreur en porte une.
    */
   cause?: "absente" | "vide" | "invalide" | "io";
+  /**
+   * Le code STABLE de l'erreur (`agent_gone`, `agent_exited`,
+   * `agent_blocked`, `status_changed`, `core_unavailable`,
+   * `core_needs_update`, `timeout`, `busy`, `screen_changed`,
+   * `prompt_open`) — le client décide sur lui, jamais sur la phrase.
+   */
+  code?: string;
   error: string;
   hint?: string;
+}
+
+/**
+ * Une pièce jointe déposée à côté du terminal (H26) : rien n'a été tapé,
+ * `path` est à coller dans le message.
+ */
+export interface AttachmentResponse {
+  bytes: number;
+  /**
+   * Le nom gardé (assaini).
+   */
+  name: string;
+  /**
+   * Où le fichier a atterri, vu de la machine du terminal.
+   */
+  path: string;
 }
 
 /**
@@ -532,6 +601,12 @@ export type Confirmation = "confirmed" | "unknown";
  */
 export interface ConversationSummary {
   /**
+   * Ce que l'agent dit, dans ses mots (`status.msg` de herdr-core),
+   * seulement pendant qu'il travaille, attend ou est en erreur — absent
+   * quand il ne dit rien (un message d'un tour fini serait périmé).
+   */
+  activity?: string;
+  /**
    * Une valeur **présente** qui peut valoir null — l'homologue exact de
    * `Schema.NullOr(Schema.X)`.
    *
@@ -550,7 +625,20 @@ export interface ConversationSummary {
    * représentation réelle, pas la représentation par défaut étiquetée.
    */
   agent: string | null;
+  /**
+   * Ce qu'un agent `blocked` attend : `permission | question | auth` —
+   * absent quand il ne le dit pas.
+   */
+  blockedKind?: "permission" | "question" | "auth";
   branch?: string;
+  /**
+   * La fin du terminal (code, raison, signal) quand herdr-core le dit fini.
+   */
+  exit?: {
+    code?: number;
+    reason?: string;
+    signal?: string;
+  };
   lastPrompt?: string;
   model?: string;
   /**
@@ -592,6 +680,10 @@ export interface ConversationSummary {
    * représentation réelle, pas la représentation par défaut étiquetée.
    */
   paneRank: number | null;
+  /**
+   * Épinglé (Herdr.app ou téléphone) — présent seulement quand vrai.
+   */
+  pinned?: boolean;
   preview?: string;
   provider?: string;
   /**
@@ -611,6 +703,13 @@ export interface ConversationSummary {
       selectionne: boolean;
     }[];
     contexte: string[];
+    /**
+     * L'empreinte de la question lue (texte, cadre, choix) — à renvoyer
+     * telle quelle avec la réponse : le serveur refuse (409) si l'écran a
+     * changé depuis. Facultative sur le fil (le corpus figé la précède),
+     * toujours émise par ce serveur.
+     */
+    empreinte?: string;
     invite?: string;
     texte: string;
   };
@@ -619,6 +718,10 @@ export interface ConversationSummary {
    * appareils (H22) — absent tant qu'aucun ne l'a ouverte.
    */
   readAt?: number;
+  /**
+   * L'écran peut être incomplet (crash du core).
+   */
+  screenInexact?: boolean;
   /**
    * État de la conversation visible sur une ligne de conversation
    * (`available | absent | error`, B10).
@@ -633,6 +736,25 @@ export interface ConversationSummary {
    * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
    */
   status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
+  /**
+   * Les sous-agents en direct (records 7501).
+   *
+   * Items: Un sous-agent en direct : un record 7501 du programme, ses mots à lui.
+   */
+  subagents?: {
+    id: string;
+    msg?: string;
+    /**
+     * État d'un agent : `idle | working | blocked | done | error | unknown`.
+     *
+     * Les cinq premiers sont les mots du programme (OSC 7501, `Status.state` de
+     * herdr-core 0.1.17 : « idle, working, done, blocked or error »).
+     * ⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont
+     * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
+     */
+    status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
+    title?: string;
+  }[];
   tabId: string;
   tabPaneCount: number;
   /**
@@ -665,6 +787,11 @@ export interface ConversationSummary {
      */
     status: "trust-required";
   };
+  /**
+   * Le tour de herdr-core (`turn`) — il avance à chaque sortie de
+   * `working` (B1.4).
+   */
+  turn?: number;
   waiting?: string;
   workspaceId: string;
 }
@@ -679,6 +806,12 @@ export interface ConversationsResponse {
    * (absent tant que la source n'en dit rien).
    */
   conversations: {
+    /**
+     * Ce que l'agent dit, dans ses mots (`status.msg` de herdr-core),
+     * seulement pendant qu'il travaille, attend ou est en erreur — absent
+     * quand il ne dit rien (un message d'un tour fini serait périmé).
+     */
+    activity?: string;
     /**
      * Une valeur **présente** qui peut valoir null — l'homologue exact de
      * `Schema.NullOr(Schema.X)`.
@@ -698,7 +831,20 @@ export interface ConversationsResponse {
      * représentation réelle, pas la représentation par défaut étiquetée.
      */
     agent: string | null;
+    /**
+     * Ce qu'un agent `blocked` attend : `permission | question | auth` —
+     * absent quand il ne le dit pas.
+     */
+    blockedKind?: "permission" | "question" | "auth";
     branch?: string;
+    /**
+     * La fin du terminal (code, raison, signal) quand herdr-core le dit fini.
+     */
+    exit?: {
+      code?: number;
+      reason?: string;
+      signal?: string;
+    };
     lastPrompt?: string;
     model?: string;
     /**
@@ -740,6 +886,10 @@ export interface ConversationsResponse {
      * représentation réelle, pas la représentation par défaut étiquetée.
      */
     paneRank: number | null;
+    /**
+     * Épinglé (Herdr.app ou téléphone) — présent seulement quand vrai.
+     */
+    pinned?: boolean;
     preview?: string;
     provider?: string;
     /**
@@ -759,6 +909,13 @@ export interface ConversationsResponse {
         selectionne: boolean;
       }[];
       contexte: string[];
+      /**
+       * L'empreinte de la question lue (texte, cadre, choix) — à renvoyer
+       * telle quelle avec la réponse : le serveur refuse (409) si l'écran a
+       * changé depuis. Facultative sur le fil (le corpus figé la précède),
+       * toujours émise par ce serveur.
+       */
+      empreinte?: string;
       invite?: string;
       texte: string;
     };
@@ -767,6 +924,10 @@ export interface ConversationsResponse {
      * appareils (H22) — absent tant qu'aucun ne l'a ouverte.
      */
     readAt?: number;
+    /**
+     * L'écran peut être incomplet (crash du core).
+     */
+    screenInexact?: boolean;
     /**
      * État de la conversation visible sur une ligne de conversation
      * (`available | absent | error`, B10).
@@ -781,6 +942,25 @@ export interface ConversationsResponse {
      * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
      */
     status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
+    /**
+     * Les sous-agents en direct (records 7501).
+     *
+     * Items: Un sous-agent en direct : un record 7501 du programme, ses mots à lui.
+     */
+    subagents?: {
+      id: string;
+      msg?: string;
+      /**
+       * État d'un agent : `idle | working | blocked | done | error | unknown`.
+       *
+       * Les cinq premiers sont les mots du programme (OSC 7501, `Status.state` de
+       * herdr-core 0.1.17 : « idle, working, done, blocked or error »).
+       * ⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont
+       * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
+       */
+      status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
+      title?: string;
+    }[];
     tabId: string;
     tabPaneCount: number;
     /**
@@ -813,6 +993,11 @@ export interface ConversationsResponse {
        */
       status: "trust-required";
     };
+    /**
+     * Le tour de herdr-core (`turn`) — il avance à chaque sortie de
+     * `working` (B1.4).
+     */
+    turn?: number;
     waiting?: string;
     workspaceId: string;
   }[];
@@ -1082,6 +1267,15 @@ export type EvenementSse =
         resumeFrom: number;
       };
       event: "resync";
+    }
+  | {
+      /**
+       * Le battement : le flux vit, voici le curseur émis (`event: heartbeat`).
+       */
+      data: {
+        cursor: number;
+      };
+      event: "heartbeat";
     };
 
 /**
@@ -1098,6 +1292,11 @@ export interface HealthResponse {
    * absents tant qu'aucun ping n'a réussi), socket et reachable toujours là.
    */
   herdr: {
+    /**
+     * Pourquoi herdr-core ne répond pas (`unavailable`, `needs_update`,
+     * génération non prise en charge…) — absent quand il répond.
+     */
+    error?: string;
     protocol?: number;
     reachable: boolean;
     socket: string;
@@ -1109,6 +1308,43 @@ export interface HealthResponse {
   log?: string;
   ok: boolean;
   uptimeMs?: number;
+  /**
+   * La veille (statuts en direct, push) — absente quand le démon n'en a
+   * pas démarré.
+   */
+  watcher?: {
+    /**
+     * Les itérations en échec depuis le démarrage.
+     */
+    errors: number;
+    /**
+     * Le flux d'événements de herdr-core est branché (lot 4) : la veille
+     * repasse dès qu'un fait change. `false` : cadence de 2 s seulement.
+     */
+    events?: boolean;
+    /**
+     * La DERNIÈRE itération a échoué.
+     */
+    failing: boolean;
+    /**
+     * La dernière panne, telle quelle, et depuis combien de temps (ms).
+     */
+    lastError?: string;
+    lastErrorAgoMs?: number;
+    /**
+     * Depuis combien de temps (ms) le dernier signe du flux (événement ou
+     * battement de 15 s).
+     */
+    lastEventAgoMs?: number;
+    /**
+     * Depuis combien de temps (ms) la dernière itération réussie.
+     */
+    lastSuccessAgoMs?: number;
+    /**
+     * La boucle tourne (fil démarré, pas arrêté).
+     */
+    running: boolean;
+  };
 }
 
 /**
@@ -1116,6 +1352,11 @@ export interface HealthResponse {
  * absents tant qu'aucun ping n'a réussi), socket et reachable toujours là.
  */
 export interface HerdrHealth {
+  /**
+   * Pourquoi herdr-core ne répond pas (`unavailable`, `needs_update`,
+   * génération non prise en charge…) — absent quand il répond.
+   */
+  error?: string;
   protocol?: number;
   reachable: boolean;
   socket: string;
@@ -1328,6 +1569,11 @@ export interface OverviewResponse {
      */
     agent: string | null;
     /**
+     * Ce qu'un agent `blocked` attend : `permission | question | auth` —
+     * absent quand il ne le dit pas.
+     */
+    blockedKind?: "permission" | "question" | "auth";
+    /**
      * Une valeur **présente** qui peut valoir null — l'homologue exact de
      * `Schema.NullOr(Schema.X)`.
      *
@@ -1346,6 +1592,14 @@ export interface OverviewResponse {
      * représentation réelle, pas la représentation par défaut étiquetée.
      */
     cwd: string | null;
+    /**
+     * La fin du terminal (code, raison, signal) quand herdr-core le dit fini.
+     */
+    exit?: {
+      code?: number;
+      reason?: string;
+      signal?: string;
+    };
     focused: boolean;
     /**
      * Une valeur **présente** qui peut valoir null — l'homologue exact de
@@ -1405,6 +1659,15 @@ export interface OverviewResponse {
      * représentation réelle, pas la représentation par défaut étiquetée.
      */
     parentSession: string | null;
+    /**
+     * Épinglé, sur le Mac (Herdr.app) ou depuis le téléphone — présent
+     * seulement quand vrai.
+     */
+    pinned?: boolean;
+    /**
+     * L'écran peut être incomplet : herdr-core a crashé (`screen: inexact`).
+     */
+    screenInexact?: boolean;
     /**
      * Une valeur **présente** qui peut valoir null — l'homologue exact de
      * `Schema.NullOr(Schema.X)`.
@@ -1495,6 +1758,25 @@ export interface OverviewResponse {
      * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
      */
     status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
+    /**
+     * Les sous-agents en direct (records 7501) — absent quand il n'y en a pas.
+     *
+     * Items: Un sous-agent en direct : un record 7501 du programme, ses mots à lui.
+     */
+    subagents?: {
+      id: string;
+      msg?: string;
+      /**
+       * État d'un agent : `idle | working | blocked | done | error | unknown`.
+       *
+       * Les cinq premiers sont les mots du programme (OSC 7501, `Status.state` de
+       * herdr-core 0.1.17 : « idle, working, done, blocked or error »).
+       * ⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont
+       * le programme ne dit rien (pas de statut, ou un mot hors de cette liste).
+       */
+      status: ("idle" | "working" | "blocked" | "done" | "unknown") | "error";
+      title?: string;
+    }[];
     tabId: string;
     /**
      * Une valeur **présente** qui peut valoir null — l'homologue exact de
@@ -1554,6 +1836,11 @@ export interface OverviewResponse {
      * représentation réelle, pas la représentation par défaut étiquetée.
      */
     title: string | null;
+    /**
+     * Le tour de herdr-core (`turn`) — il avance à chaque sortie de
+     * `working` (B1.4).
+     */
+    turn?: number;
     workspaceId: string;
     /**
      * Une valeur **présente** qui peut valoir null — l'homologue exact de
@@ -1633,6 +1920,21 @@ export interface OverviewResponse {
 }
 
 /**
+ * Épingler ou désépingler un agent (H25) — partagé avec Herdr.app.
+ */
+export interface PinRequest {
+  pinned: boolean;
+}
+
+/**
+ * L'épingle posée (H25).
+ */
+export interface PinResponse {
+  paneId: string;
+  pinned: boolean;
+}
+
+/**
  * La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier
  * plan (`visible: true`) ou vient de le quitter — l'endpoint push nomme
  * l'appareil, qui n'est alors pas notifié.
@@ -1666,6 +1968,10 @@ export interface PromptDelivered {
  * Un prompt qui n'est pas parti — l'état réel, nommé, avec son détail.
  */
 export interface PromptFailedResponse {
+  /**
+   * Le code stable de l'échec (voir `ApiErrorResponse.code`).
+   */
+  code?: string;
   detail: string;
   /**
    * `attente | erreur | inconnu` — B05 : trois états, jamais « envoyé ».
@@ -1690,6 +1996,12 @@ export interface PromptSentResponse {
    */
   confirmation: "confirmed" | "unknown";
   fingerprint: string;
+  /**
+   * `true` : l'agent TRAVAILLAIT à l'envoi — le message est dans sa file,
+   * il le lira à sa prochaine étape ; « confirmé » ne veut pas dire « lu »
+   * (B1.15). Absent : statut non lu.
+   */
+  queued?: boolean;
   /**
    * Le littéral `"sent"`, union à un membre : sa présence est vérifiée.
    */
@@ -1801,6 +2113,13 @@ export interface Question {
     selectionne: boolean;
   }[];
   contexte: string[];
+  /**
+   * L'empreinte de la question lue (texte, cadre, choix) — à renvoyer
+   * telle quelle avec la réponse : le serveur refuse (409) si l'écran a
+   * changé depuis. Facultative sur le fil (le corpus figé la précède),
+   * toujours émise par ce serveur.
+   */
+  empreinte?: string;
   invite?: string;
   texte: string;
 }
@@ -1810,6 +2129,10 @@ export interface Question {
  * exacts (`appliquee | transmise | refusee`).
  */
 export interface QuestionAnsweredResponse {
+  /**
+   * Le code stable d'un refus (`screen_changed`…) — absent sinon.
+   */
+  code?: string;
   detail: string;
   /**
    * L'union fermée des états d'une réponse.
@@ -2071,6 +2394,11 @@ export interface SessionStreamGone {
  * Une interruption demandée (`StopAgentResponse`).
  */
 export interface StopAgentResponse {
+  /**
+   * Ce que herdr-core a vu après la touche (`stopped | exited |
+   * still-working | unknown`) — absent quand il n'a rien observé.
+   */
+  outcome?: "stopped" | "exited" | "still-working" | "unknown";
   /**
    * `interrupt-sent | not-running` — reçu, pas prouvé exécuté.
    */

@@ -27,6 +27,10 @@ use std::time::Instant;
 #[derive(Clone)]
 pub struct Services {
     pub snapshots: Arc<ServiceSnapshots>,
+    /// La boucle de veille, posée par la veille à son démarrage — `/api/health`
+    /// en dit l'état (vivante, dernier succès, dernière panne). Vide : la
+    /// veille n'a pas démarré (tests, démon sans veille).
+    pub veille: Arc<std::sync::OnceLock<Arc<application::events::watcher::BoucleDeVeille>>>,
     /// Le port de contrôle partagé — les lectures d'écran de la liste des
     /// conversations ; la même instance que celle des snapshots (T056).
     pub port: Arc<dyn ControlPort>,

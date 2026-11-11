@@ -20,6 +20,9 @@ pub enum EtatReponse {
     Transmise,
     /// Rien n'a été envoyé, et la cause est nommée.
     Refusee,
+    /// Rien n'a été envoyé : la question à l'écran n'est plus celle que
+    /// l'utilisateur a lue (empreinte différente).
+    Perimee,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -75,6 +78,7 @@ pub fn repondre_question(
     pane: &PaneId,
     numero: i64,
     texte: Option<&str>,
+    empreinte: Option<&str>,
 ) -> Result<ReponseQuestion, PortError> {
     // Lecture AVANT : quelle est la question, quels choix offre-t-elle ?
     let avant = attends(&mut port.read_screen(ScreenRead {
@@ -87,6 +91,24 @@ pub fn repondre_question(
             detail: String::from("no readable question on screen — nothing was sent"),
         });
     };
+    /*
+      ⚠️ **La réponse vaut pour la question LUE, pas pour celle du moment.**
+      La comparaison se fait sur la lecture qui précède la frappe, sous
+      l'admission du pane : rien ne peut s'intercaler entre les deux. Une
+      empreinte différente = la question a changé depuis l'affichage —
+      aucune touche ne part. (`None` : appel interne qui n'a rien affiché.)
+    */
+    if let Some(attendue) = empreinte
+        && question.empreinte() != attendue
+    {
+        return Ok(ReponseQuestion {
+            etat: EtatReponse::Perimee,
+            detail: format!(
+                "the question on screen changed since it was shown (now: “{}”) — nothing was sent",
+                question.texte
+            ),
+        });
+    }
     if !numero_offert(&question.choix, numero) {
         let offerts = question
             .choix
@@ -169,6 +191,7 @@ pub fn repondre_question(
                 attends(&mut port.send_text(TargetedText {
                     pane: pane.clone(),
                     text: reponse_libre.to_string(),
+                    reponse_libre: true,
                 }))?;
             }
             attends(&mut port.send_keys(TargetedKeys {
@@ -188,6 +211,7 @@ pub fn repondre_question(
             attends(&mut port.send_text(TargetedText {
                 pane: pane.clone(),
                 text: reponse_libre.to_string(),
+                reponse_libre: true,
             }))?;
             attends(&mut port.send_keys(TargetedKeys {
                 pane: pane.clone(),

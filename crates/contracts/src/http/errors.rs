@@ -20,4 +20,10 @@ pub struct ApiErrorResponse {
     pub error: String,
     #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
     pub hint: Field<String>,
+    /// Le code STABLE de l'erreur (`agent_gone`, `agent_exited`,
+    /// `agent_blocked`, `status_changed`, `core_unavailable`,
+    /// `core_needs_update`, `timeout`, `busy`, `screen_changed`,
+    /// `prompt_open`) — le client décide sur lui, jamais sur la phrase.
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub code: Field<String>,
 }

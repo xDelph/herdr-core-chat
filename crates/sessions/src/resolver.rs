@@ -399,17 +399,26 @@ pub fn chemin_codex_par_nom(resolveur: &Resolveur, nom: &str, cwd: &str) -> Opti
             Err(_) => continue,
         };
         let lignes = match ouvrier.interroge(
-            "select rollout_path from threads where name = ?1 and cwd = ?2 and archived = 0 order by updated_at desc limit 1",
+            "select rollout_path from threads where name = ?1 and cwd = ?2 and archived = 0 limit 2",
             &[nom, cwd],
         ) {
             Ok(lignes) => lignes,
             Err(_) => continue,
         };
-        let chemin = lignes
-            .first()
-            .and_then(|ligne| ligne.valeurs.first())
-            .and_then(Value::as_str)
-            .map(PathBuf::from);
+        /*
+          ⚠️ **Deux fils du même nom dans le même dossier : aucun.** Prendre
+          le plus récent (`order by updated_at desc limit 1`) affichait, pour
+          un pane, la conversation d'un AUTRE pane lancé avec la même
+          première consigne. Comme pour opencode, l'ambiguïté ne prouve rien.
+        */
+        let chemin = match lignes.as_slice() {
+            [ligne] => ligne
+                .valeurs
+                .first()
+                .and_then(Value::as_str)
+                .map(PathBuf::from),
+            _ => None,
+        };
         if let Some(chemin) = chemin
             && chemin.exists()
         {
@@ -575,6 +584,12 @@ impl Resolveur {
             ttl_negatif,
             parcours: AtomicU64::new(0),
         }
+    }
+
+    /// La durée de vie d'un « introuvable » en cache.
+    #[must_use]
+    pub fn ttl_negatif(&self) -> Duration {
+        self.ttl_negatif
     }
 
     /// Combien de parcours de dossiers ont eu lieu depuis la création.

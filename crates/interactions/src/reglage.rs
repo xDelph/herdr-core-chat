@@ -179,6 +179,7 @@ fn tape(port: &PortPourReglage, pane: &PaneId, commande: &str) -> Result<(), Por
     attends(&mut port.send_text(TargetedText {
         pane: pane.clone(),
         text: commande.to_string(),
+        reponse_libre: false,
     }))?;
     Ok(())
 }

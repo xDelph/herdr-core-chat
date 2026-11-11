@@ -22,7 +22,7 @@
     "format:check": "oxfmt --check apps packages",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "bun test",
-    "verify": "bun run format:check && bun run lint && bun run typecheck && bun run test"
+    "verify": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",

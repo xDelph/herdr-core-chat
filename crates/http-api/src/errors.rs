@@ -23,6 +23,37 @@ use contracts::presence::Field;
 use contracts::registry::RouteId;
 use domain::errors::{ErreurDomaine, Nature};
 
+/// Le `data.kind` de herdr-core (ou `timeout`, `pane_busy`) → le statut HTTP
+/// et le code STABLE du fil (B2 · « messages d'erreur »).
+///
+/// ⚠️ **Le client décide sur le code, plus sur la phrase.** Ces cas se
+/// fondaient dans un 502 « answer failed / Ctrl+C refused » : l'agent parti,
+/// le terminal fini, le core à mettre à jour avaient le même visage.
+#[must_use]
+pub fn code_stable(code_amont: &str) -> Option<(u16, &'static str)> {
+    Some(match code_amont {
+        "not_found" => (404, "agent_gone"),
+        "finished" => (410, "agent_exited"),
+        "blocked" => (409, "agent_blocked"),
+        "status_mismatch" => (409, "status_changed"),
+        "unavailable" => (503, "core_unavailable"),
+        "needs_update" | "unsupported_generation" => (503, "core_needs_update"),
+        "timeout" => (504, "timeout"),
+        "pane_busy" => (429, "busy"),
+        _ => return None,
+    })
+}
+
+/// Le code stable d'une erreur du domaine, quand sa cause amont en a un.
+#[must_use]
+pub fn code_de(erreur: &ErreurDomaine) -> Option<&'static str> {
+    erreur
+        .code_amont
+        .as_deref()
+        .and_then(code_stable)
+        .map(|(_, code)| code)
+}
+
 /// Le corps d'erreur générique : message sûr, code diagnostic en indicateur.
 #[must_use]
 pub fn corps(erreur: &ErreurDomaine) -> ApiErrorResponse {
@@ -30,6 +61,7 @@ pub fn corps(erreur: &ErreurDomaine) -> ApiErrorResponse {
         cause: Field(None),
         error: erreur.message_sur(),
         hint: Field::de_option(Some(format!("diagnostic code: {}", erreur.diagnostic.code))),
+        code: Field::de_option(code_de(erreur).map(String::from)),
     }
 }
 
@@ -41,6 +73,7 @@ pub fn corps_de_lecture(cause: ReadCause, erreur: &ErreurDomaine) -> ApiErrorRes
         cause: Field::de_option(Some(cause)),
         error: erreur.message_sur(),
         hint: Field::de_option(Some(format!("diagnostic code: {}", erreur.diagnostic.code))),
+        code: Field::de_option(code_de(erreur).map(String::from)),
     }
 }
 
@@ -138,6 +171,13 @@ pub fn statut(route: RouteId, erreur: &ErreurDomaine) -> u16 {
             Nature::NoSource => 404,
             _ => 502,
         },
+        // H25/H26 : 400 entrée invalide ; 404 agent inconnu ; 413 trop gros ;
+        // 415 type refusé (garde) ; 502 amont.
+        RouteId::Epingle | RouteId::PieceJointe => match nature {
+            Nature::InvalidInput => 400,
+            Nature::NoSource => 404,
+            _ => 502,
+        },
         // H22 : 400 corps invalide — la seule erreur documentée (une panne de
         // persistance est journalisée, la lecture vaut en mémoire).
         RouteId::Lecture => 400,
@@ -231,13 +271,30 @@ fn etat_de_prompt(nature: Nature) -> SendState {
 /// par construction** (le handler n'assemble jamais à la main).
 #[must_use]
 pub fn reponse_erreur(route: RouteId, erreur: &ErreurDomaine) -> (u16, ReponseErreur) {
-    let statut = statut(route, erreur);
+    let mut statut = statut(route, erreur);
+    // Les ACTIONS sur un agent prennent le statut de la cause amont typée :
+    // 404 parti, 410 fini, 409 bloqué, 503 core indisponible, 504 délai,
+    // 429 file pleine. Les lectures gardent leur table documentée.
+    if matches!(
+        route,
+        RouteId::Prompt
+            | RouteId::Arret
+            | RouteId::ReponseQuestion
+            | RouteId::Confiance
+            | RouteId::ReglageModele
+            | RouteId::Epingle
+            | RouteId::PieceJointe
+    ) && let Some((amont, _)) = erreur.code_amont.as_deref().and_then(code_stable)
+    {
+        statut = amont;
+    }
     let corps = match route {
         // H05 : le 502 porte l'échec nommé à trois états (B05) ; les 400/500
         // restent des gardes — corps Api.
         RouteId::Prompt if statut == 502 => ReponseErreur::PromptRate(PromptFailedResponse {
             detail: erreur.message_sur(),
             state: etat_de_prompt(erreur.nature),
+            code: Field::de_option(code_de(erreur).map(String::from)),
         }),
         RouteId::CleVapid if statut == 503 => ReponseErreur::TexteBrut(erreur.message_sur()),
         _ => ReponseErreur::Api(corps(erreur)),

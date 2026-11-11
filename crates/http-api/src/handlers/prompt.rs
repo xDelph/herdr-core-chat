@@ -22,6 +22,7 @@ use contracts::events::{Confirmation, PromptStatus};
 use contracts::http::commands::{
     PromptFailedResponse, PromptSentResponse, PromptSuppressedResponse, SendState, SuppressedStatus,
 };
+use contracts::presence::Field;
 use domain::errors::PortError;
 use domain::ids::PaneId;
 use domain::status::AgentStatus;
@@ -60,20 +61,26 @@ async fn prompt_sur_place(
     // 3) Le mode : un agent bloqué reçoit des frappes. La lecture est
     //    FORCÉE (hors fenêtre de cache) — mais son échec ne bloque pas :
     //    le mode retombe sur « prompt littéral », comme le fil.
-    let saisie = match services.snapshots.lecture_forcee() {
+    let lu = match services.snapshots.lecture_forcee() {
         Ok(borne) => borne
             .snapshot
             .agents
             .iter()
             .find(|agent| agent.pane_id == cible)
-            .is_some_and(|agent| agent.status == AgentStatus::Blocked),
-        Err(ErreurLecture::Amont { .. }) => false,
+            .map(|agent| (agent.status, agent.revision)),
+        Err(ErreurLecture::Amont { .. }) => None,
     };
-    // 4) L'envoi — la déduplication et la preuve vivent dans le service.
-    match services
-        .prompt
-        .envoie(services.port.as_ref(), &cible, &corps.text, saisie)
-    {
+    let statut = lu.map(|(statut, _)| statut);
+    let saisie = statut == Some(AgentStatus::Blocked);
+    // 4) L'envoi — la déduplication (au même tour) et la preuve vivent dans
+    //    le service.
+    match services.prompt.envoie_au_tour(
+        services.port.as_ref(),
+        &cible,
+        &corps.text,
+        saisie,
+        lu.map(|(_, tour)| tour),
+    ) {
         Ok(envoi) => {
             // Le direct : l'envoi est publié AVEC sa preuve (A02), jamais
             // une intention. Un journal plein ne fait pas échouer l'envoi
@@ -95,6 +102,11 @@ async fn prompt_sur_place(
                         ConfirmationEnvoi::Inconnu => Confirmation::Unknown,
                     },
                     fingerprint: envoi.empreinte,
+                    // Lu juste avant l'envoi (lecture forcée) : un agent au
+                    // travail met le message en file (B1.15).
+                    queued: contracts::presence::Field::de_option(
+                        statut.map(|statut| statut == AgentStatus::Working),
+                    ),
                     status: PromptStatus::Sent,
                 }),
             )
@@ -121,23 +133,49 @@ async fn prompt_sur_place(
         }
         // La file du pane est pleine : RIEN n'est parti — un refus nommé
         // (`erreur`), le client peut réessayer. Jamais « envoyé ».
+        // 429 + `busy` : le client propose « Retry ».
         Err(RefusEnvoi::Sature { detail, .. }) => (
-            axum::http::StatusCode::BAD_GATEWAY,
+            axum::http::StatusCode::TOO_MANY_REQUESTS,
             axum::Json(PromptFailedResponse {
                 detail,
                 state: SendState::Erreur,
+                code: Field::de_option(Some(String::from("busy"))),
             }),
         )
             .into_response(),
-        // B05 : l'état vient de la NATURE de la panne, jamais d'une phrase.
-        Err(RefusEnvoi::NonConfirme { detail, cause, .. }) => (
-            axum::http::StatusCode::BAD_GATEWAY,
+        // Une question ou une confiance à l'écran : RIEN n'est parti (B1.2).
+        // 409 — l'état de l'agent, pas une panne : on répond par la carte.
+        Err(RefusEnvoi::InviteOuverte { detail, .. }) => (
+            axum::http::StatusCode::CONFLICT,
             axum::Json(PromptFailedResponse {
                 detail,
-                state: etat_de_panne(&cause),
+                state: SendState::Erreur,
+                code: Field::de_option(Some(String::from("prompt_open"))),
             }),
         )
             .into_response(),
+        // B05 : l'état vient de la NATURE de la panne, jamais d'une phrase ;
+        // le statut et le code, du `data.kind` de herdr-core (agent parti
+        // 404, terminal fini 410, bloqué 409…), sinon 502.
+        Err(RefusEnvoi::NonConfirme { detail, cause, .. }) => {
+            let amont = match &cause {
+                PortError::Upstream { code, .. } => crate::errors::code_stable(code),
+                PortError::Timeout => crate::errors::code_stable("timeout"),
+                _ => None,
+            };
+            let statut = amont
+                .and_then(|(statut, _)| axum::http::StatusCode::from_u16(statut).ok())
+                .unwrap_or(axum::http::StatusCode::BAD_GATEWAY);
+            (
+                statut,
+                axum::Json(PromptFailedResponse {
+                    detail,
+                    state: etat_de_panne(&cause),
+                    code: Field::de_option(amont.map(|(_, code)| String::from(code))),
+                }),
+            )
+                .into_response()
+        }
     }
 }
 

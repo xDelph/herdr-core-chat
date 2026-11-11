@@ -72,7 +72,8 @@ async fn confiance_sur_place(
             .into_response(),
         Err(cause) => crate::handlers::repondre_erreur(
             RouteId::Confiance,
-            &ErreurDomaine::amont_refus(format!("trust answer failed: {}", cause.description())),
+            &ErreurDomaine::amont_refus(format!("trust answer failed: {}", cause.description()))
+                .avec_port(&cause),
         ),
     }
 }

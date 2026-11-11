@@ -96,6 +96,45 @@ async fn arret_502_transmission_ratee() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn arret_rend_l_issue_observee_et_s_applique_a_un_agent_bloque() {
+    // B1.14 : un agent bloqué s'interrompt, et ce que le core a vu passe.
+    let faux = herdr_avec(AgentStatus::Blocked);
+    faux.repond_arret(StopEvidence::Interrupted(
+        domain::ports::StopOutcome::StillWorking,
+    ));
+    let (services, _) = services(faux, Default::default(), Default::default());
+    let (statut, corps) = envoie_post(
+        routeur(services, vec![]),
+        "/api/agents/w1:p1/stop",
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::OK);
+    assert_eq!(corps["status"], "interrupt-sent");
+    assert_eq!(corps["outcome"], "still-working");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn arret_404_quand_herdr_core_ne_connait_plus_le_terminal() {
+    let faux = herdr_avec(AgentStatus::Working);
+    faux.panne_sur(
+        Op::Arret,
+        PortError::Upstream {
+            code: String::from("not_found"),
+            message: String::from("t1: no such terminal"),
+        },
+    );
+    let (services, _) = services(faux, Default::default(), Default::default());
+    let (statut, _) = envoie_post(
+        routeur(services, vec![]),
+        "/api/agents/w1:p1/stop",
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn arret_502_snapshot_indisponible() {
     let faux = herdr_avec(AgentStatus::Working);
     faux.panne_sur(Op::Snapshot, PortError::Timeout);

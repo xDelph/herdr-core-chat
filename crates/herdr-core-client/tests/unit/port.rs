@@ -102,6 +102,96 @@ fn chaque_mot_de_statut_a_son_etat_y_compris_error() {
 }
 
 #[test]
+fn le_message_du_programme_passe_tel_quel_et_le_vide_n_est_rien() {
+    let terms = json!([
+        terminal(
+            "t1",
+            json!({"app":"claude-code","state":"working","msg":"  Running cargo test  "}),
+            "claude",
+            "/p"
+        ),
+        terminal(
+            "t2",
+            json!({"app":"claude-code","state":"working","msg":"   "}),
+            "claude",
+            "/p"
+        ),
+        terminal(
+            "t3",
+            json!({"app":"claude-code","state":"idle"}),
+            "claude",
+            "/p"
+        ),
+    ]);
+    let (port, _) = port_sur(terms, sans_doc(), rien);
+    let messages: Vec<Option<String>> = snapshot(&port)
+        .agents
+        .iter()
+        .map(|a| a.status_msg.clone())
+        .collect();
+    assert_eq!(
+        messages,
+        [Some(String::from("Running cargo test")), None, None]
+    );
+}
+
+#[test]
+fn la_nature_d_une_attente_et_la_fin_d_un_terminal_sont_lues_telles_quelles() {
+    let mut fini = terminal(
+        "t3",
+        json!({"app":"claude-code","state":"working"}),
+        "claude",
+        "/p",
+    );
+    fini["state"] = json!("finished");
+    fini["exit_code"] = json!(1);
+    fini["reason"] = json!("killed");
+    let mut fini_propre = terminal(
+        "t4",
+        json!({"app":"claude-code","state":"working"}),
+        "claude",
+        "/p",
+    );
+    fini_propre["state"] = json!("finished");
+    fini_propre["exit_code"] = json!(0);
+    let terms = json!([
+        terminal(
+            "t1",
+            json!({"app":"claude-code","state":"blocked","kind":"auth"}),
+            "claude",
+            "/p"
+        ),
+        terminal(
+            "t2",
+            json!({"app":"claude-code","state":"blocked","kind":"nouveau-mot"}),
+            "claude",
+            "/p"
+        ),
+        fini,
+        fini_propre,
+    ]);
+    let (port, _) = port_sur(terms, sans_doc(), rien);
+    let agents = snapshot(&port).agents;
+    assert_eq!(
+        agents.iter().map(|a| a.blocked_kind).collect::<Vec<_>>(),
+        [Some(domain::status::BlockedKind::Auth), None, None, None]
+    );
+    // Un terminal fini ne « travaille » plus, même si le dernier mot du
+    // programme le disait : en échec → error, proprement → done.
+    assert_eq!(agents[2].status, AgentStatus::Error);
+    assert_eq!(agents[3].status, AgentStatus::Done);
+    assert_eq!(
+        agents[2].exit,
+        Some(domain::status::AgentExit {
+            code: Some(1),
+            reason: Some(String::from("killed")),
+            signal: None,
+        })
+    );
+    assert_eq!(agents[0].exit, None);
+}
+
+#[test]
 fn le_type_vient_du_programme_jamais_du_shell() {
     // Cursor tourne sous `node` : reconnu par l'argv du premier plan.
     let mut cursor = terminal("t4", Value::Null, "node", "/p");
@@ -272,6 +362,97 @@ fn hors_disposition_l_enfant_suit_son_parent_l_orphelin_son_dossier() {
     );
 }
 
+/// Un terminal placé par Herdr.app : ses labels `herdr.space`, `herdr.tab`
+/// et `where`.
+fn place_par_herdr_app(adresse: &str, espace: &str, onglet: &str, lieu: &str) -> Value {
+    let mut term = terminal(
+        adresse,
+        json!({"app":"claude-code","state":"idle"}),
+        "claude",
+        "/p/orchard",
+    );
+    term["labels"] = json!({"herdr.space": espace, "herdr.tab": onglet, "where": lieu});
+    term
+}
+
+#[test]
+fn le_nom_vivant_d_un_espace_vient_du_label_where_pas_du_dossier_de_creation() {
+    // Relevé du 2026-11-08 : un nouvel espace ouvert depuis `…/orchard`,
+    // absent d'un `workspace-state.json` périmé, s'affichait « orchard »
+    // comme son voisin — l'agent semblait rattaché à l'autre espace.
+    let mut deplace = place_par_herdr_app("t4", "sp1", "tb1", "orchard / 1");
+    deplace["labels"]["herdr.space"] = json!("sp9");
+    let terms = json!([
+        place_par_herdr_app("t1", "sp1", "tb1", "orchard / 1"),
+        place_par_herdr_app("t2", "sp2", "tb2", "print-dashboard / 1"),
+        place_par_herdr_app("t3", "sp3", "tb3", "front / revue / a / b"),
+        // Un `where` qui parle d'un AUTRE espace n'est pas cru.
+        deplace,
+    ]);
+    let espace = |id: &str, onglet: &str, nom_onglet: &str, terminal: &str| {
+        json!({"id": id, "name": "", "folder": "/p/orchard", "tabs": [
+            {"id": onglet, "name": nom_onglet, "root": {"type":"row","children":[
+                {"type":"block","content":{"terminal": terminal}}]}}]})
+    };
+    let doc = json!({"version": 7, "value": {"spaces": [
+        espace("sp1", "tb1", "", "t1"),
+        espace("sp2", "tb2", "", "t2"),
+        // Un onglet nommé dans le doc peut contenir « / ».
+        espace("sp3", "tb3", "revue / a / b", "t3"),
+        espace("sp4", "tb4", "", "t4"),
+    ]}});
+    // Un état du mod périmé : il connaît sp1 sous un vieux nom, pas sp2.
+    let etat = dossier_temporaire("etat").join("workspace-state.json");
+    let ecrit = std::fs::write(
+        &etat,
+        json!({"version": 1, "spaces": [{"id":"sp1","name":"vieux","named":false,
+            "folder":"/p/orchard","tabs":[{"id":"tb1","name":"1","named":false}]}],
+            "agents": []})
+        .to_string(),
+    );
+    if let Err(cause) = ecrit {
+        panic!("état du mod non écrit : {cause}");
+    }
+    let (socket, _) = demarre(move |methode, _| match methode {
+        "hello" => Reponse::Resultat(hello(1)),
+        "terminal.list" => Reponse::Resultat(json!({"terminals": terms.clone()})),
+        "doc.get" => Reponse::Resultat(doc.clone()),
+        _ => Reponse::Resultat(json!({})),
+    });
+    let port = PortCore::nouveau(ClientCore::nouveau(&socket), etat);
+    let snapshot = snapshot(&port);
+    let espaces: Vec<(String, Option<String>)> = snapshot
+        .workspaces
+        .iter()
+        .map(|w| (w.workspace_id.to_string(), w.label.clone()))
+        .collect();
+    assert_eq!(
+        espaces,
+        [
+            (String::from("sp1"), Some(String::from("orchard"))),
+            (String::from("sp2"), Some(String::from("print-dashboard"))),
+            (String::from("sp3"), Some(String::from("front"))),
+            // Le `where` d'un autre espace est écarté : dernier recours.
+            (String::from("sp4"), Some(String::from("orchard"))),
+        ]
+    );
+    let onglets: Vec<Option<String>> = snapshot
+        .tabs
+        .unwrap_or_default()
+        .iter()
+        .map(|t| t.label.clone())
+        .collect();
+    assert_eq!(
+        onglets,
+        [
+            Some(String::from("1")),
+            Some(String::from("1")),
+            Some(String::from("revue / a / b")),
+            None,
+        ]
+    );
+}
+
 fn prompt(port: &PortCore) -> PromptEvidence {
     attends(port.prompt(TargetedPrompt {
         pane: PaneId::from(String::from("t1")),
@@ -381,6 +562,7 @@ fn texte(port: &PortCore) -> domain::ports::TransportEvidence {
     attends(port.send_text(TargetedText {
         pane: PaneId::from(String::from("t1")),
         text: String::from("ma réponse"),
+        reponse_libre: true,
     }))
     .unwrap_or_else(|erreur| panic!("send_text : {erreur}"))
 }
@@ -430,6 +612,22 @@ fn une_reponse_libre_force_une_question_jamais_une_permission() {
             .is_none(),
         "une décision de permission n'est jamais forcée"
     );
+
+    // B1.2 : un PROMPT pendant une question n'est jamais forcé — collé dans
+    // le sélecteur, son Entrée validait l'option surlignée.
+    let (port, demandes) =
+        port_d_action(json!({"app":"claude-code","state":"blocked","kind":"question"}));
+    let _ = attends(port.send_text(TargetedText {
+        pane: PaneId::from(String::from("t1")),
+        text: String::from("attends, plutôt X"),
+        reponse_libre: false,
+    }));
+    assert!(
+        demandes_de(&demandes, "terminal.send")[0]
+            .get("force")
+            .is_none(),
+        "seule la réponse libre force une question"
+    );
 }
 
 #[test]
@@ -464,12 +662,19 @@ fn une_entree_apres_d_autres_touches_part_toujours() {
 
 #[test]
 fn l_arret_est_envoye_quel_que_soit_l_effet_observe() {
-    for outcome in ["stopped", "exited", "still_working", "unknown"] {
+    use domain::ports::StopOutcome;
+    for (outcome, attendu) in [
+        ("stopped", StopOutcome::Stopped),
+        ("exited", StopOutcome::Exited),
+        ("still_working", StopOutcome::StillWorking),
+        ("unknown", StopOutcome::Unknown),
+        ("un mot neuf", StopOutcome::Unknown),
+    ] {
         let (port, _) = port_sur(json!([]), sans_doc(), move |_, _| {
             Reponse::Resultat(json!({"outcome": outcome, "key": "esc"}))
         });
         match attends(port.stop(PaneId::from(String::from("t1")))) {
-            Ok(StopEvidence::InterruptSent) => {}
+            Ok(StopEvidence::Interrupted(issue)) => assert_eq!(issue, attendu, "{outcome}"),
             autre => panic!("{outcome} : {autre:?}"),
         }
     }
@@ -614,6 +819,7 @@ fn un_collage_ou_des_touches_refuses_sont_des_erreurs() {
     match attends(port.send_text(TargetedText {
         pane: PaneId::from(String::from("t1")),
         text: String::from("non, fais plutôt X"),
+        reponse_libre: true,
     })) {
         Err(PortError::Upstream { code, .. }) => assert_eq!(code, "blocked"),
         autre => panic!("refus masqué : {autre:?}"),

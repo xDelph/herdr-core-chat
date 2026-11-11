@@ -256,6 +256,18 @@ fn les_assets_haches_sont_immuables_et_les_volatils_non() {
     // version de l'application, ou revaliderait 459 Ko à chaque chargement.
     assert!(est_immuable("/assets/index-BDwQxbtC.js"));
     assert!(est_immuable("assets/vendor-a1b2c3d4.js"));
+    // L'alphabet url-safe de Vite contient `-` et `_` : l'empreinte aussi.
+    assert!(est_immuable("/assets/index-Dz3mv-FR.js"));
+    assert!(est_immuable("/assets/Conversation-_4pVNIBq.js"));
+    assert!(est_immuable("/assets/nom-compose-Dz3mv-FR.css"));
+    assert!(
+        !est_immuable("/assets/-Dz3mvxFR.js"),
+        "une empreinte sans nom devant n'en est pas une"
+    );
+    assert!(
+        !est_immuable("/assets/Dz3mvxFR.js"),
+        "huit caractères sans séparateur ne sont pas une empreinte"
+    );
     assert!(
         !est_immuable("/index.html"),
         "l'index est volatil, même sans empreinte"

@@ -17,6 +17,9 @@ struct FilePane {
     file: Condvar,
     /// Le tour exclusif — un seul effet à la fois par pane.
     tour: Mutex<()>,
+    /// Combien d'effets se sont achevés sur ce pane (réussis, refusés ou en
+    /// panique) — voir [`Tourniquet::gestes`].
+    gestes: std::sync::atomic::AtomicU64,
 }
 
 /// Le tourniquet d'admission — la mémoire des files par pane.
@@ -62,6 +65,28 @@ impl std::fmt::Display for ErreurAdmission {
     }
 }
 
+/// Le galet pris sur la file d'un pane — RENDU à sa chute, même si l'effet
+/// panique (B1.9) : sans cette garde, chaque panic gardait un galet, et huit
+/// suffisaient à saturer le pane pour toujours.
+struct Galet<'a> {
+    file: &'a FilePane,
+}
+
+impl Drop for Galet<'_> {
+    fn drop(&mut self) {
+        let mut pris = self
+            .file
+            .pris
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *pris = pris.saturating_sub(1);
+        self.file
+            .gestes
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.file.file.notify_one();
+    }
+}
+
 impl Tourniquet {
     #[must_use]
     pub fn nouveau() -> Self {
@@ -80,6 +105,7 @@ impl Tourniquet {
                     pris: Mutex::new(0),
                     file: Condvar::new(),
                     tour: Mutex::new(()),
+                    gestes: std::sync::atomic::AtomicU64::new(0),
                 })
             })
             .clone()
@@ -96,6 +122,22 @@ impl Tourniquet {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         *pris
+    }
+
+    /// ⚠️ **Le nombre de gestes achevés sur un pane** (prompt, réponse,
+    /// confiance, arrêt, focus, réglage) : ce que le démon a pu changer à
+    /// l'écran. Le cache d'écran de la liste (lot 3) le met dans sa clé — un
+    /// geste du téléphone relit l'écran au lieu de servir l'ancien. `0` pour
+    /// un pane jamais touché (rien n'est créé pour le dire).
+    #[must_use]
+    pub fn gestes(&self, pane: &PaneId) -> u64 {
+        self.files
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(pane.as_str())
+            .map_or(0, |file| {
+                file.gestes.load(std::sync::atomic::Ordering::SeqCst)
+            })
     }
 
     /// Admet une opération sur un pane : un galet (file ≤ 8), PUIS le tour
@@ -118,22 +160,18 @@ impl Tourniquet {
             }
             *pris += 1;
         }
-        // 2) Le tour exclusif — la garde de non-entrelacement.
-        let _garde_tour = file
+        let galet = Galet { file: &file };
+        // 2) Le tour exclusif — la garde de non-entrelacement (un tour
+        // empoisonné par un panic précédent reste utilisable).
+        let garde_tour = file
             .tour
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         // 3) L'effet — et seulement là.
         let rendu = effet();
-        // 4) Le galet rendu.
-        {
-            let mut pris = file
-                .pris
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            *pris -= 1;
-            file.file.notify_one();
-        }
+        // 4) Le tour puis le galet rendus (aussi sur panic, par leur chute).
+        drop(garde_tour);
+        drop(galet);
         match rendu {
             Ok(valeur) => Ok(valeur),
             Err(erreur) => Err(Err(erreur)),

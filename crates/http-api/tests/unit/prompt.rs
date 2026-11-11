@@ -144,7 +144,7 @@ async fn prompt_502_etat_inconnu_sur_transport() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn prompt_502_etat_attente_sur_delai() {
+async fn prompt_504_etat_attente_sur_delai() {
     let faux = herdr_avec_agent(AgentStatus::Working);
     faux.panne_sur(Op::Prompt, PortError::Timeout);
     let (services, _) = services(faux, Default::default(), Default::default());
@@ -154,9 +154,44 @@ async fn prompt_502_etat_attente_sur_delai() {
         corps_texte("bonjour"),
     )
     .await;
-    assert_eq!(statut, StatusCode::BAD_GATEWAY);
+    assert_eq!(statut, StatusCode::GATEWAY_TIMEOUT);
     // Un délai ne prouve ni l'envoi ni le refus : « attente ».
     assert_eq!(corps["state"], "attente");
+    assert_eq!(corps["code"], "timeout");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn le_data_kind_de_herdr_core_donne_le_statut_et_le_code() {
+    // B2 : « agent parti », « terminal fini », « agent bloqué » ne se
+    // fondent plus dans un 502 générique.
+    for (kind, statut_attendu, code) in [
+        ("not_found", StatusCode::NOT_FOUND, "agent_gone"),
+        ("finished", StatusCode::GONE, "agent_exited"),
+        (
+            "needs_update",
+            StatusCode::SERVICE_UNAVAILABLE,
+            "core_needs_update",
+        ),
+    ] {
+        let faux = herdr_avec_agent(AgentStatus::Working);
+        faux.panne_sur(
+            Op::Prompt,
+            PortError::Upstream {
+                code: String::from(kind),
+                message: String::from("t1: refused"),
+            },
+        );
+        let (services, _) = services(faux, Default::default(), Default::default());
+        let (statut, corps) = envoie_post(
+            routeur(services, vec![]),
+            "/api/agents/w1:p1/prompt",
+            corps_texte("bonjour"),
+        )
+        .await;
+        assert_eq!(statut, statut_attendu, "{kind}");
+        assert_eq!(corps["code"], code, "{kind}");
+        assert_eq!(corps["state"], "erreur", "{kind} : rien n'est parti");
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]

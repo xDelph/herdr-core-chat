@@ -155,6 +155,42 @@ fn l_index_confirme_le_nom_et_le_dossier_et_lexistence() {
 }
 
 #[test]
+fn deux_fils_du_meme_nom_dans_le_meme_dossier_ne_prouvent_rien() {
+    // Deux panes lancés avec la même première consigne : prendre le plus
+    // récent montrait à l'un la conversation de l'autre.
+    let racines = racines_fake();
+    let base = racines.codex_home.join("state_10.sqlite");
+    let connexion = match rusqlite::Connection::open(&base) {
+        Ok(connexion) => connexion,
+        Err(cause) => panic!("index refusé : {cause}"),
+    };
+    let mut lignes = String::new();
+    for suffixe in ["a", "b"] {
+        let rollout = racines
+            .codex_sessions
+            .join(format!("rollout-2026-{suffixe}.jsonl"));
+        if let Err(cause) = fs::write(&rollout, "{}") {
+            panic!("rollout refusé : {cause}");
+        }
+        lignes.push_str(&format!(
+            "INSERT INTO threads (name, cwd, rollout_path, archived, updated_at) VALUES ('Fix tests', '/dev/projets/x', '{}', 0, '2026-10-1{}');",
+            rollout.display(),
+            if suffixe == "a" { 8 } else { 9 }
+        ));
+    }
+    if let Err(cause) = connexion.execute_batch(&format!(
+        "CREATE TABLE threads (id TEXT PRIMARY KEY, name TEXT, cwd TEXT, rollout_path TEXT, archived INTEGER, updated_at TEXT); {lignes}"
+    )) {
+        panic!("schéma refusé : {cause}");
+    }
+    let resolveur = Resolveur::nouveau(racines);
+    assert!(
+        chemin_codex_par_nom(&resolveur, "Fix tests", "/dev/projets/x").is_none(),
+        "l'ambiguïté ne désigne aucun des deux fils"
+    );
+}
+
+#[test]
 fn le_cache_négatif_s_invalide_quand_la_base_bouge() {
     let racines = racines_fake();
     let base = racines.codex_home.join("state_10.sqlite");
@@ -575,4 +611,70 @@ fn opencode_se_resout_par_son_titre_et_son_dossier_si_une_seule_session_concorde
     assert_eq!(opencode(&resolveur, "Fix the tests", "/p"), None);
     assert_eq!(opencode(&resolveur, "OC | Fix the tests", "/autre"), None);
     assert_eq!(opencode(&resolveur, "OC | Rien", "/p"), None);
+}
+
+fn resout_par_port(
+    port: &sessions::port::PortSessions,
+    pid: u32,
+) -> Option<domain::session::ResolvedSource> {
+    use domain::ports::SessionPort;
+    let hint = domain::session::SessionHint {
+        agent: Some(domain::ids::AgentKind::from(String::from("claude"))),
+        published: None,
+        title: Some(String::from("✳ Claude Code")),
+        cwd: Some(String::from("/Users/moi/projet")),
+        pid: Some(pid),
+    };
+    let mut futur = port.resolve(hint);
+    let mut contexte = std::task::Context::from_waker(std::task::Waker::noop());
+    match futur.as_mut().poll(&mut contexte) {
+        std::task::Poll::Ready(issue) => issue.unwrap_or_else(|cause| panic!("{cause:?}")),
+        std::task::Poll::Pending => panic!("le port répond au premier poll"),
+    }
+}
+
+#[test]
+fn une_resolution_est_resservie_tant_que_le_fichier_pid_ne_bouge_pas() {
+    // Lot 3 : la veille résout chaque pane toutes les 2 s. Le même pane,
+    // même PID, même titre : la réponse est resservie sans relire
+    // `<pid>.json` — et un `/clear` (fichier pid réécrit) est vu aussitôt.
+    let racines = racines_fake();
+    let projet = racines.claude_projects.join("-Users-moi-projet");
+    fs::create_dir_all(&projet).unwrap_or_else(|cause| panic!("mkdir : {cause}"));
+    for id in ["sess-a", "sess-b"] {
+        fs::write(projet.join(format!("{id}.jsonl")), "{}\n")
+            .unwrap_or_else(|cause| panic!("session : {cause}"));
+    }
+    fichier_pid_claude(&racines, 5151, &json!({"pid": 5151, "sessionId": "sess-a"}));
+    let port = sessions::port::PortSessions::nouveau(racines.clone());
+    let premiere = resout_par_port(&port, 5151);
+    assert!(
+        premiere
+            .as_ref()
+            .is_some_and(|s| s.base.ends_with("sess-a.jsonl"))
+    );
+    for _ in 0..5 {
+        assert_eq!(resout_par_port(&port, 5151), premiere);
+    }
+    assert_eq!(port.resolutions_calculees(), 1, "resservie, pas recalculée");
+
+    // `/clear` : le fichier pid nomme une autre session (taille différente).
+    fichier_pid_claude(
+        &racines,
+        5151,
+        &json!({"pid": 5151, "sessionId": "sess-b", "cwd": "/Users/moi/projet"}),
+    );
+    let apres = resout_par_port(&port, 5151);
+    assert!(
+        apres
+            .as_ref()
+            .is_some_and(|s| s.base.ends_with("sess-b.jsonl")),
+        "la nouvelle session est vue aussitôt : {apres:?}"
+    );
+    assert_eq!(port.resolutions_calculees(), 2);
+
+    // Le fichier trouvé disparaît : on ne sert jamais un chemin mort.
+    fs::remove_file(projet.join("sess-b.jsonl")).unwrap_or_else(|cause| panic!("rm : {cause}"));
+    let _ = resout_par_port(&port, 5151);
+    assert_eq!(port.resolutions_calculees(), 3);
 }

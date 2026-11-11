@@ -1,5 +1,6 @@
 //! Client herdr-core (P2a) : transport JSON-RPC + méthodes de lecture typées.
 
+pub mod abonnement;
 pub mod client;
 pub mod disposition;
 pub mod port;

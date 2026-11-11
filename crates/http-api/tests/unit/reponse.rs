@@ -28,12 +28,22 @@ fn ecran(texte: &str) -> ScreenObservation {
     }
 }
 
+/// L'empreinte de la question affichée — celle que le téléphone renvoie.
+fn empreinte(ecran: &str) -> String {
+    interactions::ecran::question_de_l_ecran(ecran)
+        .map(|question| question.empreinte())
+        .unwrap_or_default()
+}
+
 fn corps(numero: i64, texte: Option<&str>) -> Vec<u8> {
+    let empreinte = empreinte(QUESTION);
     match texte {
-        Some(texte) => json!({ "numero": numero, "texte": texte })
+        Some(texte) => json!({ "numero": numero, "texte": texte, "empreinte": empreinte })
             .to_string()
             .into_bytes(),
-        None => json!({ "numero": numero }).to_string().into_bytes(),
+        None => json!({ "numero": numero, "empreinte": empreinte })
+            .to_string()
+            .into_bytes(),
     }
 }
 
@@ -138,7 +148,10 @@ async fn reponse_400_corps_sans_numero() {
     )
     .await;
     assert_eq!(statut, StatusCode::BAD_REQUEST);
-    assert_eq!(corps["error"], "invalid body: `numero` (integer) required");
+    assert_eq!(
+        corps["error"],
+        "invalid body: `numero` (integer) and `empreinte` (string) required — reload the app"
+    );
     assert!(faux.actions().is_empty());
 }
 
@@ -218,4 +231,34 @@ async fn reponse_saisie_libre_ecrit_apres_le_choix() {
     assert_eq!(touches.len(), 2, "choix puis validation");
     assert!(touches[0] < texte, "le choix précède le texte");
     assert!(texte < touches[1], "le texte précède la validation");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn reponse_409_si_la_question_a_change_depuis_l_affichage() {
+    // B1.1 : le téléphone a lu QUESTION ; l'agent en montre une autre.
+    let faux = HerdrFaux::nouveau();
+    faux.scripte_ecrans(
+        "w1:p1",
+        vec![ecran(
+            "Supprimer le dossier ?\n1. Allow once\n2. Deny\n3. Type your own answer\nenter submit\n",
+        )],
+    );
+    let (services, _) = services(faux.clone(), Default::default(), Default::default());
+    let (statut, corps) = envoie_post(
+        routeur(services, vec![]),
+        "/api/agents/w1:p1/answer",
+        corps(1, None),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::CONFLICT);
+    assert_eq!(corps["state"], "refusee");
+    let detail = corps["detail"].as_str().unwrap_or_default();
+    assert!(detail.contains("changed since it was shown"), "{detail}");
+    assert!(
+        !faux
+            .actions()
+            .iter()
+            .any(|action| action.op == Op::EnvoiTouches),
+        "aucune touche ne part"
+    );
 }

@@ -221,10 +221,16 @@ pub const FENETRES_OUVERTURE: usize = 512;
 /// fenêtre lue (et qu'elle n'y a pas trouvé d'ouverture plus récente), la
 /// demande retenue est encore la dernière. Sinon (fichier raccourci, ou plus
 /// d'une fenêtre ajoutée), on remonte à nouveau — jamais une demande devinée.
+///
+/// ⚠️ **Elle porte aussi l'index incrémental des sessions fichier**
+/// ([`IndexSession`]) : le nom est resté, le constructeur (`Arc::default()`)
+/// aussi.
 #[derive(Default)]
 pub struct MemoireOuvertures {
     ordre: std::collections::VecDeque<String>,
     entrees: HashMap<String, (u64, Option<EntreeLu>)>,
+    ordre_index: std::collections::VecDeque<String>,
+    index: HashMap<String, IndexSession>,
 }
 
 impl MemoireOuvertures {
@@ -248,6 +254,167 @@ impl MemoireOuvertures {
             }
         }
         self.entrees.insert(cle.to_string(), (octets, entree));
+    }
+
+    /// L'index incrémental d'une source fichier, s'il existe.
+    #[must_use]
+    pub fn index_de(&self, cle: &str) -> Option<IndexSession> {
+        self.index.get(cle).cloned()
+    }
+
+    /// Pose l'index d'une source ; le plus ancien sort au-delà de la capacité.
+    pub fn pose_index(&mut self, cle: &str, index: IndexSession) {
+        if !self.index.contains_key(cle) {
+            self.ordre_index.push_back(cle.to_string());
+            while self.ordre_index.len() > CAPACITE_FENETRES {
+                if let Some(ancienne) = self.ordre_index.pop_front() {
+                    self.index.remove(&ancienne);
+                }
+            }
+        }
+        self.index.insert(cle.to_string(), index);
+    }
+
+    /// Oublie l'index d'une source (fichier remplacé, lecture en échec).
+    pub fn oublie_index(&mut self, cle: &str) {
+        self.index.remove(cle);
+    }
+
+    /// Le nombre d'index tenus — l'observation des tests.
+    #[must_use]
+    pub fn index_tenus(&self) -> usize {
+        self.index.len()
+    }
+}
+
+/// Le nombre maximal de pages lues EN AVANT pour rattraper une source
+/// (2 Mio chacune, la cible de `page_bornee`) : au-delà, l'index est
+/// reconstruit comme à la première lecture — jamais une lecture sans fin.
+pub const PAGES_RATTRAPAGE: usize = 16;
+
+/// Une entrée de l'index : son rang dans la session (croissant avec le
+/// fichier), sa taille brute, et ce que le résumé en consomme.
+#[derive(Clone, Debug)]
+struct Indexee {
+    rang: i64,
+    octets: usize,
+    entree: EntreeLu,
+}
+
+/// ⚠️ **L'index incrémental d'une session fichier (lot 3).**
+///
+/// Une session JSONL ne fait que grandir. Le résumé relisait la queue
+/// (64 Kio) PUIS remontait jusqu'à 2 Mio — 32 Mio après une absence — à
+/// chaque changement de taille, donc toutes les 2 s pendant qu'un agent
+/// travaille, parce que la comptabilité de Claude repousse la demande hors
+/// de la fenêtre. Mesuré sur des sessions de 297 Mo.
+///
+/// L'index retient :
+/// - la **fenêtre** de queue (les dernières entrées, ~64 Kio) ;
+/// - la **plus récente entrée de chaque manque** (demande, réponse, modèle,
+///   ouverture de tour, fournisseur), où qu'elle soit dans le fichier ;
+/// - le **curseur de fin** : la prochaine lecture part de là, en avant.
+///
+/// Ce qui s'ajoute est lu une fois, en avant ; la plus récente de chaque
+/// genre ne peut que venir de ce qui s'ajoute, ou rester celle retenue. Un
+/// fichier remplacé ou tronqué (`reset`), une lecture en échec, un retard
+/// de plus de [`PAGES_RATTRAPAGE`] pages : l'index est reconstruit.
+#[derive(Clone, Debug)]
+pub struct IndexSession {
+    curseur: String,
+    fenetre: std::collections::VecDeque<Indexee>,
+    retenues: [Option<Indexee>; 5],
+    prochain_rang: i64,
+}
+
+/// Les cinq manques suivis par l'index, dans l'ordre de `retenues`.
+const CRITERES: [fn(&EntreeLu) -> bool; 5] = [
+    est_demande,
+    est_reponse,
+    declare_un_modele,
+    application::conversations::ouvre_un_tour,
+    declare_un_fournisseur,
+];
+
+impl IndexSession {
+    /// L'index d'une lecture complète : `entrees` = les retenues anciennes
+    /// PUIS la fenêtre (`octets_fenetre`, une taille par entrée de fenêtre,
+    /// dans l'ordre).
+    fn depuis_lecture(curseur: String, entrees: &[EntreeLu], octets_fenetre: &[usize]) -> Self {
+        let debut_fenetre = entrees.len().saturating_sub(octets_fenetre.len());
+        let indexees: Vec<Indexee> = entrees
+            .iter()
+            .enumerate()
+            .map(|(rang, entree)| Indexee {
+                rang: i64::try_from(rang).unwrap_or(i64::MAX),
+                octets: rang
+                    .checked_sub(debut_fenetre)
+                    .and_then(|i| octets_fenetre.get(i).copied())
+                    .unwrap_or(0),
+                entree: entree.clone(),
+            })
+            .collect();
+        let mut retenues: [Option<Indexee>; 5] = Default::default();
+        for indexee in &indexees {
+            for (place, critere) in retenues.iter_mut().zip(CRITERES) {
+                if critere(&indexee.entree) {
+                    *place = Some(indexee.clone());
+                }
+            }
+        }
+        Self {
+            curseur,
+            prochain_rang: i64::try_from(indexees.len()).unwrap_or(i64::MAX),
+            fenetre: indexees.into_iter().skip(debut_fenetre).collect(),
+            retenues,
+        }
+    }
+
+    /// Ajoute ce qui a été lu en avant : la fenêtre glisse, les retenues
+    /// avancent.
+    fn ajoute(&mut self, nouvelles: Vec<(usize, EntreeLu)>, curseur: String) {
+        for (octets, entree) in nouvelles {
+            let indexee = Indexee {
+                rang: self.prochain_rang,
+                octets,
+                entree,
+            };
+            self.prochain_rang = self.prochain_rang.saturating_add(1);
+            for (place, critere) in self.retenues.iter_mut().zip(CRITERES) {
+                if critere(&indexee.entree) {
+                    *place = Some(indexee.clone());
+                }
+            }
+            self.fenetre.push_back(indexee);
+        }
+        // La fenêtre garde ~64 Kio de queue, comme une lecture fraîche.
+        let mut total: usize = self.fenetre.iter().map(|i| i.octets + 1).sum();
+        let plafond = usize::try_from(FENETRE_RESUME_OCTETS).unwrap_or(usize::MAX);
+        while total > plafond && self.fenetre.len() > 1 {
+            if let Some(sortie) = self.fenetre.pop_front() {
+                total = total.saturating_sub(sortie.octets + 1);
+            }
+        }
+        self.curseur = curseur;
+    }
+
+    /// Les entrées du résumé : les retenues plus anciennes que la fenêtre
+    /// (dans l'ordre du fichier, sans doublon), puis la fenêtre.
+    fn entrees(&self) -> Vec<EntreeLu> {
+        let debut = self.fenetre.front().map_or(i64::MAX, |i| i.rang);
+        let mut anciennes: Vec<&Indexee> = self
+            .retenues
+            .iter()
+            .flatten()
+            .filter(|retenue| retenue.rang < debut)
+            .collect();
+        anciennes.sort_by_key(|retenue| retenue.rang);
+        anciennes.dedup_by_key(|retenue| retenue.rang);
+        anciennes
+            .into_iter()
+            .chain(self.fenetre.iter())
+            .map(|indexee| indexee.entree.clone())
+            .collect()
     }
 }
 
@@ -432,6 +599,66 @@ impl LitSessionsViaPort {
     }
 }
 
+impl LitSessionsViaPort {
+    /// Met l'index d'une source à jour en lisant EN AVANT depuis son curseur
+    /// de fin — `None` : pas d'index, ou il ne vaut plus (fichier remplacé,
+    /// lecture en échec, retard trop grand) ; l'appelant relit tout.
+    fn rattrape_index(&self, cle: &str, demande: &SessionPageRequest) -> Option<Vec<EntreeLu>> {
+        let mut index = self
+            .ouvertures
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .index_de(cle)?;
+        let abandonne = || {
+            self.ouvertures
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .oublie_index(cle);
+            None
+        };
+        let mut curseur = index.curseur.clone();
+        let mut nouvelles: Vec<(usize, EntreeLu)> = Vec::new();
+        for page_lue in 0.. {
+            if page_lue >= PAGES_RATTRAPAGE {
+                return abandonne();
+            }
+            let mut suite = demande.clone();
+            suite.cursor = Some(curseur.clone());
+            suite.previous_cursor = None;
+            let page = match attend_session(&mut self.port.page(suite)) {
+                Ok(SessionPageOutcome::Page(page)) => page,
+                Ok(SessionPageOutcome::Vide(page)) if !page.reset => {
+                    if let Some(suivant) = page.cursor {
+                        curseur = suivant;
+                    }
+                    break;
+                }
+                _ => return abandonne(),
+            };
+            let Some(suivant) = page.cursor.clone().filter(|_| !page.reset) else {
+                return abandonne();
+            };
+            let fin = page.entries.is_empty() || page.rattrape;
+            nouvelles.extend(
+                page.entries
+                    .iter()
+                    .map(|entree| (entree.raw.len(), entree_lue(entree))),
+            );
+            curseur = suivant;
+            if fin {
+                break;
+            }
+        }
+        index.ajoute(nouvelles, curseur);
+        let entrees = index.entrees();
+        self.ouvertures
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .pose_index(cle, index);
+        Some(entrees)
+    }
+}
+
 impl ResoutSessions for LitSessionsViaPort {
     fn source_de(&self, agent: &AgentObservation) -> Option<SourceDeSession> {
         let source = source_de_port(self.port.as_ref(), agent)?;
@@ -561,6 +788,19 @@ impl LitSessions for LitSessionsViaPort {
         {
             return Ok(entrees);
         }
+        // 2) L'index incrémental (fichiers) : seul ce qui s'est ajouté est lu.
+        let fichier = demande.source.kind == SourceKind::File;
+        if fichier
+            && let Some(signature) = signature
+            && let Some(entrees) = self.rattrape_index(&cle, &demande)
+        {
+            self.fenetres
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .pose(&cle, signature, entrees.clone());
+            return Ok(entrees);
+        }
+        // 3) La lecture complète : la queue, puis la remontée bornée.
         let mut futur = self.port.page(demande.clone());
         let issue = attend_session(&mut futur).map_err(|cause| ErreurDeLecture {
             benin: false,
@@ -572,6 +812,17 @@ impl LitSessions for LitSessionsViaPort {
                 self.remonte(&demande, &page, &mut entrees);
                 if let Some(signature) = signature {
                     self.complete_ouverture(&cle, signature.octets, &demande, &page, &mut entrees);
+                }
+                if fichier && let Some(curseur) = page.cursor.clone() {
+                    let octets: Vec<usize> =
+                        page.entries.iter().map(|entree| entree.raw.len()).collect();
+                    self.ouvertures
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .pose_index(
+                            &cle,
+                            IndexSession::depuis_lecture(curseur, &entrees, &octets),
+                        );
                 }
                 if let Some(signature) = signature {
                     self.fenetres

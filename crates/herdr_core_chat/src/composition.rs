@@ -98,6 +98,7 @@ pub fn services(
         tracing::warn!(%cause, "lectures partagées illisibles : la table part vide");
     }
     Services {
+        veille: Arc::default(),
         snapshots,
         port: Arc::clone(&ports.controle),
         conversations: Arc::new(conversations),

@@ -24,7 +24,7 @@
 use domain::errors::PortError;
 use domain::ids::{DeliveryFingerprint, PaneId};
 use domain::ports::{
-    ControlPort, PortFuture, PromptEvidence, TargetedKeys, TargetedPrompt, TargetedText,
+    ControlPort, PortFuture, PromptEvidence, ScreenRead, TargetedKeys, TargetedPrompt, TargetedText,
 };
 use std::collections::HashMap;
 use std::sync::{Mutex, PoisonError};
@@ -71,6 +71,10 @@ pub enum RefusEnvoi {
     /// La file du pane est pleine (T034) : RIEN n'a été envoyé — le client
     /// peut réessayer ; jamais une attente infinie.
     Sature { cible: String, detail: String },
+    /// L'agent montre une question à choix ou une demande de confiance :
+    /// RIEN n'a été envoyé (B1.2) — collé là, le texte et son Entrée
+    /// validaient l'option surlignée. On y répond par la carte de question.
+    InviteOuverte { cible: String, detail: String },
 }
 
 impl std::fmt::Display for RefusEnvoi {
@@ -87,6 +91,9 @@ impl std::fmt::Display for RefusEnvoi {
             }
             RefusEnvoi::Sature { cible, detail } => {
                 write!(f, "pane queue saturated ({cible}): {detail}")
+            }
+            RefusEnvoi::InviteOuverte { cible, detail } => {
+                write!(f, "interactive prompt on screen ({cible}): {detail}")
             }
         }
     }
@@ -115,6 +122,8 @@ pub struct Envoi {
 struct Dernier {
     empreinte: String,
     confirme_a: Instant,
+    /// Le tour de herdr-core lu juste avant l'envoi confirmé.
+    tour: Option<u64>,
 }
 
 #[derive(Default)]
@@ -162,9 +171,26 @@ impl EnvoieurPrompt {
         texte: &str,
         saisie: bool,
     ) -> Result<Envoi, RefusEnvoi> {
-        match super::admission::partage()
-            .admet(cible, || self.envoie_admis(port, cible, texte, saisie))
-        {
+        self.envoie_au_tour(port, cible, texte, saisie, None)
+    }
+
+    /// [`Self::envoie`], avec le tour de herdr-core lu juste avant.
+    ///
+    /// ⚠️ **Un doublon, c'est le même texte AU MÊME TOUR.** « yes » deux fois
+    /// en 60 s, l'agent ayant répondu entre les deux, sont deux demandes : le
+    /// tour a avancé, le second passe. Sans tour connu (lecture en échec),
+    /// la règle des 60 s s'applique seule, comme avant.
+    pub fn envoie_au_tour(
+        &self,
+        port: &dyn ControlPort,
+        cible: &PaneId,
+        texte: &str,
+        saisie: bool,
+        tour: Option<u64>,
+    ) -> Result<Envoi, RefusEnvoi> {
+        match super::admission::partage().admet(cible, || {
+            self.envoie_admis(port, cible, texte, saisie, tour)
+        }) {
             Ok(envoi) => Ok(envoi),
             Err(Err(refus)) => Err(refus),
             Err(Ok(super::admission::ErreurAdmission::Saturation)) => Err(RefusEnvoi::Sature {
@@ -181,6 +207,7 @@ impl EnvoieurPrompt {
         cible: &PaneId,
         texte: &str,
         saisie: bool,
+        tour: Option<u64>,
     ) -> Result<Envoi, RefusEnvoi> {
         let empreinte = empreinte_de(cible.as_str(), texte);
         // 1) Le dernier confirmé de CETTE cible : le même texte dans la
@@ -190,6 +217,7 @@ impl EnvoieurPrompt {
             if let Some(dernier) = derniers.get(cible.as_str())
                 && dernier.empreinte == empreinte
                 && dernier.confirme_a.elapsed() < FENETRE
+                && !matches!((dernier.tour, tour), (Some(avant), Some(maintenant)) if maintenant != avant)
             {
                 return Err(RefusEnvoi::Doublon {
                     empreinte,
@@ -199,6 +227,7 @@ impl EnvoieurPrompt {
         }
         // 2) L'exécution — prompt ou frappes, puis le repli sur refus connu.
         let mut issue = if saisie {
+            garde_d_invite(port, cible)?;
             // Les frappes écrites : « inconnu » — pas que l'agent a appliqué.
             les_frappes(port, cible, texte).map(|()| Confirmation::Inconnu)
         } else {
@@ -214,7 +243,8 @@ impl EnvoieurPrompt {
             && refus_de_saisie(erreur)
         {
             // ⚠️ Le refus NAMÉ la saisie interactive : les frappes sont le
-            // seul chemin vers une invite.
+            // seul chemin vers une invite — sauf une invite à CHOIX.
+            garde_d_invite(port, cible)?;
             issue = les_frappes(port, cible, texte).map(|()| Confirmation::Inconnu);
         }
         // 3) La preuve — le discriminateur de succès est EXIGÉ (C05/C06).
@@ -253,6 +283,7 @@ impl EnvoieurPrompt {
                 Dernier {
                     empreinte: empreinte.clone(),
                     confirme_a: Instant::now(),
+                    tour,
                 },
             );
         }
@@ -297,11 +328,52 @@ fn prompt_attendu(
     attends(&mut fut)
 }
 
+/// Refuse les frappes quand l'écran montre une invite à CHOIX (question,
+/// permission, confiance) — sous l'admission du pane, juste avant d'écrire.
+///
+/// ⚠️ **Un écran illisible refuse aussi** : sur un agent bloqué, ne pas
+/// savoir ce qui est affiché, c'est ne pas savoir ce qu'Entrée validerait.
+fn garde_d_invite(port: &dyn ControlPort, cible: &PaneId) -> Result<(), RefusEnvoi> {
+    let mut fut = port.read_screen(ScreenRead {
+        pane: cible.clone(),
+        max_lines: 200,
+    });
+    let ecran = match attends(&mut fut) {
+        Ok(ecran) => ecran.text.unwrap_or_default(),
+        Err(cause) => {
+            return Err(RefusEnvoi::NonConfirme {
+                cible: cible.as_str().to_string(),
+                detail: format!(
+                    "the agent is waiting for input and its screen could not be read ({}) — \
+                     nothing was sent",
+                    cause.description()
+                ),
+                cause,
+            });
+        }
+    };
+    let detail = if let Some(question) = interactions::ecran::question_de_l_ecran(&ecran) {
+        format!(
+            "the agent is asking “{}” — answer it from the question card; nothing was sent",
+            question.texte
+        )
+    } else if interactions::confiance::est_invite_confiance(&ecran) {
+        String::from("the agent is asking to trust its folder — answer it first; nothing was sent")
+    } else {
+        return Ok(());
+    };
+    Err(RefusEnvoi::InviteOuverte {
+        cible: cible.as_str().to_string(),
+        detail,
+    })
+}
+
 fn les_frappes(port: &dyn ControlPort, cible: &PaneId, texte: &str) -> Result<(), PortError> {
     {
         let mut fut = port.send_text(TargetedText {
             pane: cible.clone(),
             text: texte.to_string(),
+            reponse_libre: false,
         });
         attends(&mut fut)?;
     }

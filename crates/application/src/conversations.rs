@@ -240,6 +240,18 @@ pub struct LigneConversation {
     pub tour_debut: Option<u64>,
     /// Les tâches de fond — `None` quand la famille n'en a pas de lisibles.
     pub taches_de_fond: Option<CompteTaches>,
+    /// Ce que l'agent dit EN CE MOMENT (`status.msg`), seulement quand il
+    /// travaille, attend ou est en erreur : un message d'un tour fini
+    /// décrirait un travail passé.
+    pub activite: Option<String>,
+    /// Le tour de herdr-core.
+    pub tour: u64,
+    /// Ce qu'un agent `blocked` attend (`status.kind`).
+    pub bloque: Option<domain::status::BlockedKind>,
+    /// La fin du terminal, quand herdr-core le dit fini.
+    pub fin: Option<domain::status::AgentExit>,
+    /// Sous-agents en direct, épingle, écran inexact (lot 4).
+    pub faits: domain::status::FaitsDuTerminal,
 }
 
 /// La branche git du dossier d'un pane — INJECTÉE (T040 installe le vrai
@@ -273,16 +285,60 @@ pub trait LitSessions: ResoutSessions {
     }
 }
 
-/// Le service de liste — sans état propre : assemble lignes par génération.
+/// ⚠️ **La durée de vie d'un écran retenu : 15 s (lot 3).**
+///
+/// `/api/conversations` relisait l'écran (200 lignes, un aller-retour
+/// herdr-core) de chaque ligne bloquée ou sans aperçu, à CHAQUE requête —
+/// 1,95 s mesurées sur un pane, 5 à 6 s pour le premier appel. L'écran est
+/// retenu par pane sous une clé qui change dès qu'il peut avoir changé :
+/// le tour, le statut, l'instant du dernier changement de statut
+/// (`status_ms`) et le nombre de gestes du démon sur ce pane. Les 15 s
+/// bornent ce qu'aucune clé ne voit : une réponse tapée sur le Mac à une
+/// invite d'un agent `idle` (son statut ne bouge pas).
+pub const DUREE_ECRAN: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Ce qui fait qu'un écran retenu vaut encore.
+#[derive(Clone, PartialEq, Eq, Debug)]
+struct CleEcran {
+    tour: u64,
+    statut: AgentStatus,
+    depuis: Option<u64>,
+    gestes: u64,
+}
+
+struct EcranRetenu {
+    cle: CleEcran,
+    lu: std::time::Instant,
+    texte: String,
+}
+
+/// La borne du cache d'écrans : au-delà, il repart vide.
+const CAPACITE_ECRANS: usize = 256;
+
+/// Le service de liste : assemble les lignes par génération.
+///
+/// ⚠️ **Ses permis sont PARTAGÉS par toutes les requêtes (lot 3).** Ils
+/// étaient créés à chaque appel : N clients faisaient 4N lectures de session
+/// et 16N lectures d'écran en même temps. Le service est unique dans les
+/// `Services` : ses sas bornent le démon entier.
 pub struct ServiceConversations {
     lit: Arc<dyn LitSessions>,
     branche: Arc<dyn BrancheDeProjet>,
+    sas_sessions: SasDeLecture,
+    sas_ecrans: SasDeLecture,
+    ecrans: std::sync::Mutex<std::collections::HashMap<String, EcranRetenu>>,
 }
 
 impl ServiceConversations {
     #[must_use]
     pub fn nouveau(lit: Arc<dyn LitSessions>, branche: Arc<dyn BrancheDeProjet>) -> Self {
-        Self { lit, branche }
+        Self {
+            lit,
+            branche,
+            sas_sessions: SasDeLecture::nouveau(MAX_SESSION_READS),
+            sas_ecrans: SasDeLecture::nouveau(MAX_ECRANS_LUS),
+            ecrans: std::sync::Mutex::default(),
+        }
     }
 
     /// Les tâches de fond d'un pane de la génération observée.
@@ -296,12 +352,21 @@ impl ServiceConversations {
         else {
             return IssueTaches::PaneInconnu;
         };
+        let sous_agents = &agent.faits.sous_agents;
         let Some(source) = self.lit.source_de(agent) else {
-            return IssueTaches::SansSource;
+            return match avec_sous_agents(None, sous_agents) {
+                Some(taches) => IssueTaches::Liste(taches),
+                None => IssueTaches::SansSource,
+            };
         };
         match self.lit.taches(&source) {
-            None => IssueTaches::NonPrisEnCharge,
-            Some(Ok(taches)) => IssueTaches::Liste(taches),
+            None => match avec_sous_agents(None, sous_agents) {
+                Some(taches) => IssueTaches::Liste(taches),
+                None => IssueTaches::NonPrisEnCharge,
+            },
+            Some(Ok(taches)) => {
+                IssueTaches::Liste(avec_sous_agents(Some(taches), sous_agents).unwrap_or_default())
+            }
             Some(Err(cause)) => IssueTaches::Erreur(cause),
         }
     }
@@ -394,14 +459,32 @@ impl ServiceConversations {
           la latence au niveau d'un aller-retour, jamais 19 sockets ouverts d'un
           coup.
         */
-        Self::enrichit_ecran_borne(port, lignes_brutes)
+        let cles: std::collections::HashMap<&str, CleEcran> = borne
+            .snapshot
+            .agents
+            .iter()
+            .map(|agent| {
+                (
+                    agent.pane_id.as_str(),
+                    CleEcran {
+                        tour: agent.revision,
+                        statut: agent.status,
+                        depuis: agent.state_change_seq,
+                        gestes: crate::commands::admission::partage().gestes(&agent.pane_id),
+                    },
+                )
+            })
+            .collect();
+        self.enrichit_ecran_borne(port, lignes_brutes, &cles)
     }
 
     /// L'enrichissement à l'écran, en parallèle borné (mêmes workers que les
     /// sessions) : la lecture d'écran est un aller-retour réseau, pas un calcul.
     fn enrichit_ecran_borne(
+        &self,
         port: &dyn ControlPort,
         lignes: Vec<LigneConversation>,
+        cles: &std::collections::HashMap<&str, CleEcran>,
     ) -> Vec<LigneConversation> {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::{Mutex, PoisonError};
@@ -428,7 +511,9 @@ impl ServiceConversations {
                             .get(index)
                             .cloned();
                         let Some(ligne) = ligne else { break };
-                        let enrichie = Self::enrichit_ecran(port, ligne);
+                        let cle = cles.get(ligne.pane_id.as_str()).cloned();
+                        let enrichie =
+                            Self::enrichit_ecran(ligne, |pane| self.ecran_de(port, pane, cle));
                         resultats.lock().unwrap_or_else(PoisonError::into_inner)[index] =
                             Some(enrichie);
                     }
@@ -459,13 +544,12 @@ impl ServiceConversations {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::{Mutex, PoisonError};
 
-        let sas = SasDeLecture::nouveau(MAX_SESSION_READS);
+        let sas = &self.sas_sessions;
         let suivant = AtomicUsize::new(0);
         let resultats: Mutex<Vec<Option<LigneConversation>>> = Mutex::new(vec![None; prevu.len()]);
         std::thread::scope(|portee| {
             let workers = prevu.len().clamp(1, MAX_SESSION_READS);
             for _ in 0..workers {
-                let sas = &sas;
                 let suivant = &suivant;
                 let resultats = &resultats;
                 portee.spawn(move || {
@@ -531,13 +615,28 @@ impl ServiceConversations {
             attente: None,
             tour_debut: None,
             taches_de_fond: None,
+            activite: preuv.agent.status_msg.clone().filter(|_| {
+                matches!(
+                    preuv.agent.status,
+                    AgentStatus::Working | AgentStatus::Blocked | AgentStatus::Error
+                )
+            }),
+            tour: preuv.agent.revision,
+            bloque: preuv.agent.blocked_kind,
+            fin: preuv.agent.exit.clone(),
+            faits: preuv.agent.faits.clone(),
         };
         let Some(source) = source else {
             // Pas de source du tout : ni aperçu, ni horodatage, pas de
-            // chemin inventé — `absent`, pas une erreur.
-            return base;
+            // chemin inventé — `absent`, pas une erreur. Les sous-agents en
+            // direct, eux, viennent du core : ils comptent quand même.
+            let taches = avec_sous_agents(None, &preuv.agent.faits.sous_agents);
+            return LigneConversation {
+                taches_de_fond: taches.as_deref().map(CompteTaches::de),
+                ..base
+            };
         };
-        sas.acquiere();
+        let place = sas.place();
         let lu = self.lit.fenetre(&base.pane_id, &source);
         // Les tâches de fond se lisent sous le même permis — et seulement
         // quand la session elle-même a pu être lue.
@@ -545,7 +644,8 @@ impl ServiceConversations {
             Ok(_) => self.lit.taches(&source).and_then(Result::ok),
             Err(_) => None,
         };
-        sas.relache();
+        let taches = avec_sous_agents(taches, &preuv.agent.faits.sous_agents);
+        drop(place);
         let base = LigneConversation {
             taches_de_fond: taches.as_deref().map(CompteTaches::de),
             ..base
@@ -653,11 +753,14 @@ impl ServiceConversations {
     /// L'enrichissement à l'écran : une ligne qui n'a rien à montrer (ni
     /// aperçu, ni dernière demande) ou qui est `blocked` — jamais une
     /// `working` (elle ne peut pas attendre une réponse) — se fait lire.
-    fn enrichit_ecran(port: &dyn ControlPort, mut ligne: LigneConversation) -> LigneConversation {
+    fn enrichit_ecran(
+        mut ligne: LigneConversation,
+        lis: impl FnOnce(&PaneId) -> String,
+    ) -> LigneConversation {
         if !faut_lire_l_ecran(&ligne) {
             return ligne;
         }
-        let ecran = lire_ecran(port, &ligne.pane_id);
+        let ecran = lis(&ligne.pane_id);
         if ecran.is_empty() {
             return ligne;
         }
@@ -698,6 +801,99 @@ impl ServiceConversations {
     }
 }
 
+impl ServiceConversations {
+    /// L'écran d'un pane : retenu s'il vaut encore (voir [`DUREE_ECRAN`]),
+    /// sinon relu sous le sas partagé. Un écran illisible n'est pas retenu.
+    fn ecran_de(&self, port: &dyn ControlPort, pane: &PaneId, cle: Option<CleEcran>) -> String {
+        use std::sync::PoisonError;
+        if let Some(cle) = &cle
+            && let Some(retenu) = self
+                .ecrans
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .get(pane.as_str())
+            && retenu.cle == *cle
+            && retenu.lu.elapsed() < DUREE_ECRAN
+        {
+            return retenu.texte.clone();
+        }
+        let texte = {
+            let _place = self.sas_ecrans.place();
+            lire_ecran(port, pane)
+        };
+        if let (Some(cle), Some(texte)) = (cle, texte.clone()) {
+            let mut ecrans = self.ecrans.lock().unwrap_or_else(PoisonError::into_inner);
+            if ecrans.len() >= CAPACITE_ECRANS {
+                ecrans.clear();
+            }
+            ecrans.insert(
+                pane.as_str().to_string(),
+                EcranRetenu {
+                    cle,
+                    lu: std::time::Instant::now(),
+                    texte,
+                },
+            );
+        }
+        texte.unwrap_or_default()
+    }
+}
+
+/// ⚠️ **Les sous-agents en direct passent avant l'heuristique (lot 4).**
+///
+/// Les fichiers d'un sous-agent Claude ne disent « en cours » que par une
+/// activité de moins de 30 min, et « inconnu » au-delà. Le record 7501 du
+/// même sous-agent (même identifiant que `agent-<id>`), lui, est l'état que
+/// le programme DÉCLARE en ce moment : il l'emporte. Un record sans fichier
+/// devient une tâche à part entière (titre, message du programme), sans
+/// transcription. `None` : ni tâches lisibles, ni records.
+#[must_use]
+pub fn avec_sous_agents(
+    taches: Option<Vec<TacheDeFond>>,
+    sous_agents: &[domain::status::SousAgent],
+) -> Option<Vec<TacheDeFond>> {
+    if sous_agents.is_empty() {
+        return taches;
+    }
+    let meme = |tache: &str, record: &str| {
+        tache == record
+            || tache.strip_prefix("agent-") == Some(record)
+            || record.strip_prefix("agent-") == Some(tache)
+    };
+    let statut_de = |status: AgentStatus| match status {
+        AgentStatus::Working | AgentStatus::Blocked => StatutTache::EnCours,
+        AgentStatus::Done | AgentStatus::Idle => StatutTache::Terminee,
+        AgentStatus::Error => StatutTache::Echouee,
+        AgentStatus::Unknown => StatutTache::Inconnu,
+    };
+    let mut taches = taches.unwrap_or_default();
+    for sous in sous_agents {
+        if let Some(tache) = taches.iter_mut().find(|tache| meme(&tache.id, &sous.id)) {
+            tache.statut = statut_de(sous.status);
+            if tache.description.is_none() {
+                tache.description.clone_from(&sous.title);
+            }
+            if sous.msg.is_some() {
+                tache.resume.clone_from(&sous.msg);
+            }
+        } else {
+            taches.push(TacheDeFond {
+                id: sous.id.clone(),
+                genre: GenreTache::Agent,
+                description: sous.title.clone(),
+                type_agent: None,
+                statut: statut_de(sous.status),
+                debut: None,
+                fin: None,
+                derniere_activite: None,
+                resume: sous.msg.clone(),
+                transcription: false,
+            });
+        }
+    }
+    Some(taches)
+}
+
 /// Faut-il lire l'écran de cette conversation ? La règle mesurée du fil :
 /// `idle` peut attendre une décision (« Hooks need review » sur un agent
 /// déclaré `idle`) — l'agent qui n'a rien à montrer est lu, jamais l'agent
@@ -724,10 +920,10 @@ fn attente_de_l_ecran(ecran: &str) -> Option<String> {
     Some(retenues.into_iter().rev().collect::<Vec<_>>().join("\n"))
 }
 
-/// La lecture d'écran d'enrichissement — une panne rend un écran vide
-/// (sans texte, pas d'invite) ; la cause réelle n'est pas masquée : elle
-/// n'est simplement pas une DECISION d'affichage.
-fn lire_ecran(port: &dyn ControlPort, pane: &PaneId) -> String {
+/// La lecture d'écran d'enrichissement — une panne rend `None` (un écran
+/// vide pour l'affichage : sans texte, pas d'invite) ; la cause réelle n'est
+/// pas masquée : elle n'est simplement pas une DECISION d'affichage.
+fn lire_ecran(port: &dyn ControlPort, pane: &PaneId) -> Option<String> {
     let mut lecture = port.read_screen(ScreenRead {
         pane: pane.clone(),
         max_lines: MAX_LIGNES_ECRAN,
@@ -735,8 +931,8 @@ fn lire_ecran(port: &dyn ControlPort, pane: &PaneId) -> String {
     match crate::commands::pousse(&mut lecture) {
         Ok(ScreenObservation {
             text: Some(texte), ..
-        }) => texte.trim().to_string(),
-        _ => String::new(),
+        }) => Some(texte.trim().to_string()),
+        _ => None,
     }
 }
 

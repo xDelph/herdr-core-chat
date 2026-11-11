@@ -14,11 +14,19 @@
 //! course entre la photo et l'envoi (l'agent a fini entre les deux) est
 //! portée telle quelle : le port répond `NotRunning` → no-op honnête, pas
 //! un faux « interrupt-sent ».
+//!
+//! ⚠️ **B1.14 — `blocked`, `error` et `unknown` s'interrompent aussi.** Un
+//! agent bloqué sur une permission, un programme en erreur qui tourne
+//! encore, un agent qui ne dit pas son état : « not running » était faux,
+//! et le seul bouton Stop du téléphone ne faisait rien. Seuls `idle` et
+//! `done` n'ont rien à interrompre. Ce que le core a vu ensuite (`outcome`)
+//! est rendu ; un délai dépassé est une touche **transmise** sans issue
+//! connue — jamais « refusée ».
 
 use super::pousse;
 use domain::errors::PortError;
 use domain::ids::PaneId;
-use domain::ports::{ControlPort, StopEvidence};
+use domain::ports::{ControlPort, StopEvidence, StopOutcome};
 use domain::status::AgentStatus;
 
 /// Le service d'arrêt — sans état : chaque appel reprend une observation
@@ -29,8 +37,9 @@ pub struct ArreteurAgent;
 /// L'issue d'un arrêt demandé — les deux valeurs 200 du fil.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum IssueArret {
-    /// Ctrl+C transmis au terminal — **reçu, pas prouvé exécuté**.
-    InterruptEnvoye,
+    /// Ctrl+C transmis au terminal — **reçu, pas prouvé exécuté** ; l'issue
+    /// observée par le core quand il la donne.
+    InterruptEnvoye(Option<StopOutcome>),
     /// Rien n'était en cours : no-op (valeur `not-running`).
     NonEnCours,
 }
@@ -44,8 +53,13 @@ pub enum ErreurArret {
     SnapshotIndisponible { detail: String },
     /// Le snapshot est arrivé illisible (enveloppe, décodage).
     SnapshotIllisible { detail: String },
-    /// La transmission de Ctrl+C a échoué (502 au fil).
-    Transmission { cible: PaneId, detail: String },
+    /// La transmission de Ctrl+C a échoué (502 au fil) ; la cause typée,
+    /// quand elle existe, décide du statut (agent parti, file pleine…).
+    Transmission {
+        cible: PaneId,
+        detail: String,
+        cause: Option<PortError>,
+    },
 }
 
 impl ArreteurAgent {
@@ -70,6 +84,10 @@ impl ArreteurAgent {
                 Err(ErreurArret::Transmission {
                     cible: cible.clone(),
                     detail: super::admission::detail_saturation(cible),
+                    cause: Some(PortError::Upstream {
+                        code: String::from("pane_busy"),
+                        message: super::admission::detail_saturation(cible),
+                    }),
                 })
             }
         }
@@ -104,20 +122,34 @@ impl ArreteurAgent {
             .ok_or_else(|| ErreurArret::AgentAbsent {
                 cible: cible.clone(),
             })?;
-        // 3) Seulement `working` : un agent au repos n'a rien à interrompre.
-        if agent.status != AgentStatus::Working {
+        // 3) Seuls `idle` et `done` n'ont rien à interrompre (B1.14).
+        if matches!(agent.status, AgentStatus::Idle | AgentStatus::Done) {
             return Ok(IssueArret::NonEnCours);
         }
         // 4) La transmission — et seulement la transmission.
         let mut arret = port.stop(cible.clone());
         match pousse(&mut arret) {
-            Ok(StopEvidence::InterruptSent) => Ok(IssueArret::InterruptEnvoye),
+            Ok(StopEvidence::InterruptSent) => Ok(IssueArret::InterruptEnvoye(None)),
+            Ok(StopEvidence::Interrupted(issue)) => Ok(IssueArret::InterruptEnvoye(Some(issue))),
             // La course : l'agent a fini entre la photo et l'envoi — rien
             // à interrompre, dit tel quel (jamais un faux envoi).
             Ok(StopEvidence::NotRunning) => Ok(IssueArret::NonEnCours),
+            // Le terminal a fini entre-temps (`finished`) : rien à arrêter.
+            Err(PortError::Upstream { code, .. }) if code == "finished" => {
+                Ok(IssueArret::NonEnCours)
+            }
+            // Il n'existe plus (`not_found`) : l'agent est parti.
+            Err(PortError::Upstream { code, .. }) if code == "not_found" => {
+                Err(ErreurArret::AgentAbsent {
+                    cible: cible.clone(),
+                })
+            }
+            // Le délai : la touche est partie, l'issue n'est pas connue.
+            Err(PortError::Timeout) => Ok(IssueArret::InterruptEnvoye(Some(StopOutcome::Unknown))),
             Err(cause) => Err(ErreurArret::Transmission {
                 cible: cible.clone(),
                 detail: cause.description(),
+                cause: Some(cause),
             }),
         }
     }

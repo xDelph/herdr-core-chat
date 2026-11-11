@@ -8,7 +8,7 @@ use crate::services::Services;
 use application::refresh::ErreurSante;
 use axum::response::IntoResponse;
 use contracts::http::errors::ApiErrorResponse;
-use contracts::http::health::{HealthResponse, HerdrHealth};
+use contracts::http::health::{HealthResponse, HerdrHealth, WatcherHealth};
 use contracts::presence::Field;
 use domain::errors::{ErreurDomaine, Nature, PortError};
 use std::sync::Arc;
@@ -26,10 +26,12 @@ async fn sante_sur_place(
                     reachable: true,
                     socket: services.socket.clone(),
                     version: Field::de_option(Some(ping.version)),
+                    error: Field(None),
                 },
                 log: Field::de_option(services.journal_chemin.clone()),
                 ok: true,
                 uptime_ms: Field::de_option(Some(services.uptime_ms())),
+                watcher: Field::de_option(etat_de_veille(&services)),
             };
             (axum::http::StatusCode::OK, axum::Json(reponse)).into_response()
         }
@@ -52,6 +54,7 @@ async fn sante_sur_place(
                         "diagnostic code: {}",
                         erreur.diagnostic.code
                     ))),
+                    code: Field(None),
                 };
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -59,7 +62,8 @@ async fn sante_sur_place(
                 )
                     .into_response()
             }
-            // Tout le reste : Herdr ne répond pas — 503 même schéma.
+            // Tout le reste : Herdr ne répond pas — 503 même schéma, AVEC la
+            // cause (socket absent, `needs_update`, délai…).
             _ => {
                 let reponse = HealthResponse {
                     herdr: HerdrHealth {
@@ -67,10 +71,12 @@ async fn sante_sur_place(
                         reachable: false,
                         socket: services.socket.clone(),
                         version: Field(None),
+                        error: Field::de_option(Some(cause.description())),
                     },
                     log: Field(None),
                     ok: false,
                     uptime_ms: Field::de_option(Some(services.uptime_ms())),
+                    watcher: Field::de_option(etat_de_veille(&services)),
                 };
                 (
                     axum::http::StatusCode::SERVICE_UNAVAILABLE,
@@ -82,6 +88,26 @@ async fn sante_sur_place(
     }
 }
 
+/// L'état de la veille, en durées relatives à l'horloge partagée.
+fn etat_de_veille(services: &Services) -> Option<WatcherHealth> {
+    let boucle = services.veille.get()?;
+    let maintenant = services.maintenant.maintenant();
+    let depuis = |instant: std::time::Instant| {
+        u64::try_from(maintenant.saturating_duration_since(instant).as_millis()).unwrap_or(u64::MAX)
+    };
+    let derniere = boucle.derniere_erreur();
+    Some(WatcherHealth {
+        running: boucle.en_marche(),
+        failing: boucle.en_panne(),
+        last_success_ago_ms: Field::de_option(boucle.dernier_succes().map(depuis)),
+        errors: boucle.erreurs(),
+        last_error: Field::de_option(derniere.as_ref().map(|(cause, _)| cause.clone())),
+        last_error_ago_ms: Field::de_option(derniere.map(|(_, instant)| depuis(instant))),
+        events: Field::de_option(Some(boucle.flux_actif())),
+        last_event_ago_ms: Field::de_option(boucle.dernier_evenement().map(depuis)),
+    })
+}
+
 /// L'erreur 500 nommée — réservée à l'invariant interne de santé.
 #[must_use]
 pub fn reponse_erreur_500(erreur: &ErreurDomaine) -> axum::response::Response {
@@ -90,6 +116,7 @@ pub fn reponse_erreur_500(erreur: &ErreurDomaine) -> axum::response::Response {
         cause: Field(None),
         error: erreur.message_sur(),
         hint: Field::de_option(Some(format!("diagnostic code: {}", erreur.diagnostic.code))),
+        code: Field(None),
     };
     (
         axum::http::StatusCode::INTERNAL_SERVER_ERROR,

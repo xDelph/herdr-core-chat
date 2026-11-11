@@ -12,8 +12,9 @@
 //! rapport de plantage, et Claude Code avait supprimé son propre fichier
 //! d'état, donc une sortie **propre**. Annoncer « has finished working »
 //! ferait croire à une réussite, et c'est faux. La cause n'est pas
-//! inventée : Herdr rend `pane.exited` sans code ni raison — on dit qu'il
-//! n'est plus là, jamais pourquoi.
+//! inventée : un pane qui disparaît ne dit rien, on dit qu'il n'est plus là.
+//! Un terminal que herdr-core dit **fini** porte, lui, son code de sortie,
+//! sa raison et son signal : ils sont dits tels quels ([`precise`]).
 //!
 //! ⚠️ **`url` mène à l'agent, pas à l'accueil**, et le fragment est
 //! **encodé** : un `paneId` contient `:` (`wB:p16`), une adresse non
@@ -132,6 +133,62 @@ pub fn payload_de_notification(
         title: String::from(title),
         url,
     }
+}
+
+/// Ce que herdr-core dit de plus qu'un statut : la nature d'une attente
+/// (`status.kind`) et la fin d'un terminal (code, raison, signal).
+#[derive(Clone, Debug, Default)]
+pub struct PrecisionsDeFin {
+    pub attente: Option<domain::status::BlockedKind>,
+    pub sortie: Option<domain::status::AgentExit>,
+}
+
+/// Le payload précisé : une attente dit CE QU'ELLE attend (« Permission
+/// needed », « Sign-in needed »), une fin de terminal dit son code et sa
+/// raison, expliqués (« was killed (code 1) »). Sans précision, le payload ne
+/// change pas — rien n'est déduit.
+#[must_use]
+pub fn precise(
+    mut payload: PayloadNotification,
+    titre: &str,
+    statut: StatutDeFin,
+    precisions: &PrecisionsDeFin,
+) -> PayloadNotification {
+    use domain::status::BlockedKind;
+    if statut == StatutDeFin::EnAttente
+        && let Some(attente) = precisions.attente
+    {
+        payload.title = String::from(match attente {
+            BlockedKind::Permission => "Permission needed",
+            BlockedKind::Question => "Agent has a question",
+            BlockedKind::Auth => "Sign-in needed",
+        });
+        if attente == BlockedKind::Auth {
+            payload.body = if titre.is_empty() {
+                String::from("An agent is waiting for you to sign in.")
+            } else {
+                format!("{titre} is waiting for you to sign in.")
+            };
+        }
+    }
+    if matches!(statut, StatutDeFin::Erreur | StatutDeFin::Fini)
+        && let Some(sortie) = &precisions.sortie
+    {
+        let fin = sortie.explication();
+        payload.title = String::from(if sortie.perdu() {
+            "Agent lost"
+        } else if sortie.en_echec() || sortie.reason.as_deref() == Some("killed") {
+            "Agent exited with an error"
+        } else {
+            "Agent exited"
+        });
+        payload.body = if titre.is_empty() {
+            format!("An agent {fin}.")
+        } else {
+            format!("{titre} {fin}.")
+        };
+    }
+    payload
 }
 
 /// Comment nommer un agent dans une **notification**.

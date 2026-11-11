@@ -29,6 +29,16 @@ pub enum EvenementSse {
     #[serde(rename = "session_changed")]
     SessionChanged(SessionChanged),
     Resync(Resync),
+    /// Le battement NOMMÉ (F1.8) : un flux muet le reçoit à chaque période.
+    /// Le commentaire `:` du keep-alive est invisible pour le JS — le client
+    /// ne pouvait pas voir qu'un flux réveillé d'iOS était mort.
+    Heartbeat(Heartbeat),
+}
+
+/// Le battement : le flux vit, voici le curseur émis (`event: heartbeat`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct Heartbeat {
+    pub cursor: u64,
 }
 
 /// Le signal de vie : le flux est établi, voici le curseur de départ

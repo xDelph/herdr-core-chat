@@ -86,6 +86,12 @@ pub enum RouteId {
     /// H24 — `POST /api/agents/{paneId}/model` (modèle et réflexion en
     /// session).
     ReglageModele,
+    /// H25 — `POST /api/agents/{paneId}/pin` (épingle partagée avec
+    /// Herdr.app).
+    Epingle,
+    /// H26 — `POST /api/agents/{paneId}/attachments?name=` (un fichier posé à
+    /// côté du terminal, `terminal.put`).
+    PieceJointe,
 }
 
 /// La forme d'une réponse — le Content-Type est un fait du manifeste, pas
@@ -145,6 +151,9 @@ pub enum Corps {
     },
     /// Content-Type JSON exigé, corps **non décodé** (mesuré H06/H11).
     Ignore,
+    /// Des octets bruts (`image/*` ou `application/octet-stream`), bornés —
+    /// H26 : une photo, jamais du JSON.
+    Binaire { octets_max: usize },
 }
 
 /// Une entrée du manifeste.
@@ -199,9 +208,9 @@ const fn json(statut: u16, schema: &'static str) -> Variante {
     }
 }
 
-/// Le manifeste complet — 23 entrées, dans l'ordre H01…H23, formes et
+/// Le manifeste complet — dans l'ordre H01…H26, formes et
 /// statuts exacts de CURRENT.md §2.
-pub const ROUTES: [Route; 24] = [
+pub const ROUTES: [Route; 26] = [
     Route {
         id: RouteId::Sante,
         methode: Methode::Get,
@@ -700,6 +709,52 @@ pub const ROUTES: [Route; 24] = [
             json(200, "ModelChangedResponse"),
             json(400, "ApiErrorResponse"),
             json(404, "ApiErrorResponse"),
+            json(502, "ApiErrorResponse"),
+        ],
+    },
+    Route {
+        id: RouteId::Epingle,
+        methode: Methode::Post,
+        chemin: "/api/agents/{paneId}/pin",
+        politique: Politique::Mutation,
+        entree: Entree {
+            chemin: &["paneId"],
+            requete: &[],
+            entete: &[],
+            corps: Some(Corps::Json {
+                schema: "PinRequest",
+                octets_max: None,
+            }),
+        },
+        variantes: &[
+            json(200, "PinResponse"),
+            json(400, "ApiErrorResponse"),
+            json(404, "ApiErrorResponse"),
+            json(502, "ApiErrorResponse"),
+        ],
+    },
+    Route {
+        id: RouteId::PieceJointe,
+        methode: Methode::Post,
+        chemin: "/api/agents/{paneId}/attachments",
+        politique: Politique::Mutation,
+        entree: Entree {
+            chemin: &["paneId"],
+            requete: &[ParametreRequete {
+                nom: "name",
+                requis: false,
+            }],
+            entete: &[],
+            corps: Some(Corps::Binaire {
+                octets_max: limits::MAX_ATTACHMENT_BYTES,
+            }),
+        },
+        variantes: &[
+            json(200, "AttachmentResponse"),
+            json(400, "ApiErrorResponse"),
+            json(404, "ApiErrorResponse"),
+            json(413, "ApiErrorResponse"),
+            json(415, "ApiErrorResponse"),
             json(502, "ApiErrorResponse"),
         ],
     },

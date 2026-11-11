@@ -38,6 +38,17 @@ pub struct Terminal {
     pub foreground_name: Option<String>,
     /// L'argv du programme au premier plan (`foreground.argv`).
     pub foreground_argv: Vec<String>,
+    /// Le code de sortie d'un terminal fini (`exit_code`) ; `None` : vivant,
+    /// ou le core ne le dit pas.
+    pub exit_code: Option<i64>,
+    /// La raison de la fin (`reason`), telle que le core la nomme.
+    pub reason: Option<String>,
+    /// Le signal qui a terminé le programme (`signal`).
+    pub signal: Option<String>,
+    /// Les autres records 7501 du programme, par id (`records`) — bruts.
+    pub records: std::collections::BTreeMap<String, Value>,
+    /// `screen` : `exact`, ou `inexact` après un crash du core.
+    pub screen: Option<String>,
 }
 
 /// La réponse de `terminal.send` (`SendResult`, schéma 0.1.17).
@@ -209,6 +220,19 @@ impl ClientCore {
                             .collect()
                     })
                     .unwrap_or_default(),
+                exit_code: t.get("exit_code").and_then(Value::as_i64),
+                reason: texte_non_vide(&t, "reason"),
+                signal: t.get("signal").and_then(|signal| match signal {
+                    Value::String(nom) if !nom.is_empty() => Some(nom.clone()),
+                    Value::Number(numero) => Some(numero.to_string()),
+                    _ => None,
+                }),
+                records: t
+                    .get("records")
+                    .and_then(Value::as_object)
+                    .map(|o| o.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                    .unwrap_or_default(),
+                screen: texte_non_vide(&t, "screen"),
             });
         }
         Ok(TerminalList { terminals: out })
@@ -255,6 +279,31 @@ impl ClientCore {
             json!({"terminal": terminal, "labels": labels}),
         )?;
         Ok(())
+    }
+
+    /// `terminal.put` : écrit `octets` dans un fichier `nom` à côté du
+    /// terminal (8 Mo au plus) ; rend le chemin et la taille. Ne tape rien.
+    pub fn terminal_put(
+        &mut self,
+        terminal: &str,
+        nom: &str,
+        octets: &[u8],
+    ) -> Result<(String, u64), ErreurTransport> {
+        let r = self.transport.appelle(
+            "terminal.put",
+            json!({"terminal": terminal, "name": nom, "data": base64_de(octets)}),
+        )?;
+        let chemin = r
+            .get("path")
+            .and_then(Value::as_str)
+            .filter(|chemin| !chemin.is_empty())
+            .ok_or_else(|| ErreurTransport::EnveloppeInvalide(String::from("put without path")))?
+            .to_string();
+        let taille = r
+            .get("bytes")
+            .and_then(Value::as_u64)
+            .unwrap_or(octets.len() as u64);
+        Ok((chemin, taille))
     }
 
     pub fn terminal_keys(
@@ -348,4 +397,34 @@ impl ClientCore {
             version: r.get("version").and_then(Value::as_u64).unwrap_or(0),
         })
     }
+}
+
+/// Un champ texte non vide d'un objet JSON ; vide ou absent : `None`.
+fn texte_non_vide(objet: &Value, cle: &str) -> Option<String> {
+    objet
+        .get(cle)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|texte| !texte.is_empty())
+        .map(String::from)
+}
+
+/// Le base64 standard (avec `=`) de `terminal.put` — ⚠️ écrit ici plutôt
+/// qu'ajouté en dépendance : ce crate reste sans dépendance de plus.
+#[must_use]
+pub fn base64_de(octets: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut sortie = String::with_capacity(octets.len().div_ceil(3) * 4);
+    for bloc in octets.chunks(3) {
+        let a = u32::from(bloc[0]);
+        let b = bloc.get(1).copied().map_or(0, u32::from);
+        let c = bloc.get(2).copied().map_or(0, u32::from);
+        let n = (a << 16) | (b << 8) | c;
+        let signe = |decalage: u32| char::from(ALPHABET[((n >> decalage) & 63) as usize]);
+        sortie.push(signe(18));
+        sortie.push(signe(12));
+        sortie.push(if bloc.len() > 1 { signe(6) } else { '=' });
+        sortie.push(if bloc.len() > 2 { signe(0) } else { '=' });
+    }
+    sortie
 }

@@ -57,6 +57,7 @@ fn source_chemin(base: &str, cwd: &str) -> SourceDeSession {
 
 fn agent(pane: &str, tab: &str, workspace: &str, kind: &str) -> AgentObservation {
     AgentObservation {
+        faits: Default::default(),
         pane_id: PaneId::from(String::from(pane)),
         tab_id: TabId::from(String::from(tab)),
         workspace_id: WorkspaceId::from(String::from(workspace)),
@@ -74,6 +75,9 @@ fn agent(pane: &str, tab: &str, workspace: &str, kind: &str) -> AgentObservation
         state_change_seq: None,
         session: None,
         seen_at: None,
+        status_msg: None,
+        blocked_kind: None,
+        exit: None,
     }
 }
 

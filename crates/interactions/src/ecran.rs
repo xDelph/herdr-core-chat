@@ -45,6 +45,74 @@ pub struct Question {
     pub invite: Option<String>,
     /// Comment atteindre un choix (chiffres, ou curseur à déplacer).
     pub navigation: Navigation,
+    /// Le CADRE de l'invite au-dessus de la question, du séparateur (`────`)
+    /// jusqu'à elle : la commande à approuver (« Bash command / rm -rf
+    /// build »). Vide quand l'invite n'a pas de cadre — on ne remonte jamais
+    /// dans la conversation, dont une ligne qui bouge rendrait toute réponse
+    /// impossible.
+    pub bloc: Vec<String>,
+}
+
+/// Le nombre maximal de lignes de cadre lues au-dessus d'une question.
+const CADRE_MAXIMUM: usize = 30;
+
+/// Une ligne de séparateur de cadre (`────`, `╭───╮`).
+fn est_separateur(ligne: &str) -> bool {
+    let propre = ligne.trim();
+    !propre.is_empty()
+        && propre
+            .chars()
+            .all(|c| matches!(c, '─' | '━' | '═' | '╌' | '╭' | '╮' | '╰' | '╯'))
+}
+
+/// Les lignes du cadre au-dessus de `premier` (exclu) — vides si aucun
+/// séparateur n'est trouvé assez près.
+fn cadre_au_dessus(lignes: &[&str], premier: usize) -> Vec<String> {
+    let plancher = premier.saturating_sub(CADRE_MAXIMUM);
+    let Some(separateur) = (plancher..premier)
+        .rev()
+        .find(|index| est_separateur(lignes[*index]))
+    else {
+        return Vec::new();
+    };
+    lignes[separateur + 1..premier]
+        .iter()
+        .map(|ligne| ligne.trim())
+        .filter(|ligne| !ligne.is_empty())
+        .map(String::from)
+        .collect()
+}
+
+impl Question {
+    /// L'empreinte de CE QUI EST DEMANDÉ : texte, contexte, cadre (la
+    /// commande), libellés et détails des choix — sans le curseur, qui bouge
+    /// sans changer la question.
+    ///
+    /// ⚠️ **Le client la renvoie avec sa réponse** (B1.1) : entre la lecture
+    /// du téléphone et l'appui, l'agent peut être passé de « ls ? 1. Yes » à
+    /// « rm -rf build ? 1. Yes ». Le numéro seul validait les deux.
+    #[must_use]
+    pub fn empreinte(&self) -> String {
+        // FNV-1a 64 : stable d'une version à l'autre (pas de graine
+        // aléatoire), suffisant pour comparer deux lectures du même écran.
+        let mut hache: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut ajoute = |morceau: &str| {
+            for octet in morceau.bytes().chain(std::iter::once(0x1f)) {
+                hache ^= u64::from(octet);
+                hache = hache.wrapping_mul(0x0100_0000_01b3);
+            }
+        };
+        ajoute(&self.texte);
+        for ligne in self.contexte.iter().chain(self.bloc.iter()) {
+            ajoute(ligne);
+        }
+        for choix in &self.choix {
+            ajoute(&choix.numero.to_string());
+            ajoute(&choix.libelle);
+            ajoute(choix.detail.as_deref().unwrap_or(""));
+        }
+        format!("{hache:016x}")
+    }
 }
 
 /// Retire le filet de rendu en début de ligne — **le filet, pas ce qui le
@@ -358,6 +426,7 @@ pub fn question_de_l_ecran(ecran: &str) -> Option<Question> {
         choix,
         invite,
         navigation: Navigation::Chiffres,
+        bloc: cadre_au_dessus(&lignes, premier),
     })
 }
 
@@ -477,5 +546,6 @@ fn question_a_fleches(lignes: &[&str]) -> Option<Question> {
         choix,
         invite: Some(lignes[aide].trim().to_string()),
         navigation: Navigation::Fleches,
+        bloc: cadre_au_dessus(lignes, debut),
     })
 }

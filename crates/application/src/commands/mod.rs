@@ -30,9 +30,10 @@ pub fn repondre_question(
     pane: &domain::ids::PaneId,
     numero: i64,
     texte: Option<&str>,
+    empreinte: Option<&str>,
 ) -> Result<ReponseQuestion, PortError> {
     admis(pane, || {
-        interactions::repondre::repondre_question(port, pane, numero, texte)
+        interactions::repondre::repondre_question(port, pane, numero, texte, empreinte)
     })
 }
 
@@ -52,12 +53,46 @@ pub fn repondre_confiance(
 /// Change le modèle et/ou la réflexion d'un agent en session — **admis par
 /// la file du pane** : la recette (frappes, relectures) ne s'entrelace jamais
 /// avec un prompt, une réponse ou un arrêt sur le même pane.
+///
+/// ⚠️ **Seulement sur un agent au repos, sans question à l'écran** (B1.3).
+/// La recette tape `/model` puis Entrée : sur une question, Entrée validait un
+/// choix que personne n'avait lu ; sur un agent au travail, la commande part
+/// dans sa file et l'effet n'est jamais vérifié. `statut` vient d'une
+/// lecture FRAÎCHE de Herdr (pas du cache), l'écran est relu sous l'admission.
 pub fn regle_modele(
     port: &interactions::reglage::PortPourReglage,
     pane: &domain::ids::PaneId,
+    statut: domain::status::AgentStatus,
     demande: DemandeReglage<'_>,
 ) -> Result<ReglageModele, PortError> {
+    use domain::status::AgentStatus;
+    let refus = |detail: String| ReglageModele {
+        etat: interactions::reglage::EtatReglage::Refuse,
+        detail,
+    };
+    if !matches!(statut, AgentStatus::Idle | AgentStatus::Done) {
+        return Ok(refus(format!(
+            "the agent is {} — change the model once it is idle; nothing was typed",
+            statut
+        )));
+    }
     admis(pane, || {
+        let mut lecture = port.read_screen(domain::ports::ScreenRead {
+            pane: pane.clone(),
+            max_lines: 200,
+        });
+        let ecran = pousse(&mut lecture)?.text.unwrap_or_default();
+        if let Some(question) = interactions::ecran::question_de_l_ecran(&ecran) {
+            return Ok(refus(format!(
+                "the agent is asking “{}” — answer it first; nothing was typed",
+                question.texte
+            )));
+        }
+        if interactions::confiance::est_invite_confiance(&ecran) {
+            return Ok(refus(String::from(
+                "the agent is asking to trust its folder — answer it first; nothing was typed",
+            )));
+        }
         interactions::reglage::regle_modele(port, pane, demande)
     })
 }
@@ -70,10 +105,22 @@ fn admis<T>(
     match admission::partage().admet(pane, effet) {
         Ok(valeur) => Ok(valeur),
         Err(Err(erreur)) => Err(erreur),
-        Err(Ok(admission::ErreurAdmission::Saturation)) => Err(PortError::Transport {
-            detail: admission::detail_saturation(pane),
+        // ⚠️ Un refus NOMMÉ (`pane_busy`), pas une panne de transport : rien
+        // n'est parti, et le client peut réessayer (429 au fil).
+        Err(Ok(admission::ErreurAdmission::Saturation)) => Err(PortError::Upstream {
+            code: String::from("pane_busy"),
+            message: admission::detail_saturation(pane),
         }),
     }
+}
+
+/// L'attente d'un port bloquant-déguisé, pour les handlers HTTP (lot 4 :
+/// épingle, pièce jointe) — le même contrat que [`pousse`].
+///
+/// # Errors
+/// L'erreur du port, telle quelle.
+pub fn attend_port<T: Send>(fut: &mut PortFuture<'_, T>) -> Result<T, PortError> {
+    pousse(fut)
 }
 
 /// L'attente d'un port bloquant-déguisé : le premier poll répond (tous les

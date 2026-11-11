@@ -64,7 +64,15 @@ async fn codex_200_appliquee_sur_sa_confirmation() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sans_confirmation_c_est_transmise_jamais_appliquee() {
-    let faux = faux_de_base();
+    // p1 au REPOS : seul un agent au repos reçoit la recette (B1.3).
+    let faux = HerdrFaux::nouveau();
+    let mut photo = snapshot_de_base();
+    for agent in &mut photo.agents {
+        if agent.pane_id.as_str() == "p1" {
+            agent.status = domain::status::AgentStatus::Idle;
+        }
+    }
+    faux.repond_snapshot(photo);
     faux.remplace_ecran(ecran("p1", "π rien de neuf"));
     let (services, _) = services(faux, Default::default(), Default::default());
     let (statut, corps) = envoie_post(
@@ -128,4 +136,49 @@ async fn un_refus_de_recette_est_une_valeur_du_200() {
     assert_eq!(statut, StatusCode::OK, "{corps}");
     assert_eq!(corps["state"], "refusee");
     assert!(textes_tapes(&faux).is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn un_agent_au_travail_ne_recoit_pas_la_recette() {
+    // B1.3 : `/model` + Entrée sur un agent au travail part dans sa file,
+    // et l'effet n'est jamais vérifié — refusé, rien n'est tapé.
+    let faux = faux_de_base();
+    faux.remplace_ecran(ecran("p1", "π rien de neuf"));
+    let (services, _) = services(faux.clone(), Default::default(), Default::default());
+    let (statut, corps) = envoie_post(
+        routeur(services, vec![]),
+        "/api/agents/p1/model",
+        json!({ "model": "anthropic/claude-opus-5" })
+            .to_string()
+            .into_bytes(),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::OK, "{corps}");
+    assert_eq!(corps["state"], "refusee");
+    assert!(
+        corps["detail"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("working"),
+        "{corps}"
+    );
+    assert!(textes_tapes(&faux).is_empty(), "rien n'est tapé");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn une_question_a_l_ecran_bloque_la_recette() {
+    let faux = faux_de_base();
+    faux.remplace_ecran(ecran(
+        "p2",
+        "Run the migration?\n› 1. Yes, proceed\n  2. No\nPress enter to confirm",
+    ));
+    let (services, _) = services(faux.clone(), Default::default(), Default::default());
+    let (_, corps) = envoie_post(
+        routeur(services, vec![]),
+        "/api/agents/p2/model",
+        json!({ "model": "gpt-5" }).to_string().into_bytes(),
+    )
+    .await;
+    assert_eq!(corps["state"], "refusee", "{corps}");
+    assert!(textes_tapes(&faux).is_empty(), "rien n'est tapé");
 }

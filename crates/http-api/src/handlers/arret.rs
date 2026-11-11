@@ -21,10 +21,11 @@ async fn arret_sur_place(
 ) -> axum::response::Response {
     let cible = PaneId::from(pane_id);
     match services.arret.arrete(services.port.as_ref(), &cible) {
-        Ok(IssueArret::InterruptEnvoye) => (
+        Ok(IssueArret::InterruptEnvoye(issue)) => (
             axum::http::StatusCode::OK,
             axum::Json(StopAgentResponse {
                 status: StopStatus::InterruptSent,
+                outcome: contracts::presence::Field::de_option(issue),
             }),
         )
             .into_response(),
@@ -32,6 +33,7 @@ async fn arret_sur_place(
             axum::http::StatusCode::OK,
             axum::Json(StopAgentResponse {
                 status: StopStatus::NotRunning,
+                outcome: contracts::presence::Field::de_option(None),
             }),
         )
             .into_response(),
@@ -61,8 +63,19 @@ pub fn erreur_en_domaine(erreur: ErreurArret) -> ErreurDomaine {
         ErreurArret::SnapshotIllisible { detail } => {
             ErreurDomaine::amont_malforme(format!("unreadable Herdr snapshot: {detail}"))
         }
-        ErreurArret::Transmission { cible, detail } => {
-            ErreurDomaine::amont_refus(format!("Ctrl+C refused for {}: {detail}", cible.as_str()))
+        ErreurArret::Transmission {
+            cible,
+            detail,
+            cause,
+        } => {
+            let erreur = ErreurDomaine::amont_refus(format!(
+                "Ctrl+C refused for {}: {detail}",
+                cible.as_str()
+            ));
+            match cause {
+                Some(cause) => erreur.avec_port(&cause),
+                None => erreur,
+            }
         }
     }
 }

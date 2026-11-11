@@ -822,3 +822,269 @@ fn un_modele_entre_chevrons_n_est_jamais_lu_comme_un_modele() {
     );
     let _ = std::fs::remove_dir_all(&dossier);
 }
+
+/// Le vrai port de sessions, dont on compte les pages lues EN AVANT
+/// (`cursor`) et EN ARRIÈRE (`previous_cursor`).
+struct Espion {
+    reel: sessions::port::PortSessions,
+    avant: Arc<AtomicUsize>,
+    arriere: Arc<AtomicUsize>,
+}
+
+impl SessionPort for Espion {
+    fn resolve(&self, hint: SessionHint) -> SessionFuture<'_, Option<ResolvedSource>> {
+        self.reel.resolve(hint)
+    }
+
+    fn page(&self, request: SessionPageRequest) -> SessionFuture<'_, SessionPageOutcome> {
+        if request.cursor.is_some() {
+            self.avant.fetch_add(1, Ordering::SeqCst);
+        }
+        if request.previous_cursor.is_some() {
+            self.arriere.fetch_add(1, Ordering::SeqCst);
+        }
+        self.reel.page(request)
+    }
+
+    fn metadata(
+        &self,
+        source: ResolvedSource,
+    ) -> SessionFuture<'_, domain::session::SessionMetadata> {
+        self.reel.metadata(source)
+    }
+}
+
+fn lecteur_espionne(
+    dossier: &std::path::Path,
+) -> (LitSessionsViaPort, Arc<AtomicUsize>, Arc<AtomicUsize>) {
+    let racines = sessions::resolver::Racines {
+        pi_sessions: dossier.to_path_buf(),
+        codex_sessions: dossier.join("codex"),
+        codex_home: dossier.join("codex-home"),
+        claude_projects: dossier.join("claude"),
+        opencode_db: dossier.join("opencode.db"),
+        devin_db: dossier.join("devin.db"),
+    };
+    let avant = Arc::new(AtomicUsize::new(0));
+    let arriere = Arc::new(AtomicUsize::new(0));
+    let lecteur = LitSessionsViaPort {
+        port: Arc::new(Espion {
+            reel: sessions::port::PortSessions::nouveau(racines),
+            avant: Arc::clone(&avant),
+            arriere: Arc::clone(&arriere),
+        }),
+        ouvertures: Arc::default(),
+        familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
+        taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
+            std::env::temp_dir().join("herdrchat-taches-absentes"),
+        )),
+    };
+    (lecteur, avant, arriere)
+}
+
+fn sortie_d_outil(n: usize) -> String {
+    let sortie = "y".repeat(4000);
+    format!(
+        r#"{{"type":"message","id":"t{n}","timestamp":"2026-10-29T10:01:00Z","message":{{"role":"toolResult","content":"{sortie}"}}}}"#
+    ) + "\n"
+}
+
+fn ajoute(chemin: &std::path::Path, texte: &str) {
+    use std::io::Write;
+    let mut fichier = std::fs::OpenOptions::new()
+        .append(true)
+        .open(chemin)
+        .unwrap_or_else(|cause| panic!("ouverture : {cause}"));
+    fichier
+        .write_all(texte.as_bytes())
+        .unwrap_or_else(|cause| panic!("ajout : {cause}"));
+}
+
+/// Les mêmes faits qu'une lecture fraîche : les mêmes entrées distinctes,
+/// la même dernière. ⚠️ La lecture complète peut porter la même entrée deux
+/// fois (retenue comme demande ET comme ouverture) — l'index, une seule.
+fn memes_faits(
+    index: &[application::conversations::EntreeLu],
+    frais: &[application::conversations::EntreeLu],
+) {
+    let distinctes = |entrees: &[application::conversations::EntreeLu]| {
+        let mut vues: Vec<String> = entrees.iter().map(|e| format!("{e:?}")).collect();
+        vues.sort();
+        vues.dedup();
+        vues
+    };
+    assert!(
+        distinctes(index) == distinctes(frais),
+        "l'index et une lecture fraîche divergent ({} contre {} entrées)",
+        index.len(),
+        frais.len()
+    );
+    assert_eq!(index.last(), frais.last());
+}
+
+fn resume_frais(
+    dossier: &std::path::Path,
+    chemin: &std::path::Path,
+) -> Vec<application::conversations::EntreeLu> {
+    let (frais, _, _) = lecteur_espionne(dossier);
+    frais
+        .fenetre(
+            &PaneId::from(String::from("w1:p1")),
+            &source(&chemin.display().to_string()),
+        )
+        .unwrap_or_else(|cause| panic!("fenêtre fraîche : {}", cause.cause))
+}
+
+#[test]
+fn une_session_qui_grandit_n_est_lue_qu_en_avant() {
+    // La demande est hors de la fenêtre (comptabilité de Claude) : la
+    // première lecture remonte, les suivantes ne lisent QUE l'ajout.
+    let dossier = racine("assemblage-index-avant");
+    let chemin = dossier.join("session.jsonl");
+    let mut contenu = String::new();
+    contenu.push_str(
+        r#"{"type":"model_change","modelId":"opus-test","timestamp":"2026-10-29T10:00:00Z"}"#,
+    );
+    contenu.push('\n');
+    contenu.push_str(r#"{"type":"message","id":"u1","timestamp":"2026-10-29T10:00:01Z","message":{"role":"user","content":"corrige la racine claude"}}"#);
+    contenu.push('\n');
+    for n in 0..40 {
+        contenu.push_str(&sortie_d_outil(n));
+    }
+    std::fs::write(&chemin, contenu).unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let (lecteur, avant, arriere) = lecteur_espionne(&dossier);
+    let pane = PaneId::from(String::from("w1:p1"));
+    let lis = || {
+        lecteur
+            .fenetre(&pane, &source(&chemin.display().to_string()))
+            .unwrap_or_else(|cause| panic!("fenêtre : {}", cause.cause))
+    };
+    let premiere = lis();
+    assert!(
+        arriere.load(Ordering::SeqCst) > 0,
+        "la première lecture remonte"
+    );
+    assert!(
+        premiere
+            .iter()
+            .any(|e| e.texte.as_deref() == Some("corrige la racine claude"))
+    );
+
+    for tour in 0..5 {
+        let arriere_avant = arriere.load(Ordering::SeqCst);
+        let avant_avant = avant.load(Ordering::SeqCst);
+        ajoute(
+            &chemin,
+            &format!(
+                r#"{{"type":"message","id":"a{tour}","timestamp":"2026-10-29T10:03:00Z","message":{{"role":"assistant","content":"étape {tour}"}}}}"#
+            ),
+        );
+        ajoute(&chemin, "\n");
+        ajoute(&chemin, &sortie_d_outil(100 + tour));
+        let lu = lis();
+        assert_eq!(
+            arriere.load(Ordering::SeqCst),
+            arriere_avant,
+            "aucune remontée sur un ajout (tour {tour})"
+        );
+        assert_eq!(
+            avant.load(Ordering::SeqCst),
+            avant_avant + 1,
+            "une seule page lue en avant (tour {tour})"
+        );
+        memes_faits(&lu, &resume_frais(&dossier, &chemin));
+        assert!(
+            lu.iter()
+                .any(|e| e.texte.as_deref() == Some("corrige la racine claude"))
+        );
+        assert!(lu.iter().any(|e| e.modele.as_deref() == Some("opus-test")));
+        assert!(
+            lu.iter()
+                .any(|e| e.texte.as_deref() == Some(&*format!("étape {tour}")))
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dossier);
+}
+
+#[test]
+fn un_gros_ajout_fait_glisser_la_fenetre_et_garde_la_demande_ajoutee() {
+    let dossier = racine("assemblage-index-glisse");
+    let chemin = dossier.join("session.jsonl");
+    let mut contenu = String::new();
+    contenu.push_str(r#"{"type":"message","id":"u1","timestamp":"2026-10-29T10:00:01Z","message":{"role":"user","content":"première demande"}}"#);
+    contenu.push('\n');
+    for n in 0..5 {
+        contenu.push_str(&sortie_d_outil(n));
+    }
+    std::fs::write(&chemin, contenu).unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let (lecteur, _, arriere) = lecteur_espionne(&dossier);
+    let pane = PaneId::from(String::from("w1:p1"));
+    let lis = || {
+        lecteur
+            .fenetre(&pane, &source(&chemin.display().to_string()))
+            .unwrap_or_else(|cause| panic!("fenêtre : {}", cause.cause))
+    };
+    let _ = lis();
+    let arriere_avant = arriere.load(Ordering::SeqCst);
+    // Une nouvelle demande, puis bien plus qu'une fenêtre de sortie.
+    ajoute(
+        &chemin,
+        "{\"type\":\"message\",\"id\":\"u2\",\"timestamp\":\"2026-10-29T10:05:00Z\",\"message\":{\"role\":\"user\",\"content\":\"seconde demande\"}}\n",
+    );
+    for n in 0..60 {
+        ajoute(&chemin, &sortie_d_outil(200 + n));
+    }
+    let lu = lis();
+    assert_eq!(
+        arriere.load(Ordering::SeqCst),
+        arriere_avant,
+        "rien n'est relu en arrière"
+    );
+    let ouverture = lu
+        .iter()
+        .rev()
+        .find(|e| application::conversations::ouvre_un_tour(e))
+        .and_then(|e| e.texte.clone());
+    assert_eq!(ouverture.as_deref(), Some("seconde demande"));
+    assert!(
+        !lu.iter()
+            .any(|e| e.texte.as_deref() == Some("première demande")),
+        "l'ancienne demande est remplacée, pas gardée"
+    );
+    assert!(lu.len() < 30, "la fenêtre a glissé : {} entrées", lu.len());
+    memes_faits(&lu, &resume_frais(&dossier, &chemin));
+    let _ = std::fs::remove_dir_all(&dossier);
+}
+
+#[test]
+fn un_fichier_remplace_reconstruit_l_index() {
+    let dossier = racine("assemblage-index-remplace");
+    let chemin = dossier.join("session.jsonl");
+    std::fs::write(&chemin, format!("{}\n", ligne("ancienne")))
+        .unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let (lecteur, _, _) = lecteur_espionne(&dossier);
+    let pane = PaneId::from(String::from("w1:p1"));
+    let lis = || {
+        lecteur
+            .fenetre(&pane, &source(&chemin.display().to_string()))
+            .unwrap_or_else(|cause| panic!("fenêtre : {}", cause.cause))
+    };
+    let _ = lis();
+    // Un autre fichier au même chemin (autre inode), plus long.
+    let _ = std::fs::remove_file(&chemin);
+    std::fs::write(
+        &chemin,
+        format!(
+            "{}\n{}\n{}\n",
+            ligne("neuve"),
+            ligne("encore"),
+            ligne("dernière")
+        ),
+    )
+    .unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let lu = lis();
+    assert!(!lu.iter().any(|e| e.texte.as_deref() == Some("ancienne")));
+    memes_faits(&lu, &resume_frais(&dossier, &chemin));
+    let _ = std::fs::remove_dir_all(&dossier);
+}

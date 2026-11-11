@@ -1173,6 +1173,7 @@ dependencies = [
  "contracts",
  "domain",
  "futures-util",
+ "interactions",
  "serde",
  "serde_json",
  "test-support",

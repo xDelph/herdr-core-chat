@@ -382,6 +382,7 @@ async fn les_charges_du_contrat_se_decodent() {
             EvenementSse::SessionChanged(_) => "session_changed",
             EvenementSse::Ready(_) => "ready",
             EvenementSse::Resync(_) => "resync",
+            EvenementSse::Heartbeat(_) => "heartbeat",
         };
         assert_eq!(vu, genre, "le nom decode est celui emis");
     }
@@ -522,4 +523,22 @@ async fn apres_un_resync_les_trous_se_comblent_encore() {
         resyncs, 0,
         "aucun second resync sans nouvelle discontinuité"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn un_flux_muet_bat_un_evenement_nomme() {
+    // F1.8 : le commentaire `:` est invisible pour le JS ; le client compte
+    // des battements NOMMÉS pour savoir que le flux vit.
+    let (services, _) = services(HerdrFaux::nouveau(), Default::default(), Default::default());
+    let reponse = ouvre(services, None).await;
+    let (trames, _corps) = lit_trames(reponse, 2).await;
+    assert_eq!(trames[0].genre, "ready");
+    assert_eq!(trames[1].genre, "heartbeat");
+    assert_eq!(
+        trames[1].id, None,
+        "un battement n'appartient pas au journal"
+    );
+    let battement: contracts::events::Heartbeat = serde_json::from_str(&trames[1].donnees)
+        .unwrap_or_else(|cause| panic!("heartbeat se décode : {cause:?}"));
+    assert_eq!(battement.cursor, 0);
 }

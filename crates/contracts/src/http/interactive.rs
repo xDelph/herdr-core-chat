@@ -75,6 +75,9 @@ pub struct QuestionAnsweredResponse {
     pub detail: String,
     pub state: AnswerState,
     pub status: AnsweredStatus,
+    /// Le code stable d'un refus (`screen_changed`…) — absent sinon.
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub code: crate::presence::Field<String>,
 }
 
 /// L'union fermée des états d'une réponse.
@@ -141,6 +144,12 @@ pub struct Choice {
 pub struct Question {
     pub choix: Vec<Choice>,
     pub contexte: Vec<String>,
+    /// L'empreinte de la question lue (texte, cadre, choix) — à renvoyer
+    /// telle quelle avec la réponse : le serveur refuse (409) si l'écran a
+    /// changé depuis. Facultative sur le fil (le corpus figé la précède),
+    /// toujours émise par ce serveur.
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub empreinte: Field<String>,
     #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
     pub invite: Field<String>,
     pub texte: String,

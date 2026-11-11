@@ -36,6 +36,47 @@ use std::time::{Duration, Instant};
 /// SÉPARÉMENT du snapshot (une panne de l'une n'entame pas l'autre).
 pub const TTL_SANTE: Duration = Duration::from_secs(1);
 
+/// L'attente maximale d'une lecture jointe à un vol en cours (B1.7).
+///
+/// ⚠️ **Jamais d'attente sans fin.** `vol.wait()` attendait le verdict du
+/// porteur aussi longtemps qu'il le fallait : un porteur bloqué gelait
+/// toutes les lectures du démon. Passé ce délai, la lecture jointe échoue
+/// en `Timeout` — le vol, lui, continue.
+pub const ATTENTE_VOL_MAX: Duration = Duration::from_secs(30);
+
+/// L'état partagé d'un vol — ce qu'une garde rétablit si le porteur tombe.
+trait EtatDeVol {
+    fn abandonne(&mut self);
+}
+
+/// La garde du porteur d'un vol : si l'appel amont panique, elle libère le
+/// vol, nomme la panne et réveille les joints (B1.7). Sans elle, `en_vol`
+/// restait vrai pour toujours et chaque lecture suivante attendait un
+/// verdict qui ne viendrait jamais.
+struct GardeDeVol<'a, D: EtatDeVol> {
+    depot: &'a Mutex<D>,
+    reveil: &'a Condvar,
+    armee: bool,
+}
+
+impl<D: EtatDeVol> Drop for GardeDeVol<'_, D> {
+    fn drop(&mut self) {
+        if self.armee {
+            self.depot
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .abandonne();
+            self.reveil.notify_all();
+        }
+    }
+}
+
+fn panne_du_porteur() -> PortError {
+    PortError::Transport {
+        detail: String::from("the upstream request was abandoned (the reader panicked)"),
+    }
+}
+
 /// La source d'un temps monotone — toujours injectée, jamais lue en dur.
 pub trait SourceMaintenant: Send + Sync {
     /// L'instant monotone courant.
@@ -88,6 +129,16 @@ struct Depot {
     dernier_verdict: Option<PortError>,
     /// Les lectures qui attendent le verdict du vol en cours.
     joints: usize,
+    /// Le numéro du dernier vol lancé — un joint attend la fin DE SON vol,
+    /// jamais un réveil quelconque (B1.8).
+    vol_numero: u64,
+}
+
+impl EtatDeVol for Depot {
+    fn abandonne(&mut self) {
+        self.en_vol = false;
+        self.dernier_verdict = Some(panne_du_porteur());
+    }
 }
 
 #[derive(Default)]
@@ -95,6 +146,14 @@ struct DepotSante {
     ping: Option<PingBorne>,
     en_vol: bool,
     dernier_verdict: Option<PortError>,
+    vol_numero: u64,
+}
+
+impl EtatDeVol for DepotSante {
+    fn abandonne(&mut self) {
+        self.en_vol = false;
+        self.dernier_verdict = Some(panne_du_porteur());
+    }
 }
 
 /// Le service qui possède le port et distille une vue partagée de l'état
@@ -149,10 +208,23 @@ impl ServiceSnapshots {
                 return Ok(borne.clone());
             }
             if depot.en_vol {
-                depot = self
+                let numero = depot.vol_numero;
+                let (attendu, attente) = self
                     .vol_sante
-                    .wait(depot)
+                    .wait_timeout_while(depot, ATTENTE_VOL_MAX, |depot| {
+                        depot.en_vol && depot.vol_numero == numero
+                    })
                     .unwrap_or_else(PoisonError::into_inner);
+                depot = attendu;
+                if attente.timed_out() {
+                    return Err(ErreurSante::Amont {
+                        cause: PortError::Timeout,
+                    });
+                }
+                // Un vol plus récent a déjà commencé : on s'y joint.
+                if depot.en_vol {
+                    continue;
+                }
                 if let Some(cause) = &depot.dernier_verdict {
                     return Err(ErreurSante::Amont {
                         cause: cause.clone(),
@@ -161,10 +233,17 @@ impl ServiceSnapshots {
                 continue;
             }
             depot.en_vol = true;
+            depot.vol_numero += 1;
             depot.dernier_verdict = None;
             drop(depot);
+            let mut garde = GardeDeVol {
+                depot: &self.sante,
+                reveil: &self.vol_sante,
+                armee: true,
+            };
             let mut requete = self.port.ping();
             let resultat = pousse(&mut requete);
+            garde.armee = false;
             let mut depot = self.sante.lock().unwrap_or_else(PoisonError::into_inner);
             depot.en_vol = false;
             match resultat {
@@ -238,9 +317,28 @@ impl ServiceSnapshots {
             // Un vol est en cours : on s'y JOINT (une seule requête amont
             // pour les signaux simultanés) et on réévalue après son verdict.
             if depot.en_vol {
+                let numero = depot.vol_numero;
                 depot.joints += 1;
-                depot = self.vol.wait(depot).unwrap_or_else(PoisonError::into_inner);
+                let (attendu, attente) = self
+                    .vol
+                    .wait_timeout_while(depot, ATTENTE_VOL_MAX, |depot| {
+                        depot.en_vol && depot.vol_numero == numero
+                    })
+                    .unwrap_or_else(PoisonError::into_inner);
+                depot = attendu;
                 depot.joints -= 1;
+                if attente.timed_out() {
+                    return Err(ErreurLecture::Amont {
+                        cause: PortError::Timeout,
+                    });
+                }
+                // ⚠️ Réveillé alors qu'un vol PLUS RÉCENT a déjà commencé
+                // (B1.8) : son `dernier_verdict` vient d'être remis à zéro,
+                // et servir l'observation maintenant serait servir celle
+                // d'avant la panne. On rejoint le nouveau vol.
+                if depot.en_vol {
+                    continue;
+                }
                 match &depot.dernier_verdict {
                     // Le verdict partagé : une panne nomme la cause à tous
                     // les joints (jamais des données périmées en
@@ -264,10 +362,17 @@ impl ServiceSnapshots {
             }
             // Porteur : la seule requête amont de cette génération.
             depot.en_vol = true;
+            depot.vol_numero += 1;
             depot.dernier_verdict = None;
             drop(depot);
+            let mut garde = GardeDeVol {
+                depot: &self.depot,
+                reveil: &self.vol,
+                armee: true,
+            };
             let mut photo = self.port.snapshot();
             let resultat = pousse(&mut photo);
+            garde.armee = false;
             let mut depot = self.depot.lock().unwrap_or_else(PoisonError::into_inner);
             depot.en_vol = false;
             match resultat {

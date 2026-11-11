@@ -127,6 +127,7 @@ pub fn snapshot_de_base() -> Snapshot {
 
     let agents = vec![
         AgentObservation {
+            faits: Default::default(),
             pane_id: PaneId::from(String::from("p1")),
             tab_id: tab.clone(),
             workspace_id: workspace.clone(),
@@ -147,8 +148,12 @@ pub fn snapshot_de_base() -> Snapshot {
                 value: String::from("/fixtures-fausses/pi/atelier-un.jsonl"),
             }),
             seen_at: None,
+            status_msg: None,
+            blocked_kind: None,
+            exit: None,
         },
         AgentObservation {
+            faits: Default::default(),
             pane_id: PaneId::from(String::from("p2")),
             tab_id: tab.clone(),
             workspace_id: workspace.clone(),
@@ -166,8 +171,12 @@ pub fn snapshot_de_base() -> Snapshot {
             state_change_seq: None,
             session: None,
             seen_at: None,
+            status_msg: None,
+            blocked_kind: None,
+            exit: None,
         },
         AgentObservation {
+            faits: Default::default(),
             pane_id: PaneId::from(String::from("p3")),
             tab_id: tab.clone(),
             workspace_id: workspace.clone(),
@@ -188,6 +197,9 @@ pub fn snapshot_de_base() -> Snapshot {
                 value: String::from("/fixtures-fausses/pi/atelier-deux.jsonl"),
             }),
             seen_at: None,
+            status_msg: None,
+            blocked_kind: None,
+            exit: None,
         },
     ];
 
@@ -409,6 +421,7 @@ pub fn charges_snapshot(quantite: usize) -> Snapshot {
             }
         }
         snap.agents.push(AgentObservation {
+            faits: Default::default(),
             pane_id: pane,
             tab_id: tab.clone(),
             workspace_id: workspace.clone(),
@@ -433,6 +446,9 @@ pub fn charges_snapshot(quantite: usize) -> Snapshot {
                 None
             },
             seen_at: None,
+            status_msg: None,
+            blocked_kind: None,
+            exit: None,
         });
     }
     snap

@@ -57,12 +57,16 @@ async fn reglage_sur_place(
             );
         }
     };
-    let Some(kind) = agents
+    let Some((kind, statut)) = agents
         .agents
         .iter()
         .find(|agent| agent.pane_id == cible)
-        .and_then(|agent| agent.agent.as_ref())
-        .map(|kind| kind.as_str().to_string())
+        .and_then(|agent| {
+            agent
+                .agent
+                .as_ref()
+                .map(|kind| (kind.as_str().to_string(), agent.status))
+        })
     else {
         return crate::handlers::repondre_erreur(
             RouteId::ReglageModele,
@@ -76,7 +80,7 @@ async fn reglage_sur_place(
         modele: modele.as_deref(),
         reflexion: reflexion.as_deref(),
     };
-    match regle_modele(services.port.as_ref(), &cible, demande) {
+    match regle_modele(services.port.as_ref(), &cible, statut, demande) {
         Ok(reglage) => (
             axum::http::StatusCode::OK,
             axum::Json(ModelChangedResponse {
@@ -102,7 +106,8 @@ async fn reglage_sur_place(
             .into_response(),
         Err(cause) => crate::handlers::repondre_erreur(
             RouteId::ReglageModele,
-            &ErreurDomaine::amont_refus(format!("model change failed: {}", cause.description())),
+            &ErreurDomaine::amont_refus(format!("model change failed: {}", cause.description()))
+                .avec_port(&cause),
         ),
     }
 }

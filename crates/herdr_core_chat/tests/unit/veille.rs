@@ -34,6 +34,7 @@ impl SourceDeVues for SourceFixe {
 
 fn une_vue(statut: application::noyau::AgentStatus) -> AgentView {
     AgentView {
+        faits: Default::default(),
         pane_id: application::noyau::PaneId::from(String::from("w1:p1")),
         tab_id: application::noyau::TabId::from(String::from("w1:t1")),
         workspace_id: application::noyau::WorkspaceId::from(String::from("w1")),
@@ -54,6 +55,9 @@ fn une_vue(statut: application::noyau::AgentStatus) -> AgentView {
         session_cwd: None,
         parent_session: None,
         session_cwd_matches: application::noyau::CwdMatch::Unverifiable,
+        turn: 0,
+        blocked_kind: None,
+        exit: None,
     }
 }
 
@@ -356,4 +360,71 @@ fn un_agent_en_erreur_est_annonce_comme_erreur_pas_comme_fini() {
     assert_eq!(payload.title, "Agent error");
     assert_eq!(payload.tag, "error-w1:p1");
     assert_eq!(payload.body, "un agent · tab 1 reported an error.");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn le_meme_tour_au_meme_statut_ne_sonne_qu_une_fois() {
+    use application::noyau::AgentStatus;
+
+    // B1.4 : un statut qui clignote (`blocked → unknown → blocked`) au même
+    // tour ne redemande pas l'utilisateur ; une NOUVELLE attente (tour
+    // suivant) sonne à nouveau.
+    let au_tour = |statut, tour| AgentView {
+        turn: tour,
+        ..une_vue(statut)
+    };
+    let service = FauxServicePush::qui_repond(Ok(()));
+    let source = Arc::new(SourceFixe {
+        vues: Mutex::new(vec![au_tour(AgentStatus::Working, 5)]),
+    });
+    let boucle = boucle_avec_push(source.clone(), service.clone(), store_avec_un_abonne());
+    for (statut, tour) in [
+        (AgentStatus::Working, 5),
+        (AgentStatus::Blocked, 6),
+        (AgentStatus::Unknown, 6),
+        (AgentStatus::Blocked, 6),
+        (AgentStatus::Blocked, 7),
+    ] {
+        change_le_parc(&source, vec![au_tour(statut, tour)]);
+        boucle.une_fois().unwrap_or_else(|cause| panic!("{cause}"));
+    }
+    attend_envois(&service, 2).await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert_eq!(service.envois().len(), 2, "{:?}", service.envois());
+}
+
+#[test]
+fn une_attente_dit_ce_qu_elle_attend_et_une_fin_son_code() {
+    use application::noyau::AgentStatus;
+    use domain::status::{AgentExit, BlockedKind};
+
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![une_vue(AgentStatus::Working)]);
+    let tour = veilleur.tick(vec![AgentView {
+        blocked_kind: Some(BlockedKind::Auth),
+        ..une_vue(AgentStatus::Blocked)
+    }]);
+    let payload = notification_de_changement(&tour.changements[0], &tour.agents)
+        .unwrap_or_else(|| panic!("une attente se notifie"));
+    assert_eq!(payload.title, "Sign-in needed");
+    assert_eq!(
+        payload.body,
+        "un agent · tab 1 is waiting for you to sign in."
+    );
+
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![une_vue(AgentStatus::Working)]);
+    let tour = veilleur.tick(vec![AgentView {
+        exit: Some(AgentExit {
+            code: Some(1),
+            reason: Some(String::from("killed")),
+            signal: None,
+        }),
+        ..une_vue(AgentStatus::Error)
+    }]);
+    let payload = notification_de_changement(&tour.changements[0], &tour.agents)
+        .unwrap_or_else(|| panic!("une fin en échec se notifie"));
+    assert_eq!(payload.title, "Agent exited with an error");
+    assert_eq!(payload.body, "un agent · tab 1 was killed (code 1).");
+    assert_eq!(payload.tag, "error-w1:p1");
 }

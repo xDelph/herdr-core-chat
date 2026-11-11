@@ -41,6 +41,9 @@ const VOLATILS: [&str; 4] = ["index.html", "sw.js", "push-sw.js", "manifest.webm
 /// en `no-store` (O07) — un `immutable` sur `index.html` figerait la version.
 const CACHE_IMMUABLE: &str = "public, max-age=31536000, immutable";
 
+/// La longueur de l'empreinte de build de Vite.
+const EMPREINTE: usize = 8;
+
 /// `true` quand le nom porte une empreinte de build (Vite : `nom-XXXXXXXX.ext`).
 ///
 /// La règle est **stricte** : un suffixe de 8 caractères base64/url-safe juste
@@ -55,10 +58,20 @@ pub fn est_immuable(chemin: &str) -> bool {
     let Some((base, _)) = nom.rsplit_once('.') else {
         return false;
     };
-    let Some((_, empreinte)) = base.rsplit_once('-') else {
+    /*
+      ⚠️ **L'empreinte peut contenir un `-`** (alphabet url-safe de Vite :
+      `index-Dz3mv-FR.js`). Couper au dernier `-` rendait `FR`, et l'asset
+      repartait sans cache. On prend les 8 caractères avant l'extension, et
+      c'est le caractère qui les PRÉCÈDE qui doit être le séparateur.
+    */
+    let Some(coupure) = base.len().checked_sub(EMPREINTE) else {
         return false;
     };
-    empreinte.len() == 8
+    let (Some(prefixe), Some(empreinte)) = (base.get(..coupure), base.get(coupure..)) else {
+        return false;
+    };
+    prefixe.len() > 1
+        && prefixe.ends_with('-')
         && empreinte
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')

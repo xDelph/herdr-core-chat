@@ -27,7 +27,11 @@ use domain::session::{
     ResolvedSource, SessionEntry, SessionHint, SessionMetadata, SessionPage, SessionPageOutcome,
     SessionPageRequest, SourceKind,
 };
+use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, PoisonError};
+use std::time::Instant;
 
 /// La cible d'une page quand le client ne la borne pas (fenêtre du fil).
 pub const LIMITE_PAGE_DEFAUT: u32 = 512 * 1024;
@@ -45,6 +49,47 @@ pub struct PortSessions {
     normaliseur: Normaliseur,
     /// Un ouvrier SQLite long par base, partagé par toutes les lectures.
     ouvriers: ReserveOuvriers,
+    /// Les résolutions récentes — voir [`DUREE_RESOLUTION`].
+    resolutions: Mutex<HashMap<String, Resolution>>,
+    /// Les en-têtes lus, par chemin — la première ligne d'un JSONL ne change
+    /// plus une fois écrite (même fichier, jamais raccourci).
+    en_tetes: Mutex<HashMap<String, EnTeteLu>>,
+    /// Combien de résolutions ont réellement été calculées — l'observation
+    /// des tests (un cache qui ne sert jamais est un ornement).
+    resolutions_calculees: AtomicU64,
+}
+
+/// ⚠️ **La durée de vie d'une résolution trouvée : 30 s (lot 3).**
+///
+/// La veille recompose l'accueil toutes les 2 s, et chaque requête de liste
+/// résout chaque pane : relire `<pid>.json`, interroger la base opencode,
+/// rouvrir l'index codex à chaque mouvement de son WAL, relire 64 Kio
+/// d'en-tête. Pour un même pane (même type, même lien publié, même titre,
+/// même dossier, même PID), la réponse ne change pas d'une seconde à l'autre.
+///
+/// Elle est resservie tant que :
+/// - le fichier trouvé existe encore ;
+/// - pour Claude, `<pid>.json` n'a pas bougé (taille, mtime) — un `/clear`
+///   le réécrit avec une autre session ;
+/// - elle a moins de 30 s.
+///
+/// Un « rien trouvé » ne vit que la durée négative du résolveur (5 s) : une
+/// session qui naît devient visible aussi vite qu'avant.
+pub const DUREE_RESOLUTION: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// La borne du cache de résolutions : au-delà, il repart vide.
+const CAPACITE_RESOLUTIONS: usize = 1024;
+
+struct Resolution {
+    mesuree: Instant,
+    empreinte_pid: Option<(u64, std::time::SystemTime)>,
+    source: Option<ResolvedSource>,
+}
+
+struct EnTeteLu {
+    identite: (u64, u64),
+    taille: u64,
+    en_tete: Option<crate::storage::jsonl::history::EnTete>,
 }
 
 impl PortSessions {
@@ -54,7 +99,115 @@ impl PortSessions {
             resolveur: Resolveur::nouveau(racines),
             normaliseur: Normaliseur::standard(),
             ouvriers: ReserveOuvriers::default(),
+            resolutions: Mutex::new(HashMap::new()),
+            en_tetes: Mutex::new(HashMap::new()),
+            resolutions_calculees: AtomicU64::new(0),
         }
+    }
+
+    /// Combien de résolutions ont été calculées (et non resservies).
+    #[must_use]
+    pub fn resolutions_calculees(&self) -> u64 {
+        self.resolutions_calculees.load(Ordering::Relaxed)
+    }
+
+    /// La taille et le mtime de `<pid>.json` de Claude — `None` : absent.
+    fn empreinte_pid(&self, hint: &SessionHint) -> Option<(u64, std::time::SystemTime)> {
+        if hint.agent.as_ref().map(domain::ids::AgentKind::as_str) != Some("claude") {
+            return None;
+        }
+        let pid = hint.pid?;
+        let chemin = self
+            .resolveur
+            .racines
+            .claude_projects
+            .parent()?
+            .join("sessions")
+            .join(format!("{pid}.json"));
+        let meta = std::fs::metadata(chemin).ok()?;
+        Some((meta.len(), meta.modified().ok()?))
+    }
+
+    /// La résolution, resservie quand elle vaut encore — voir
+    /// [`DUREE_RESOLUTION`].
+    fn resout_memorise(&self, hint: &SessionHint) -> Option<ResolvedSource> {
+        let cle = format!("{hint:?}");
+        let empreinte_pid = self.empreinte_pid(hint);
+        if let Some(connue) = self
+            .resolutions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&cle)
+        {
+            let age = connue.mesuree.elapsed();
+            let vaut = match &connue.source {
+                None => age < self.resolveur.ttl_negatif(),
+                Some(source) => {
+                    age < DUREE_RESOLUTION
+                        && connue.empreinte_pid == empreinte_pid
+                        && (source.kind != SourceKind::File || Path::new(&source.base).is_file())
+                }
+            };
+            if vaut {
+                return connue.source.clone();
+            }
+        }
+        self.resolutions_calculees.fetch_add(1, Ordering::Relaxed);
+        let source = resout(&self.resolveur, hint);
+        let mut resolutions = self
+            .resolutions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if resolutions.len() >= CAPACITE_RESOLUTIONS {
+            resolutions.clear();
+        }
+        resolutions.insert(
+            cle,
+            Resolution {
+                mesuree: Instant::now(),
+                empreinte_pid,
+                source: source.clone(),
+            },
+        );
+        source
+    }
+
+    /// L'en-tête d'un fichier de session, relu seulement si le fichier a
+    /// changé d'identité, a raccourci, ou n'était pas encore assez long pour
+    /// que la réponse soit définitive.
+    fn en_tete_memorise(&self, chemin: &Path) -> Option<crate::storage::jsonl::history::EnTete> {
+        use crate::storage::jsonl::history::{ENTETE_MAX_OCTETS, en_tete};
+        let identite = identite_de(chemin).ok()?;
+        let cle = chemin.display().to_string();
+        let marque = (identite.curseur.dev, identite.curseur.ino);
+        if let Some(connu) = self
+            .en_tetes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&cle)
+            && connu.identite == marque
+            && identite.taille >= connu.taille
+        {
+            return connu.en_tete.clone();
+        }
+        let lu = en_tete(chemin).ok().flatten();
+        // Définitif : un en-tête trouvé, ou une borne entièrement écrite.
+        let definitif = lu.is_some() || identite.taille >= ENTETE_MAX_OCTETS as u64;
+        if definitif {
+            let mut en_tetes = self.en_tetes.lock().unwrap_or_else(PoisonError::into_inner);
+            if en_tetes.len() >= CAPACITE_RESOLUTIONS {
+                en_tetes.clear();
+            }
+            en_tetes.insert(
+                cle,
+                EnTeteLu {
+                    identite: marque,
+                    taille: identite.taille,
+                    en_tete: lu.clone(),
+                },
+            );
+        }
+        lu
     }
 
     /// Les racines où un fichier de session a le droit d'être lu (S03).
@@ -651,7 +804,7 @@ fn page_sqlite(
 
 impl domain::ports::SessionPort for PortSessions {
     fn resolve(&self, hint: SessionHint) -> SessionFuture<'_, Option<ResolvedSource>> {
-        let trouve = resout(&self.resolveur, &hint);
+        let trouve = self.resout_memorise(&hint);
         Box::pin(async move { Ok(trouve) })
     }
 
@@ -705,9 +858,7 @@ impl domain::ports::SessionPort for PortSessions {
             };
             // D09 : un en-tête illisible ou absent n'est pas une panne — les
             // champs restent absents, rien n'est deviné.
-            let Ok(Some(en_tete)) =
-                crate::storage::jsonl::history::en_tete(Path::new(&source.base))
-            else {
+            let Some(en_tete) = self.en_tete_memorise(Path::new(&source.base)) else {
                 return Ok(SessionMetadata::default());
             };
             Ok(SessionMetadata {

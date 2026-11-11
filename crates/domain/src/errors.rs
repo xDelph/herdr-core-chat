@@ -268,6 +268,10 @@ pub struct ErreurDomaine {
     /// Le détail brut — [`ErreurDomaine::message_sur`] le rend sûr à l'écran.
     pub detail: String,
     pub diagnostic: Diagnostic,
+    /// Le `data.kind` de herdr-core quand l'erreur vient de lui (`not_found`,
+    /// `finished`, `blocked`…), ou `timeout` / `pane_busy` — la matière du
+    /// statut HTTP et du code stable du fil. `None` : pas de cause amont typée.
+    pub code_amont: Option<String>,
 }
 
 impl std::fmt::Display for ErreurDomaine {
@@ -289,6 +293,7 @@ macro_rules! nature_erreur {
                         nature,
                         detail: detail.into(),
                         diagnostic: Diagnostic::de_nature(nature),
+                        code_amont: None,
                     }
                 }
             )+
@@ -313,6 +318,26 @@ nature_erreur! {
 }
 
 impl ErreurDomaine {
+    /// Garde la nature TYPÉE de la panne de port : le `data.kind` de
+    /// herdr-core, ou `timeout`. Sans elle, « agent parti », « terminal
+    /// fini » et « core à mettre à jour » se fondaient dans un 502 générique.
+    #[must_use]
+    pub fn avec_port(mut self, cause: &PortError) -> Self {
+        self.code_amont = match cause {
+            PortError::Upstream { code, .. } => Some(code.clone()),
+            PortError::Timeout => Some(String::from("timeout")),
+            _ => None,
+        };
+        self
+    }
+
+    /// Pose un code amont nommé ici (`pane_busy`).
+    #[must_use]
+    pub fn avec_code_amont(mut self, code: &str) -> Self {
+        self.code_amont = Some(code.to_string());
+        self
+    }
+
     /// Porte la cause réelle dans le diagnostic — chaîne déjà sûre.
     #[must_use]
     pub fn avec_cause(mut self, cause: impl Into<String>) -> Self {

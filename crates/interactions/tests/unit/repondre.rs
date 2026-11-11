@@ -131,7 +131,7 @@ const ECRAN_AVEC_QUESTION: &str = "Veux-tu exécuter ?\n1. Allow once\n2. Deny\n
 fn rien_n_est_envoyé_hors_des_choix_offerts() {
     let port = FauxPort::nouveau(vec![ECRAN_AVEC_QUESTION.to_string()]);
     // Le 3 n'a jamais été proposé : RIEN ne part — le détail nomme les offerts.
-    let reponse = repondre_question(&port, &PaneId::from(String::from("wA:p1")), 3, None)
+    let reponse = repondre_question(&port, &PaneId::from(String::from("wA:p1")), 3, None, None)
         .unwrap_or_else(|cause| panic!("un refus est une valeur : {cause}"));
     assert!(reponse.etat == EtatReponse::Refusee, "{reponse:?}");
     assert!(
@@ -156,7 +156,7 @@ fn rien_n_est_envoyé_hors_des_choix_offerts() {
 #[test]
 fn pas_de_question_à_l_écran_rien_ne_part() {
     let port = FauxPort::nouveau(vec![String::from("aucune question ici")]);
-    let reponse = repondre_question(&port, &PaneId::from(String::from("wA:p1")), 1, None)
+    let reponse = repondre_question(&port, &PaneId::from(String::from("wA:p1")), 1, None, None)
         .unwrap_or_else(|cause| panic!("un refus est une valeur : {cause}"));
     assert!(reponse.etat == EtatReponse::Refusee);
     assert!(
@@ -179,7 +179,7 @@ fn la_séquence_numérotée_et_la_relecture() {
         ECRAN_AVEC_QUESTION.to_string(),
         String::from("l'agent travaille…"),
     ]);
-    let reponse = repondre_question(&port, &PaneId::from(String::from("wA:p1")), 1, None)
+    let reponse = repondre_question(&port, &PaneId::from(String::from("wA:p1")), 1, None, None)
         .unwrap_or_else(|cause| panic!("un échec de port est réel : {cause}"));
     assert!(reponse.etat == EtatReponse::Appliquee, "{reponse:?}");
     assert!(reponse.detail.contains("Allow once") && reponse.detail.contains("the agent resumed"));
@@ -209,7 +209,7 @@ fn l_invite_toujours_à_l_écran_est_transmise_pas_appliquée() {
         ECRAN_AVEC_QUESTION.to_string(),
         ECRAN_AVEC_QUESTION.to_string(),
     ]);
-    let reponse = repondre_question(&port, &PaneId::from(String::from("wA:p1")), 2, None)
+    let reponse = repondre_question(&port, &PaneId::from(String::from("wA:p1")), 2, None, None)
         .unwrap_or_else(|cause| panic!("un échec de port est réel : {cause}"));
     assert!(reponse.etat == EtatReponse::Transmise, "{reponse:?}");
     assert!(reponse.detail.contains("still on screen"), "{reponse:?}");
@@ -227,6 +227,7 @@ fn la_saisie_libre_écrit_le_texte_après_le_choix() {
         &PaneId::from(String::from("wA:p1")),
         1,
         Some("  le texte de l'utilisateur  "),
+        None,
     )
     .unwrap_or_else(|cause| panic!("un échec de port est réel : {cause}"));
     assert!(reponse.etat == EtatReponse::Appliquee);
@@ -253,8 +254,14 @@ fn la_saisie_libre_écrit_le_texte_après_le_choix() {
         ECRAN_AVEC_QUESTION.to_string(),
         String::from("repris"),
     ]);
-    let reponse = repondre_question(&port, &PaneId::from(String::from("wA:p1")), 1, Some("   "))
-        .unwrap_or_else(|cause| panic!("un échec de port est réel : {cause}"));
+    let reponse = repondre_question(
+        &port,
+        &PaneId::from(String::from("wA:p1")),
+        1,
+        Some("   "),
+        None,
+    )
+    .unwrap_or_else(|cause| panic!("un échec de port est réel : {cause}"));
     assert!(reponse.etat == EtatReponse::Appliquee);
     assert!(
         port.textes
@@ -289,7 +296,7 @@ fn le_chiffre_qui_valide_part_seul() {
         crate::unit::ecran::ECRAN_CLAUDE.to_string(),
         String::from("l'agent travaille…"),
     ]);
-    let reponse = repondre_question(&port, &PaneId::from(String::from("wB:p1")), 2, None)
+    let reponse = repondre_question(&port, &PaneId::from(String::from("wB:p1")), 2, None, None)
         .unwrap_or_else(|cause| panic!("{cause}"));
     assert!(reponse.etat == EtatReponse::Appliquee, "{reponse:?}");
     assert_eq!(
@@ -312,7 +319,7 @@ fn la_question_suivante_ne_recoit_jamais_d_enter() {
         suivante.clone(),
         suivante,
     ]);
-    let reponse = repondre_question(&port, &PaneId::from(String::from("wB:p1")), 1, None)
+    let reponse = repondre_question(&port, &PaneId::from(String::from("wB:p1")), 1, None, None)
         .unwrap_or_else(|cause| panic!("{cause}"));
     assert_eq!(frappees(&port), touches(&[&["1"]]));
     // La relecture voit UNE question (la suivante) : pas « appliquée » au sens
@@ -331,7 +338,7 @@ fn le_curseur_sur_notre_choix_recoit_enter() {
         selectionne.to_string(),
         String::from("l'agent travaille…"),
     ]);
-    let reponse = repondre_question(&port, &PaneId::from(String::from("w1:p1")), 2, None)
+    let reponse = repondre_question(&port, &PaneId::from(String::from("w1:p1")), 2, None, None)
         .unwrap_or_else(|cause| panic!("{cause}"));
     assert!(reponse.etat == EtatReponse::Appliquee, "{reponse:?}");
     assert_eq!(frappees(&port), touches(&[&["2"], &["enter"]]));
@@ -342,7 +349,7 @@ fn le_curseur_sur_notre_choix_recoit_enter() {
 fn le_curseur_ailleurs_ne_recoit_rien() {
     let ecran = "Would you like to run the following command?\n› 1. Yes, proceed\n  2. No\nPress enter to confirm or esc to cancel\n";
     let port = FauxPort::nouveau(vec![ecran.to_string()]);
-    let reponse = repondre_question(&port, &PaneId::from(String::from("w1:p1")), 2, None)
+    let reponse = repondre_question(&port, &PaneId::from(String::from("w1:p1")), 2, None, None)
         .unwrap_or_else(|cause| panic!("{cause}"));
     assert!(reponse.etat == EtatReponse::Transmise, "{reponse:?}");
     assert_eq!(frappees(&port), touches(&[&["2"]]), "jamais d'enter");
@@ -365,6 +372,7 @@ fn la_saisie_libre_de_claude_est_chiffre_texte_enter() {
         &PaneId::from(String::from("wB:p1")),
         3,
         Some("staging, please"),
+        None,
     )
     .unwrap_or_else(|cause| panic!("{cause}"));
     assert!(reponse.etat == EtatReponse::Appliquee, "{reponse:?}");
@@ -377,8 +385,14 @@ fn la_saisie_libre_de_claude_est_chiffre_texte_enter() {
     assert_eq!(textes, vec![String::from("staging, please")]);
 
     let vide = FauxPort::nouveau(vec![crate::unit::ecran::ECRAN_CLAUDE.to_string()]);
-    let refus = repondre_question(&vide, &PaneId::from(String::from("wB:p1")), 3, Some("  "))
-        .unwrap_or_else(|cause| panic!("{cause}"));
+    let refus = repondre_question(
+        &vide,
+        &PaneId::from(String::from("wB:p1")),
+        3,
+        Some("  "),
+        None,
+    )
+    .unwrap_or_else(|cause| panic!("{cause}"));
     assert!(refus.etat == EtatReponse::Refusee, "{refus:?}");
     assert!(frappees(&vide).is_empty(), "rien ne part sans texte");
 }
@@ -395,7 +409,7 @@ fn pi_le_curseur_est_amene_puis_valide() {
         ecran_pi(2),
         String::from("l'agent travaille…"),
     ]);
-    let reponse = repondre_question(&port, &PaneId::from(String::from("w9:p1")), 3, None)
+    let reponse = repondre_question(&port, &PaneId::from(String::from("w9:p1")), 3, None, None)
         .unwrap_or_else(|cause| panic!("{cause}"));
     assert!(reponse.etat == EtatReponse::Appliquee, "{reponse:?}");
     let textes = port
@@ -415,7 +429,7 @@ fn pi_le_curseur_est_amene_puis_valide() {
 fn pi_curseur_bloque_rien_ne_valide() {
     use crate::unit::ecran::ecran_pi;
     let port = FauxPort::nouveau(vec![ecran_pi(0)]);
-    let reponse = repondre_question(&port, &PaneId::from(String::from("w9:p1")), 2, None)
+    let reponse = repondre_question(&port, &PaneId::from(String::from("w9:p1")), 2, None, None)
         .unwrap_or_else(|cause| panic!("{cause}"));
     assert!(reponse.etat == EtatReponse::Transmise, "{reponse:?}");
     assert!(
@@ -426,4 +440,78 @@ fn pi_curseur_bloque_rien_ne_valide() {
         "jamais d'enter : {:?}",
         frappees(&port)
     );
+}
+
+/// Une invite de permission Claude Code : le cadre porte la COMMANDE.
+fn ecran_permission(commande: &str, curseur_sur: u64) -> String {
+    let curseur = |numero: u64| if numero == curseur_sur { "❯" } else { " " };
+    format!(
+        "● Je nettoie le dossier.\n\
+         ────────────────────────────────────────\n \
+         Bash command\n\n   {commande}\n   Clean the build\n\n \
+         Do you want to proceed?\n \
+         {} 1. Yes\n   {} 2. No, and tell Claude what to do differently (esc)\n",
+        curseur(1),
+        curseur(2)
+    )
+}
+
+#[test]
+fn l_empreinte_couvre_la_commande_du_cadre_mais_pas_le_curseur() {
+    let lue = |ecran: &str| {
+        interactions::ecran::question_de_l_ecran(ecran)
+            .unwrap_or_else(|| panic!("question attendue dans {ecran}"))
+            .empreinte()
+    };
+    let ls = lue(&ecran_permission("ls", 1));
+    assert_eq!(
+        ls,
+        lue(&ecran_permission("ls", 2)),
+        "le curseur ne compte pas"
+    );
+    assert_ne!(
+        ls,
+        lue(&ecran_permission("rm -rf build", 1)),
+        "même texte, mêmes choix, autre commande : autre question"
+    );
+}
+
+#[test]
+fn une_question_changee_depuis_l_affichage_ne_recoit_aucune_touche() {
+    // B1.1 : le téléphone a lu « ls », l'agent demande maintenant « rm -rf ».
+    let lue = interactions::ecran::question_de_l_ecran(&ecran_permission("ls", 1))
+        .unwrap_or_else(|| panic!("question attendue"))
+        .empreinte();
+    let port = FauxPort::nouveau(vec![ecran_permission("rm -rf build", 1)]);
+    let reponse = repondre_question(
+        &port,
+        &PaneId::from(String::from("wA:p1")),
+        1,
+        None,
+        Some(&lue),
+    )
+    .unwrap_or_else(|cause| panic!("un refus est une valeur : {cause}"));
+    assert!(reponse.etat == EtatReponse::Perimee, "{reponse:?}");
+    assert!(reponse.detail.contains("nothing was sent"), "{reponse:?}");
+    assert!(
+        port.touches
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_empty(),
+        "aucune touche ne part"
+    );
+    // La MÊME question, elle, passe.
+    let port = FauxPort::nouveau(vec![
+        ecran_permission("ls", 1),
+        String::from("l'agent travaille…"),
+    ]);
+    let reponse = repondre_question(
+        &port,
+        &PaneId::from(String::from("wA:p1")),
+        1,
+        None,
+        Some(&lue),
+    )
+    .unwrap_or_else(|cause| panic!("{cause}"));
+    assert!(reponse.etat != EtatReponse::Perimee, "{reponse:?}");
 }

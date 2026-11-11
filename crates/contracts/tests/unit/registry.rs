@@ -9,10 +9,10 @@ use contracts::registry::{
 use contracts::{limits, registry};
 
 #[test]
-fn le_manifeste_compte_24_routes_distinctes() {
+fn le_manifeste_compte_26_routes_distinctes() {
     assert!(
-        ROUTES.len() == 24,
-        "24 routes documentées, pas {}",
+        ROUTES.len() == 26,
+        "26 routes documentées, pas {}",
         ROUTES.len()
     );
     for (rang, route) in ROUTES.iter().enumerate() {
@@ -40,7 +40,9 @@ fn le_manifeste_compte_24_routes_distinctes() {
             20 => RouteId::SessionDeTache,
             21 => RouteId::Lecture,
             22 => RouteId::Presence,
-            _ => RouteId::ReglageModele,
+            23 => RouteId::ReglageModele,
+            24 => RouteId::Epingle,
+            _ => RouteId::PieceJointe,
         };
         assert!(
             route.id == attendu,
@@ -204,6 +206,7 @@ fn les_corps_nommes_pointent_vers_des_contrats_reels() {
                 "MarkReadRequest",
                 "PresenceRequest",
                 "ModelChangeRequest",
+                "PinRequest",
             ];
             assert!(
                 connus.contains(&schema),
@@ -367,6 +370,9 @@ fn la_recherche_par_identifiant_est_totale() {
         RouteId::SessionDeTache,
         RouteId::Lecture,
         RouteId::Presence,
+        RouteId::ReglageModele,
+        RouteId::Epingle,
+        RouteId::PieceJointe,
     ] {
         let route = entree_de(id);
         assert!(route.id == id, "entree_de({id:?}) rend {id:?}");
@@ -375,5 +381,5 @@ fn la_recherche_par_identifiant_est_totale() {
             "chaque route porte des variantes"
         );
     }
-    assert!(registry::ROUTES.len() == 24, "le manifeste reste complet");
+    assert!(registry::ROUTES.len() == 26, "le manifeste reste complet");
 }

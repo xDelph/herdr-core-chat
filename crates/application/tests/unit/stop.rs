@@ -14,6 +14,7 @@ fn cible() -> PaneId {
 
 fn agent(pane: &str, status: AgentStatus) -> AgentObservation {
     AgentObservation {
+        faits: Default::default(),
         pane_id: PaneId::from(String::from(pane)),
         tab_id: TabId::from(String::from("t-sim")),
         workspace_id: WorkspaceId::from(String::from("w-sim")),
@@ -31,6 +32,9 @@ fn agent(pane: &str, status: AgentStatus) -> AgentObservation {
         state_change_seq: None,
         session: None,
         seen_at: None,
+        status_msg: None,
+        blocked_kind: None,
+        exit: None,
     }
 }
 
@@ -73,14 +77,9 @@ fn l_agent_d_un_autre_pane_n_est_pas_le_sien() {
 }
 
 #[test]
-fn le_non_working_est_un_no_op_sans_envoi() {
-    // A04 : nonworking no-op — aucun Ctrl+C ne part pour un agent au repos.
-    for statut in [
-        AgentStatus::Idle,
-        AgentStatus::Blocked,
-        AgentStatus::Done,
-        AgentStatus::Unknown,
-    ] {
+fn un_agent_au_repos_est_un_no_op_sans_envoi() {
+    // A04 : au repos, no-op — aucun Ctrl+C ne part pour idle ou done.
+    for statut in [AgentStatus::Idle, AgentStatus::Done] {
         let faux = HerdrFaux::nouveau();
         faux.repond_snapshot(photo(vec![agent("wA:p1", statut)]));
         match ArreteurAgent::nouveau().arrete(&faux, &cible()) {
@@ -90,7 +89,7 @@ fn le_non_working_est_un_no_op_sans_envoi() {
         }
         assert!(
             faux.actions().iter().all(|action| action.op != Op::Arret),
-            "aucun envoi pour un agent non working (statut {statut:?})"
+            "aucun envoi pour un agent au repos (statut {statut:?})"
         );
     }
 }
@@ -101,7 +100,7 @@ fn working_envoie_l_interruption_sans_prouver_l_arret() {
     let faux = HerdrFaux::nouveau();
     faux.repond_snapshot(photo(vec![agent("wA:p1", AgentStatus::Working)]));
     match ArreteurAgent::nouveau().arrete(&faux, &cible()) {
-        Ok(IssueArret::InterruptEnvoye) => (),
+        Ok(IssueArret::InterruptEnvoye(_)) => (),
         Ok(issue) => panic!("interrupt-sent attendu, pas {issue:?}"),
         Err(erreur) => panic!("working s'arrête : {erreur:?}"),
     }
@@ -124,6 +123,59 @@ fn working_envoie_l_interruption_sans_prouver_l_arret() {
     // Le détail du faux dit « interruption demandée » — une transmission,
     // jamais « arrêté ».
     assert!(actions[1].detail == "interruption demandée");
+}
+
+#[test]
+fn bloque_en_erreur_ou_muet_s_interrompent_aussi() {
+    // B1.14 : une permission en attente, un programme en erreur qui tourne
+    // encore, un agent qui ne dit pas son état — Stop doit agir.
+    for statut in [
+        AgentStatus::Blocked,
+        AgentStatus::Error,
+        AgentStatus::Unknown,
+    ] {
+        let faux = HerdrFaux::nouveau();
+        faux.repond_snapshot(photo(vec![agent("wA:p1", statut)]));
+        match ArreteurAgent::nouveau().arrete(&faux, &cible()) {
+            Ok(IssueArret::InterruptEnvoye(_)) => (),
+            autre => panic!("{statut:?} : interruption attendue, pas {autre:?}"),
+        }
+    }
+}
+
+#[test]
+fn l_issue_observee_par_le_core_est_rendue_et_le_delai_est_une_transmission() {
+    use domain::ports::{StopEvidence, StopOutcome};
+    let faux = HerdrFaux::nouveau();
+    faux.repond_snapshot(photo(vec![agent("wA:p1", AgentStatus::Working)]));
+    faux.repond_arret(StopEvidence::Interrupted(StopOutcome::StillWorking));
+    assert_eq!(
+        ArreteurAgent::nouveau().arrete(&faux, &cible()),
+        Ok(IssueArret::InterruptEnvoye(Some(StopOutcome::StillWorking)))
+    );
+    // Un délai dépassé : la touche est partie, l'issue est inconnue — pas
+    // « Ctrl+C refused ».
+    let faux = HerdrFaux::nouveau();
+    faux.repond_snapshot(photo(vec![agent("wA:p1", AgentStatus::Working)]));
+    faux.panne_sur(Op::Arret, PortError::Timeout);
+    assert_eq!(
+        ArreteurAgent::nouveau().arrete(&faux, &cible()),
+        Ok(IssueArret::InterruptEnvoye(Some(StopOutcome::Unknown)))
+    );
+    // Le terminal a fini entre-temps : rien à arrêter.
+    let faux = HerdrFaux::nouveau();
+    faux.repond_snapshot(photo(vec![agent("wA:p1", AgentStatus::Working)]));
+    faux.panne_sur(
+        Op::Arret,
+        PortError::Upstream {
+            code: String::from("finished"),
+            message: String::from("terminal t1 has finished"),
+        },
+    );
+    assert_eq!(
+        ArreteurAgent::nouveau().arrete(&faux, &cible()),
+        Ok(IssueArret::NonEnCours)
+    );
 }
 
 #[test]
@@ -153,7 +205,7 @@ fn la_transmission_echouee_est_portee_avec_sa_cause() {
         },
     );
     match ArreteurAgent::nouveau().arrete(&faux, &cible()) {
-        Err(ErreurArret::Transmission { cible, detail }) => {
+        Err(ErreurArret::Transmission { cible, detail, .. }) => {
             assert!(cible.as_str() == "wA:p1");
             assert!(
                 detail.contains("prise interrupteur débranchée"),
@@ -207,7 +259,7 @@ fn l_observation_est_fraiche_a_chaque_appel() {
     faux.repond_snapshot(photo(vec![agent("wA:p1", AgentStatus::Working)]));
     let service = ArreteurAgent::nouveau();
     match service.arrete(&faux, &cible()) {
-        Ok(IssueArret::InterruptEnvoye) => (),
+        Ok(IssueArret::InterruptEnvoye(_)) => (),
         issue => panic!("premier appel : working, {issue:?}"),
     }
     // L'agent a fini entre les deux appels : le snapshot suivant le dit.

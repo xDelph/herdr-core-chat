@@ -88,6 +88,18 @@ pub fn definitions() -> Vec<(&'static str, Value)> {
             schema_de::<crate::http::commands::StopAgentResponse>(),
         ),
         (
+            "PinRequest",
+            schema_de::<crate::http::commands::PinRequest>(),
+        ),
+        (
+            "PinResponse",
+            schema_de::<crate::http::commands::PinResponse>(),
+        ),
+        (
+            "AttachmentResponse",
+            schema_de::<crate::http::commands::AttachmentResponse>(),
+        ),
+        (
             "AgentFocusedResponse",
             schema_de::<crate::http::commands::AgentFocusedResponse>(),
         ),
@@ -488,6 +500,20 @@ pub fn openapi() -> Value {
                             "schema": { "$ref": format!("#/components/schemas/{schema}") },
                             "x-octets-max": octets_max.map(|m| Value::from(m as u64)).unwrap_or(Value::Null),
                             "description": desc,
+                        }
+                    },
+                }),
+            );
+        } else if let Some(crate::registry::Corps::Binaire { octets_max }) = route.entree.corps {
+            operation.insert(
+                String::from("requestBody"),
+                json!({
+                    "required": true,
+                    "content": {
+                        "application/octet-stream": {
+                            "schema": { "type": "string", "format": "binary" },
+                            "x-octets-max": octets_max as u64,
+                            "description": "octets bruts (image/* ou application/octet-stream)",
                         }
                     },
                 }),

@@ -73,6 +73,7 @@ pub(crate) fn agent(
     session: Option<(SessionRefKind, &str)>,
 ) -> AgentObservation {
     AgentObservation {
+        faits: Default::default(),
         pane_id: PaneId::from(String::from(pane)),
         tab_id: TabId::from(String::from("t1")),
         workspace_id: WorkspaceId::from(String::from("w1")),
@@ -93,6 +94,9 @@ pub(crate) fn agent(
             value: String::from(valeur),
         }),
         seen_at: None,
+        status_msg: None,
+        blocked_kind: None,
+        exit: None,
     }
 }
 
@@ -375,6 +379,7 @@ pub(crate) fn services(
         branche_simple("/projets/atelier", "plan/rust-backend"),
     );
     let services = Arc::new(Services {
+        veille: Arc::default(),
         snapshots,
         port: Arc::new(herdr.clone()),
         conversations: Arc::new(conversations),

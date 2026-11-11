@@ -26,6 +26,8 @@ struct FauxPort {
     frappes: Mutex<Option<String>>,
     textes: Mutex<Vec<String>>,
     touches: Mutex<Vec<Vec<String>>>,
+    /// L'écran rendu (vide par défaut : rien d'interactif n'est affiché).
+    ecran: Mutex<String>,
 }
 
 impl FauxPort {
@@ -41,6 +43,7 @@ impl FauxPort {
             frappes,
             textes: Mutex::new(Vec::new()),
             touches: Mutex::new(Vec::new()),
+            ecran: Mutex::new(String::new()),
         }
     }
 }
@@ -62,9 +65,14 @@ impl ControlPort for FauxPort {
     }
     fn read_screen(&self, request: ScreenRead) -> PortFuture<'_, ScreenObservation> {
         Box::pin(async move {
+            let ecran = self
+                .ecran
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
             Ok(ScreenObservation {
                 pane_id: request.pane,
-                text: None,
+                text: Some(ecran).filter(|texte| !texte.is_empty()),
                 truncated: None,
                 source: None,
             })
@@ -190,6 +198,27 @@ fn l_empreinte_est_le_sha256_du_contenu() {
     assert!(
         empreinte_de("wA:p1", "bonjour") != empreinte_de("wA:p1", "au revoir"),
         "le texte entre"
+    );
+}
+
+#[test]
+fn le_meme_texte_a_un_tour_plus_loin_n_est_pas_un_doublon() {
+    // D007.2 levé par le tour : « yes », l'agent répond, puis « yes » encore
+    // — deux demandes, pas un double tap.
+    let port = FauxPort::confirme();
+    let envoieur = EnvoieurPrompt::nouveau();
+    let _ = envoieur
+        .envoie_au_tour(&port, &cible(), "yes", false, Some(4))
+        .unwrap_or_else(|refus| panic!("le premier passe : {refus}"));
+    match envoieur.envoie_au_tour(&port, &cible(), "yes", false, Some(4)) {
+        Err(RefusEnvoi::Doublon { .. }) => (),
+        autre => panic!("au même tour, doublon attendu : {autre:?}"),
+    }
+    assert!(
+        envoieur
+            .envoie_au_tour(&port, &cible(), "yes", false, Some(5))
+            .is_ok(),
+        "un tour plus loin, le même texte repart"
     );
 }
 
@@ -395,4 +424,45 @@ fn une_permission_en_attente_ne_recoit_ni_texte_ni_enter() {
             .is_empty(),
         "un enter est parti sur une permission"
     );
+}
+
+/// B1.2 : un prompt envoyé pendant une question à choix n'est ni collé ni
+/// validé — collé dans le sélecteur, son Entrée validait l'option surlignée.
+#[test]
+fn une_question_a_l_ecran_ne_recoit_pas_le_prompt() {
+    for saisie in [true, false] {
+        let port = FauxPort::par(
+            Mutex::new(Err(String::from("terminal wA:p1 is blocked"))),
+            Mutex::new(None),
+        );
+        *port
+            .ecran
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = String::from(
+            "Which environment should I browse?\n❯ 1. Production\n  2. Staging\n  3. Type something.\n",
+        );
+        let envoieur = EnvoieurPrompt::nouveau();
+        match envoieur.envoie(&port, &cible(), "attends, plutôt X", saisie) {
+            Err(RefusEnvoi::InviteOuverte { detail, .. }) => {
+                assert!(detail.contains("Which environment"), "{detail}");
+                assert!(detail.contains("nothing was sent"), "{detail}");
+            }
+            Err(refus) => panic!("refus d'invite attendu : {refus}"),
+            Ok(envoi) => panic!("rien ne part sur une question : {envoi:?}"),
+        }
+        assert!(
+            port.textes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty(),
+            "aucun texte collé (saisie = {saisie})"
+        );
+        assert!(
+            port.touches
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty(),
+            "aucune touche (saisie = {saisie})"
+        );
+    }
 }

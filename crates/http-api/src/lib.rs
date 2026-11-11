@@ -7,6 +7,7 @@ pub mod convertir;
 pub mod corps;
 pub mod errors;
 pub mod handlers;
+pub mod idempotence;
 pub mod origin;
 pub mod publication;
 pub mod router;

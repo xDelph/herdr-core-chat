@@ -129,6 +129,9 @@ pub struct AgentObservation {
     pub foreground_pid: Option<u32>,
     pub foreground_cwd: Option<String>,
     pub completion_seq: Option<u64>,
+    /// Le marqueur du dernier changement de statut — sous herdr-core,
+    /// l'instant `status_ms` (ms UTC). Il ne bouge que quand le statut
+    /// change : la clé du cache d'écran de la liste.
     pub state_change_seq: Option<u64>,
     /// Le chemin que Herdr expose pour la session, tel quel.
     pub session: Option<AgentSessionRef>,
@@ -136,6 +139,17 @@ pub struct AgentObservation {
     /// note (`herdr.seen`) quand on regarde l'agent sur le Mac. `None` : pas
     /// vu, ou l'amont ne le dit pas.
     pub seen_at: Option<u64>,
+    /// Ce que le programme dit faire, dans ses propres mots (`status.msg`
+    /// du record 7501) — jamais traduit, jamais reconstruit. `None` : il ne
+    /// dit rien.
+    pub status_msg: Option<String>,
+    /// Ce qu'un agent `blocked` attend (`status.kind`) ; `None` : il ne le
+    /// dit pas, ou il n'est pas bloqué.
+    pub blocked_kind: Option<crate::status::BlockedKind>,
+    /// La fin du terminal, quand herdr-core le dit fini (`state: finished`).
+    pub exit: Option<crate::status::AgentExit>,
+    /// Sous-agents, épingle, écran inexact (lot 4).
+    pub faits: crate::status::FaitsDuTerminal,
 }
 
 /// Dossier de travail d'un projet, tel que le workspace le porte.
@@ -382,6 +396,14 @@ pub struct AgentView {
     pub parent_session: Option<SessionId>,
     /// `Unverifiable` = volontairement distinct de « faux ».
     pub session_cwd_matches: CwdMatch,
+    /// Le tour de herdr-core (`turn`) : il avance à chaque sortie de
+    /// `working`. Deux observations au même statut mais à des tours
+    /// différents encadrent un tour entier que la veille n'a pas vu (B1.4).
+    pub turn: u64,
+    pub blocked_kind: Option<crate::status::BlockedKind>,
+    pub exit: Option<crate::status::AgentExit>,
+    /// Sous-agents, épingle, écran inexact (lot 4).
+    pub faits: crate::status::FaitsDuTerminal,
 }
 
 /// Ligne d'un workspace de l'overview.

@@ -120,6 +120,7 @@ fn le_pane_seul_dans_son_tab_n_a_pas_d_etiquette() {
 fn la_vue_d_agent_se_reduit_sans_perte() {
     // IdentiteNotification::depuis_vue : le sous-ensemble structurel.
     let vue = domain::observation::AgentView {
+        faits: Default::default(),
         pane_id: domain::ids::PaneId::from(String::from("wB:p16")),
         tab_id: domain::ids::TabId::from(String::from("t1")),
         workspace_id: domain::ids::WorkspaceId::from(String::from("w1")),
@@ -140,6 +141,9 @@ fn la_vue_d_agent_se_reduit_sans_perte() {
         session_cwd: None,
         parent_session: None,
         session_cwd_matches: domain::observation::CwdMatch::Unverifiable,
+        turn: 0,
+        blocked_kind: None,
+        exit: None,
     };
     let identite = IdentiteNotification::depuis_vue(&vue);
     let nom = nom_de_notification(Some(&identite));

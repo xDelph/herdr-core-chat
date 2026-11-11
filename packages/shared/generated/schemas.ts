@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (75 définitions).
+// Source : contracts.schema.json (78 définitions).
 // Schemas Effect : le client décode avec EUX, comme le serveur sérialise avec le contrat.
 import { Schema } from "effect";
 
@@ -42,23 +42,38 @@ export type AgentStatusChanged = typeof AgentStatusChanged.Type;
 /** Une ligne d'agent de l'overview (homologue exact de `AgentViewSchema`) : */
 export const AgentView = Schema.Struct({
   "agent": Schema.NullOr(Schema.String),
+  "blockedKind": Schema.optional(Schema.Literals(["permission", "question", "auth"])),
   "cwd": Schema.NullOr(Schema.String),
+  "exit": Schema.optional(Schema.Struct({
+  "code": Schema.optional(Schema.Number),
+  "reason": Schema.optional(Schema.String),
+  "signal": Schema.optional(Schema.String),
+})),
   "focused": Schema.Boolean,
   "name": Schema.NullOr(Schema.String),
   "paneId": Schema.String,
   "paneRank": Schema.NullOr(Schema.Number),
   "parentSession": Schema.NullOr(Schema.String),
+  "pinned": Schema.optional(Schema.Boolean),
+  "screenInexact": Schema.optional(Schema.Boolean),
   "sessionCwd": Schema.NullOr(Schema.String),
   "sessionCwdMatches": Schema.NullOr(Schema.Boolean),
   "sessionId": Schema.NullOr(Schema.String),
   "sessionKind": Schema.NullOr(Schema.Literals(["id", "path"])),
   "sessionPath": Schema.NullOr(Schema.String),
   "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
+  "subagents": Schema.optional(Schema.Array(Schema.Struct({
+  "id": Schema.String,
+  "msg": Schema.optional(Schema.String),
+  "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
+  "title": Schema.optional(Schema.String),
+}))),
   "tabId": Schema.String,
   "tabLabel": Schema.NullOr(Schema.String),
   "tabNumber": Schema.NullOr(Schema.Number),
   "tabPaneCount": Schema.Number,
   "title": Schema.NullOr(Schema.String),
+  "turn": Schema.optional(Schema.Number),
   "workspaceId": Schema.String,
   "workspaceLabel": Schema.NullOr(Schema.String),
 });
@@ -78,10 +93,19 @@ export type AnswerState = typeof AnswerState.Type;
 /** `ApiErrorResponse` (api.ts) : le message réel, un indicateur optionnel, */
 export const ApiErrorResponse = Schema.Struct({
   "cause": Schema.optional(Schema.Literals(["absente", "vide", "invalide", "io"])),
+  "code": Schema.optional(Schema.String),
   "error": Schema.String,
   "hint": Schema.optional(Schema.String),
 });
 export type ApiErrorResponse = typeof ApiErrorResponse.Type;
+
+/** Une pièce jointe déposée à côté du terminal (H26) : rien n'a été tapé, */
+export const AttachmentResponse = Schema.Struct({
+  "bytes": Schema.Number,
+  "name": Schema.String,
+  "path": Schema.String,
+});
+export type AttachmentResponse = typeof AttachmentResponse.Type;
 
 /** Une tâche de fond. */
 export const BackgroundTask = Schema.Struct({
@@ -165,13 +189,21 @@ export type Confirmation = typeof Confirmation.Type;
 
 /** Le résumé d'une conversation (`ConversationSummary`) — tout ce que la */
 export const ConversationSummary = Schema.Struct({
+  "activity": Schema.optional(Schema.String),
   "agent": Schema.NullOr(Schema.String),
+  "blockedKind": Schema.optional(Schema.Literals(["permission", "question", "auth"])),
   "branch": Schema.optional(Schema.String),
+  "exit": Schema.optional(Schema.Struct({
+  "code": Schema.optional(Schema.Number),
+  "reason": Schema.optional(Schema.String),
+  "signal": Schema.optional(Schema.String),
+})),
   "lastPrompt": Schema.optional(Schema.String),
   "model": Schema.optional(Schema.String),
   "name": Schema.NullOr(Schema.String),
   "paneId": Schema.String,
   "paneRank": Schema.NullOr(Schema.Number),
+  "pinned": Schema.optional(Schema.Boolean),
   "preview": Schema.optional(Schema.String),
   "provider": Schema.optional(Schema.String),
   "question": Schema.optional(Schema.Struct({
@@ -182,12 +214,20 @@ export const ConversationSummary = Schema.Struct({
   "selectionne": Schema.Boolean,
 })),
   "contexte": Schema.Array(Schema.String),
+  "empreinte": Schema.optional(Schema.String),
   "invite": Schema.optional(Schema.String),
   "texte": Schema.String,
 })),
   "readAt": Schema.optional(Schema.Number),
+  "screenInexact": Schema.optional(Schema.Boolean),
   "sessionState": Schema.Literals(["available", "absent", "error"]),
   "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
+  "subagents": Schema.optional(Schema.Array(Schema.Struct({
+  "id": Schema.String,
+  "msg": Schema.optional(Schema.String),
+  "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
+  "title": Schema.optional(Schema.String),
+}))),
   "tabId": Schema.String,
   "tabPaneCount": Schema.Number,
   "tachesDeFond": Schema.optional(Schema.Struct({
@@ -205,6 +245,7 @@ export const ConversationSummary = Schema.Struct({
   "paneId": Schema.String,
   "status": Schema.Literals(["trust-required"]),
 })),
+  "turn": Schema.optional(Schema.Number),
   "waiting": Schema.optional(Schema.String),
   "workspaceId": Schema.String,
 });
@@ -213,13 +254,21 @@ export type ConversationSummary = typeof ConversationSummary.Type;
 /** La réponse conversations (`ConversationsResponse`). */
 export const ConversationsResponse = Schema.Struct({
   "conversations": Schema.Array(Schema.Struct({
+  "activity": Schema.optional(Schema.String),
   "agent": Schema.NullOr(Schema.String),
+  "blockedKind": Schema.optional(Schema.Literals(["permission", "question", "auth"])),
   "branch": Schema.optional(Schema.String),
+  "exit": Schema.optional(Schema.Struct({
+  "code": Schema.optional(Schema.Number),
+  "reason": Schema.optional(Schema.String),
+  "signal": Schema.optional(Schema.String),
+})),
   "lastPrompt": Schema.optional(Schema.String),
   "model": Schema.optional(Schema.String),
   "name": Schema.NullOr(Schema.String),
   "paneId": Schema.String,
   "paneRank": Schema.NullOr(Schema.Number),
+  "pinned": Schema.optional(Schema.Boolean),
   "preview": Schema.optional(Schema.String),
   "provider": Schema.optional(Schema.String),
   "question": Schema.optional(Schema.Struct({
@@ -230,12 +279,20 @@ export const ConversationsResponse = Schema.Struct({
   "selectionne": Schema.Boolean,
 })),
   "contexte": Schema.Array(Schema.String),
+  "empreinte": Schema.optional(Schema.String),
   "invite": Schema.optional(Schema.String),
   "texte": Schema.String,
 })),
   "readAt": Schema.optional(Schema.Number),
+  "screenInexact": Schema.optional(Schema.Boolean),
   "sessionState": Schema.Literals(["available", "absent", "error"]),
   "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
+  "subagents": Schema.optional(Schema.Array(Schema.Struct({
+  "id": Schema.String,
+  "msg": Schema.optional(Schema.String),
+  "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
+  "title": Schema.optional(Schema.String),
+}))),
   "tabId": Schema.String,
   "tabPaneCount": Schema.Number,
   "tachesDeFond": Schema.optional(Schema.Struct({
@@ -253,6 +310,7 @@ export const ConversationsResponse = Schema.Struct({
   "paneId": Schema.String,
   "status": Schema.Literals(["trust-required"]),
 })),
+  "turn": Schema.optional(Schema.Number),
   "waiting": Schema.optional(Schema.String),
   "workspaceId": Schema.String,
 })),
@@ -347,6 +405,11 @@ export const EvenementSse = Schema.Union([Schema.Struct({
   "resumeFrom": Schema.Number,
 }),
   "event": Schema.Literal("resync"),
+}), Schema.Struct({
+  "data": Schema.Struct({
+  "cursor": Schema.Number,
+}),
+  "event": Schema.Literal("heartbeat"),
 })]);
 export type EvenementSse = typeof EvenementSse.Type;
 
@@ -357,6 +420,7 @@ export type FocusStatus = typeof FocusStatus.Type;
 /** La santé du service (mesurée sur `HealthResponse` de api.ts). */
 export const HealthResponse = Schema.Struct({
   "herdr": Schema.Struct({
+  "error": Schema.optional(Schema.String),
   "protocol": Schema.optional(Schema.Number),
   "reachable": Schema.Boolean,
   "socket": Schema.String,
@@ -365,11 +429,22 @@ export const HealthResponse = Schema.Struct({
   "log": Schema.optional(Schema.String),
   "ok": Schema.Boolean,
   "uptimeMs": Schema.optional(Schema.Number),
+  "watcher": Schema.optional(Schema.Struct({
+  "errors": Schema.Number,
+  "events": Schema.optional(Schema.Boolean),
+  "failing": Schema.Boolean,
+  "lastError": Schema.optional(Schema.String),
+  "lastErrorAgoMs": Schema.optional(Schema.Number),
+  "lastEventAgoMs": Schema.optional(Schema.Number),
+  "lastSuccessAgoMs": Schema.optional(Schema.Number),
+  "running": Schema.Boolean,
+})),
 });
 export type HealthResponse = typeof HealthResponse.Type;
 
 /** La partie Herdr de la santé — protocol/version **omissibles** (mesuré : */
 export const HerdrHealth = Schema.Struct({
+  "error": Schema.optional(Schema.String),
   "protocol": Schema.optional(Schema.Number),
   "reachable": Schema.Boolean,
   "socket": Schema.String,
@@ -477,23 +552,38 @@ export type ModelChangedStatus = typeof ModelChangedStatus.Type;
 export const OverviewResponse = Schema.Struct({
   "agents": Schema.Array(Schema.Struct({
   "agent": Schema.NullOr(Schema.String),
+  "blockedKind": Schema.optional(Schema.Literals(["permission", "question", "auth"])),
   "cwd": Schema.NullOr(Schema.String),
+  "exit": Schema.optional(Schema.Struct({
+  "code": Schema.optional(Schema.Number),
+  "reason": Schema.optional(Schema.String),
+  "signal": Schema.optional(Schema.String),
+})),
   "focused": Schema.Boolean,
   "name": Schema.NullOr(Schema.String),
   "paneId": Schema.String,
   "paneRank": Schema.NullOr(Schema.Number),
   "parentSession": Schema.NullOr(Schema.String),
+  "pinned": Schema.optional(Schema.Boolean),
+  "screenInexact": Schema.optional(Schema.Boolean),
   "sessionCwd": Schema.NullOr(Schema.String),
   "sessionCwdMatches": Schema.NullOr(Schema.Boolean),
   "sessionId": Schema.NullOr(Schema.String),
   "sessionKind": Schema.NullOr(Schema.Literals(["id", "path"])),
   "sessionPath": Schema.NullOr(Schema.String),
   "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
+  "subagents": Schema.optional(Schema.Array(Schema.Struct({
+  "id": Schema.String,
+  "msg": Schema.optional(Schema.String),
+  "status": Schema.Union([Schema.Literals(["idle", "working", "blocked", "done", "unknown"]), Schema.Literal("error")]),
+  "title": Schema.optional(Schema.String),
+}))),
   "tabId": Schema.String,
   "tabLabel": Schema.NullOr(Schema.String),
   "tabNumber": Schema.NullOr(Schema.Number),
   "tabPaneCount": Schema.Number,
   "title": Schema.NullOr(Schema.String),
+  "turn": Schema.optional(Schema.Number),
   "workspaceId": Schema.String,
   "workspaceLabel": Schema.NullOr(Schema.String),
 })),
@@ -513,6 +603,19 @@ export const OverviewResponse = Schema.Struct({
 });
 export type OverviewResponse = typeof OverviewResponse.Type;
 
+/** Épingler ou désépingler un agent (H25) — partagé avec Herdr.app. */
+export const PinRequest = Schema.Struct({
+  "pinned": Schema.Boolean,
+});
+export type PinRequest = typeof PinRequest.Type;
+
+/** L'épingle posée (H25). */
+export const PinResponse = Schema.Struct({
+  "paneId": Schema.String,
+  "pinned": Schema.Boolean,
+});
+export type PinResponse = typeof PinResponse.Type;
+
 /** La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier */
 export const PresenceRequest = Schema.Struct({
   "endpoint": Schema.String,
@@ -531,6 +634,7 @@ export type PromptDelivered = typeof PromptDelivered.Type;
 
 /** Un prompt qui n'est pas parti — l'état réel, nommé, avec son détail. */
 export const PromptFailedResponse = Schema.Struct({
+  "code": Schema.optional(Schema.String),
   "detail": Schema.String,
   "state": Schema.Literals(["attente", "erreur", "inconnu"]),
 });
@@ -546,6 +650,7 @@ export type PromptRequest = typeof PromptRequest.Type;
 export const PromptSentResponse = Schema.Struct({
   "confirmation": Schema.Literals(["confirmed", "unknown"]),
   "fingerprint": Schema.String,
+  "queued": Schema.optional(Schema.Boolean),
   "status": Schema.Literals(["sent"]),
 });
 export type PromptSentResponse = typeof PromptSentResponse.Type;
@@ -599,6 +704,7 @@ export const Question = Schema.Struct({
   "selectionne": Schema.Boolean,
 })),
   "contexte": Schema.Array(Schema.String),
+  "empreinte": Schema.optional(Schema.String),
   "invite": Schema.optional(Schema.String),
   "texte": Schema.String,
 });
@@ -606,6 +712,7 @@ export type Question = typeof Question.Type;
 
 /** Une question tranchée (`QuestionAnsweredResponse`) — libellés du fil */
 export const QuestionAnsweredResponse = Schema.Struct({
+  "code": Schema.optional(Schema.String),
   "detail": Schema.String,
   "state": Schema.Literals(["appliquee", "transmise", "refusee"]),
   "status": Schema.Literals(["question-answered"]),
@@ -722,6 +829,7 @@ export type SessionStreamGone = typeof SessionStreamGone.Type;
 
 /** Une interruption demandée (`StopAgentResponse`). */
 export const StopAgentResponse = Schema.Struct({
+  "outcome": Schema.optional(Schema.Literals(["stopped", "exited", "still-working", "unknown"])),
   "status": Schema.Literals(["interrupt-sent", "not-running"]),
 });
 export type StopAgentResponse = typeof StopAgentResponse.Type;

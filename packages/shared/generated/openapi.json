@@ -146,6 +146,26 @@
             ],
             "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
           },
+          "blockedKind": {
+            "description": "Ce qu'un agent `blocked` attend : `permission | question | auth` —\nabsent quand il ne le dit pas.",
+            "oneOf": [
+              {
+                "const": "permission",
+                "description": "Une autorisation d'outil (« Allow this Bash command? »).",
+                "type": "string"
+              },
+              {
+                "const": "question",
+                "description": "Une question posée à l'utilisateur.",
+                "type": "string"
+              },
+              {
+                "const": "auth",
+                "description": "Une connexion à terminer (sign-in).",
+                "type": "string"
+              }
+            ]
+          },
           "cwd": {
             "anyOf": [
               {
@@ -156,6 +176,22 @@
               }
             ],
             "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "exit": {
+            "description": "La fin du terminal (code, raison, signal) quand herdr-core le dit fini.",
+            "properties": {
+              "code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "signal": {
+                "type": "string"
+              }
+            },
+            "type": "object"
           },
           "focused": {
             "type": "boolean"
@@ -197,6 +233,14 @@
               }
             ],
             "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "pinned": {
+            "description": "Épinglé, sur le Mac (Herdr.app) ou depuis le téléphone — présent\nseulement quand vrai.",
+            "type": "boolean"
+          },
+          "screenInexact": {
+            "description": "L'écran peut être incomplet : herdr-core a crashé (`screen: inexact`).",
+            "type": "boolean"
           },
           "sessionCwd": {
             "anyOf": [
@@ -278,6 +322,49 @@
               }
             ]
           },
+          "subagents": {
+            "description": "Les sous-agents en direct (records 7501) — absent quand il n'y en a pas.",
+            "items": {
+              "description": "Un sous-agent en direct : un record 7501 du programme, ses mots à lui.",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "msg": {
+                  "type": "string"
+                },
+                "status": {
+                  "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+                  "oneOf": [
+                    {
+                      "enum": [
+                        "idle",
+                        "working",
+                        "blocked",
+                        "done",
+                        "unknown"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "const": "error",
+                      "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
           "tabId": {
             "type": "string"
           },
@@ -320,6 +407,12 @@
               }
             ],
             "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "turn": {
+            "description": "Le tour de herdr-core (`turn`) — il avance à chaque sortie de\n`working` (B1.4).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
           },
           "workspaceId": {
             "type": "string"
@@ -420,6 +513,10 @@
               }
             ]
           },
+          "code": {
+            "description": "Le code STABLE de l'erreur (`agent_gone`, `agent_exited`,\n`agent_blocked`, `status_changed`, `core_unavailable`,\n`core_needs_update`, `timeout`, `busy`, `screen_changed`,\n`prompt_open`) — le client décide sur lui, jamais sur la phrase.",
+            "type": "string"
+          },
           "error": {
             "type": "string"
           },
@@ -431,6 +528,32 @@
           "error"
         ],
         "title": "ApiErrorResponse",
+        "type": "object"
+      },
+      "AttachmentResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Une pièce jointe déposée à côté du terminal (H26) : rien n'a été tapé,\n`path` est à coller dans le message.",
+        "properties": {
+          "bytes": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "description": "Le nom gardé (assaini).",
+            "type": "string"
+          },
+          "path": {
+            "description": "Où le fichier a atterri, vu de la machine du terminal.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "name",
+          "bytes"
+        ],
+        "title": "AttachmentResponse",
         "type": "object"
       },
       "BackgroundTask": {
@@ -767,6 +890,10 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Le résumé d'une conversation (`ConversationSummary`) — tout ce que la\nliste doit afficher, rien de plus ; chaque champ omissible l'est **mesuré**\n(absent tant que la source n'en dit rien).",
         "properties": {
+          "activity": {
+            "description": "Ce que l'agent dit, dans ses mots (`status.msg` de herdr-core),\nseulement pendant qu'il travaille, attend ou est en erreur — absent\nquand il ne dit rien (un message d'un tour fini serait périmé).",
+            "type": "string"
+          },
           "agent": {
             "anyOf": [
               {
@@ -778,8 +905,44 @@
             ],
             "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
           },
+          "blockedKind": {
+            "description": "Ce qu'un agent `blocked` attend : `permission | question | auth` —\nabsent quand il ne le dit pas.",
+            "oneOf": [
+              {
+                "const": "permission",
+                "description": "Une autorisation d'outil (« Allow this Bash command? »).",
+                "type": "string"
+              },
+              {
+                "const": "question",
+                "description": "Une question posée à l'utilisateur.",
+                "type": "string"
+              },
+              {
+                "const": "auth",
+                "description": "Une connexion à terminer (sign-in).",
+                "type": "string"
+              }
+            ]
+          },
           "branch": {
             "type": "string"
+          },
+          "exit": {
+            "description": "La fin du terminal (code, raison, signal) quand herdr-core le dit fini.",
+            "properties": {
+              "code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "signal": {
+                "type": "string"
+              }
+            },
+            "type": "object"
           },
           "lastPrompt": {
             "type": "string"
@@ -813,6 +976,10 @@
               }
             ],
             "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "pinned": {
+            "description": "Épinglé (Herdr.app ou téléphone) — présent seulement quand vrai.",
+            "type": "boolean"
           },
           "preview": {
             "type": "string"
@@ -857,6 +1024,10 @@
                 },
                 "type": "array"
               },
+              "empreinte": {
+                "description": "L'empreinte de la question lue (texte, cadre, choix) — à renvoyer\ntelle quelle avec la réponse : le serveur refuse (409) si l'écran a\nchangé depuis. Facultative sur le fil (le corpus figé la précède),\ntoujours émise par ce serveur.",
+                "type": "string"
+              },
               "invite": {
                 "type": "string"
               },
@@ -876,6 +1047,10 @@
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
+          },
+          "screenInexact": {
+            "description": "L'écran peut être incomplet (crash du core).",
+            "type": "boolean"
           },
           "sessionState": {
             "description": "État de la conversation visible sur une ligne de conversation\n(`available | absent | error`, B10).",
@@ -905,6 +1080,49 @@
                 "type": "string"
               }
             ]
+          },
+          "subagents": {
+            "description": "Les sous-agents en direct (records 7501).",
+            "items": {
+              "description": "Un sous-agent en direct : un record 7501 du programme, ses mots à lui.",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "msg": {
+                  "type": "string"
+                },
+                "status": {
+                  "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+                  "oneOf": [
+                    {
+                      "enum": [
+                        "idle",
+                        "working",
+                        "blocked",
+                        "done",
+                        "unknown"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "const": "error",
+                      "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           },
           "tabId": {
             "type": "string"
@@ -983,6 +1201,12 @@
             ],
             "type": "object"
           },
+          "turn": {
+            "description": "Le tour de herdr-core (`turn`) — il avance à chaque sortie de\n`working` (B1.4).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "waiting": {
             "type": "string"
           },
@@ -1013,6 +1237,10 @@
             "items": {
               "description": "Le résumé d'une conversation (`ConversationSummary`) — tout ce que la\nliste doit afficher, rien de plus ; chaque champ omissible l'est **mesuré**\n(absent tant que la source n'en dit rien).",
               "properties": {
+                "activity": {
+                  "description": "Ce que l'agent dit, dans ses mots (`status.msg` de herdr-core),\nseulement pendant qu'il travaille, attend ou est en erreur — absent\nquand il ne dit rien (un message d'un tour fini serait périmé).",
+                  "type": "string"
+                },
                 "agent": {
                   "anyOf": [
                     {
@@ -1024,8 +1252,44 @@
                   ],
                   "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
                 },
+                "blockedKind": {
+                  "description": "Ce qu'un agent `blocked` attend : `permission | question | auth` —\nabsent quand il ne le dit pas.",
+                  "oneOf": [
+                    {
+                      "const": "permission",
+                      "description": "Une autorisation d'outil (« Allow this Bash command? »).",
+                      "type": "string"
+                    },
+                    {
+                      "const": "question",
+                      "description": "Une question posée à l'utilisateur.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "auth",
+                      "description": "Une connexion à terminer (sign-in).",
+                      "type": "string"
+                    }
+                  ]
+                },
                 "branch": {
                   "type": "string"
+                },
+                "exit": {
+                  "description": "La fin du terminal (code, raison, signal) quand herdr-core le dit fini.",
+                  "properties": {
+                    "code": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "signal": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
                 },
                 "lastPrompt": {
                   "type": "string"
@@ -1059,6 +1323,10 @@
                     }
                   ],
                   "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "pinned": {
+                  "description": "Épinglé (Herdr.app ou téléphone) — présent seulement quand vrai.",
+                  "type": "boolean"
                 },
                 "preview": {
                   "type": "string"
@@ -1103,6 +1371,10 @@
                       },
                       "type": "array"
                     },
+                    "empreinte": {
+                      "description": "L'empreinte de la question lue (texte, cadre, choix) — à renvoyer\ntelle quelle avec la réponse : le serveur refuse (409) si l'écran a\nchangé depuis. Facultative sur le fil (le corpus figé la précède),\ntoujours émise par ce serveur.",
+                      "type": "string"
+                    },
                     "invite": {
                       "type": "string"
                     },
@@ -1122,6 +1394,10 @@
                   "format": "uint64",
                   "minimum": 0,
                   "type": "integer"
+                },
+                "screenInexact": {
+                  "description": "L'écran peut être incomplet (crash du core).",
+                  "type": "boolean"
                 },
                 "sessionState": {
                   "description": "État de la conversation visible sur une ligne de conversation\n(`available | absent | error`, B10).",
@@ -1151,6 +1427,49 @@
                       "type": "string"
                     }
                   ]
+                },
+                "subagents": {
+                  "description": "Les sous-agents en direct (records 7501).",
+                  "items": {
+                    "description": "Un sous-agent en direct : un record 7501 du programme, ses mots à lui.",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "msg": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+                        "oneOf": [
+                          {
+                            "enum": [
+                              "idle",
+                              "working",
+                              "blocked",
+                              "done",
+                              "unknown"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "const": "error",
+                            "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
                 },
                 "tabId": {
                   "type": "string"
@@ -1228,6 +1547,12 @@
                     "status"
                   ],
                   "type": "object"
+                },
+                "turn": {
+                  "description": "Le tour de herdr-core (`turn`) — il avance à chaque sortie de\n`working` (B1.4).",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 "waiting": {
                   "type": "string"
@@ -1729,6 +2054,34 @@
               "data"
             ],
             "type": "object"
+          },
+          {
+            "description": "Le battement NOMMÉ (F1.8) : un flux muet le reçoit à chaque période.\nLe commentaire `:` du keep-alive est invisible pour le JS — le client\nne pouvait pas voir qu'un flux réveillé d'iOS était mort.",
+            "properties": {
+              "data": {
+                "description": "Le battement : le flux vit, voici le curseur émis (`event: heartbeat`).",
+                "properties": {
+                  "cursor": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "cursor"
+                ],
+                "type": "object"
+              },
+              "event": {
+                "const": "heartbeat",
+                "type": "string"
+              }
+            },
+            "required": [
+              "event",
+              "data"
+            ],
+            "type": "object"
           }
         ],
         "title": "EvenementSse"
@@ -1749,6 +2102,10 @@
           "herdr": {
             "description": "La partie Herdr de la santé — protocol/version **omissibles** (mesuré :\nabsents tant qu'aucun ping n'a réussi), socket et reachable toujours là.",
             "properties": {
+              "error": {
+                "description": "Pourquoi herdr-core ne répond pas (`unavailable`, `needs_update`,\ngénération non prise en charge…) — absent quand il répond.",
+                "type": "string"
+              },
               "protocol": {
                 "format": "uint64",
                 "minimum": 0,
@@ -1781,6 +2138,56 @@
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
+          },
+          "watcher": {
+            "description": "La veille (statuts en direct, push) — absente quand le démon n'en a\npas démarré.",
+            "properties": {
+              "errors": {
+                "description": "Les itérations en échec depuis le démarrage.",
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "events": {
+                "description": "Le flux d'événements de herdr-core est branché (lot 4) : la veille\nrepasse dès qu'un fait change. `false` : cadence de 2 s seulement.",
+                "type": "boolean"
+              },
+              "failing": {
+                "description": "La DERNIÈRE itération a échoué.",
+                "type": "boolean"
+              },
+              "lastError": {
+                "description": "La dernière panne, telle quelle, et depuis combien de temps (ms).",
+                "type": "string"
+              },
+              "lastErrorAgoMs": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "lastEventAgoMs": {
+                "description": "Depuis combien de temps (ms) le dernier signe du flux (événement ou\nbattement de 15 s).",
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "lastSuccessAgoMs": {
+                "description": "Depuis combien de temps (ms) la dernière itération réussie.",
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "running": {
+                "description": "La boucle tourne (fil démarré, pas arrêté).",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "running",
+              "failing",
+              "errors"
+            ],
+            "type": "object"
           }
         },
         "required": [
@@ -1794,6 +2201,10 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "La partie Herdr de la santé — protocol/version **omissibles** (mesuré :\nabsents tant qu'aucun ping n'a réussi), socket et reachable toujours là.",
         "properties": {
+          "error": {
+            "description": "Pourquoi herdr-core ne répond pas (`unavailable`, `needs_update`,\ngénération non prise en charge…) — absent quand il répond.",
+            "type": "string"
+          },
           "protocol": {
             "format": "uint64",
             "minimum": 0,
@@ -2156,6 +2567,26 @@
                   ],
                   "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
                 },
+                "blockedKind": {
+                  "description": "Ce qu'un agent `blocked` attend : `permission | question | auth` —\nabsent quand il ne le dit pas.",
+                  "oneOf": [
+                    {
+                      "const": "permission",
+                      "description": "Une autorisation d'outil (« Allow this Bash command? »).",
+                      "type": "string"
+                    },
+                    {
+                      "const": "question",
+                      "description": "Une question posée à l'utilisateur.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "auth",
+                      "description": "Une connexion à terminer (sign-in).",
+                      "type": "string"
+                    }
+                  ]
+                },
                 "cwd": {
                   "anyOf": [
                     {
@@ -2166,6 +2597,22 @@
                     }
                   ],
                   "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "exit": {
+                  "description": "La fin du terminal (code, raison, signal) quand herdr-core le dit fini.",
+                  "properties": {
+                    "code": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "signal": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
                 },
                 "focused": {
                   "type": "boolean"
@@ -2207,6 +2654,14 @@
                     }
                   ],
                   "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "pinned": {
+                  "description": "Épinglé, sur le Mac (Herdr.app) ou depuis le téléphone — présent\nseulement quand vrai.",
+                  "type": "boolean"
+                },
+                "screenInexact": {
+                  "description": "L'écran peut être incomplet : herdr-core a crashé (`screen: inexact`).",
+                  "type": "boolean"
                 },
                 "sessionCwd": {
                   "anyOf": [
@@ -2288,6 +2743,49 @@
                     }
                   ]
                 },
+                "subagents": {
+                  "description": "Les sous-agents en direct (records 7501) — absent quand il n'y en a pas.",
+                  "items": {
+                    "description": "Un sous-agent en direct : un record 7501 du programme, ses mots à lui.",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "msg": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "description": "État d'un agent : `idle | working | blocked | done | error | unknown`.\n\nLes cinq premiers sont les mots du programme (OSC 7501, `Status.state` de\nherdr-core 0.1.17 : « idle, working, done, blocked or error »).\n⚠️ `unknown` n'est PAS un mot de herdr-core : c'est l'agent reconnu dont\nle programme ne dit rien (pas de statut, ou un mot hors de cette liste).",
+                        "oneOf": [
+                          {
+                            "enum": [
+                              "idle",
+                              "working",
+                              "blocked",
+                              "done",
+                              "unknown"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "const": "error",
+                            "description": "Le programme s'est déclaré en erreur (`error`, herdr-core).",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
                 "tabId": {
                   "type": "string"
                 },
@@ -2330,6 +2828,12 @@
                     }
                   ],
                   "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "turn": {
+                  "description": "Le tour de herdr-core (`turn`) — il avance à chaque sortie de\n`working` (B1.4).",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 "workspaceId": {
                   "type": "string"
@@ -2487,6 +2991,38 @@
         "title": "OverviewResponse",
         "type": "object"
       },
+      "PinRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Épingler ou désépingler un agent (H25) — partagé avec Herdr.app.",
+        "properties": {
+          "pinned": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pinned"
+        ],
+        "title": "PinRequest",
+        "type": "object"
+      },
+      "PinResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'épingle posée (H25).",
+        "properties": {
+          "paneId": {
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "paneId",
+          "pinned"
+        ],
+        "title": "PinResponse",
+        "type": "object"
+      },
       "PresenceRequest": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -2545,6 +3081,10 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Un prompt qui n'est pas parti — l'état réel, nommé, avec son détail.",
         "properties": {
+          "code": {
+            "description": "Le code stable de l'échec (voir `ApiErrorResponse.code`).",
+            "type": "string"
+          },
           "detail": {
             "type": "string"
           },
@@ -2593,6 +3133,10 @@
           },
           "fingerprint": {
             "type": "string"
+          },
+          "queued": {
+            "description": "`true` : l'agent TRAVAILLAIT à l'envoi — le message est dans sa file,\nil le lira à sa prochaine étape ; « confirmé » ne veut pas dire « lu »\n(B1.15). Absent : statut non lu.",
+            "type": "boolean"
           },
           "status": {
             "description": "Le littéral `\"sent\"`, union à un membre : sa présence est vérifiée.",
@@ -2786,6 +3330,10 @@
             },
             "type": "array"
           },
+          "empreinte": {
+            "description": "L'empreinte de la question lue (texte, cadre, choix) — à renvoyer\ntelle quelle avec la réponse : le serveur refuse (409) si l'écran a\nchangé depuis. Facultative sur le fil (le corpus figé la précède),\ntoujours émise par ce serveur.",
+            "type": "string"
+          },
           "invite": {
             "type": "string"
           },
@@ -2805,6 +3353,10 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Une question tranchée (`QuestionAnsweredResponse`) — libellés du fil\nexacts (`appliquee | transmise | refusee`).",
         "properties": {
+          "code": {
+            "description": "Le code stable d'un refus (`screen_changed`…) — absent sinon.",
+            "type": "string"
+          },
           "detail": {
             "type": "string"
           },
@@ -3240,6 +3792,31 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Une interruption demandée (`StopAgentResponse`).",
         "properties": {
+          "outcome": {
+            "description": "Ce que herdr-core a vu après la touche (`stopped | exited |\nstill-working | unknown`) — absent quand il n'a rien observé.",
+            "oneOf": [
+              {
+                "const": "stopped",
+                "description": "Le programme a cessé de travailler.",
+                "type": "string"
+              },
+              {
+                "const": "exited",
+                "description": "Le programme est sorti.",
+                "type": "string"
+              },
+              {
+                "const": "still-working",
+                "description": "Il travaille encore après le délai d'observation.",
+                "type": "string"
+              },
+              {
+                "const": "unknown",
+                "description": "Le core ne peut pas le dire (programme sans statut, délai).",
+                "type": "string"
+              }
+            ]
+          },
           "status": {
             "description": "`interrupt-sent | not-running` — reçu, pas prouvé exécuté.",
             "enum": [
@@ -3713,6 +4290,124 @@
         }
       }
     },
+    "/api/agents/{paneId}/attachments": {
+      "post": {
+        "operationId": "h26-piece-jointe",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "description": "octets bruts (image/* ou application/octet-stream)",
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              },
+              "x-octets-max": 8388608
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — AttachmentResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 404 — ApiErrorResponse"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — ApiErrorResponse"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — ApiErrorResponse"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
+          }
+        }
+      }
+    },
     "/api/agents/{paneId}/focus": {
       "post": {
         "operationId": "h11-focus",
@@ -3824,6 +4519,115 @@
               }
             },
             "description": "Réponse 200 — ModelChangedResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 404 — ApiErrorResponse"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/pin": {
+      "post": {
+        "operationId": "h25-epingle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "Corps JSON — PinRequest",
+              "schema": {
+                "$ref": "#/components/schemas/PinRequest"
+              },
+              "x-octets-max": null
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — PinResponse"
           },
           "400": {
             "content": {

@@ -45,6 +45,7 @@ impl SourceMaintenant for MaintenantTest {
 /// La vue d'un agent, avec les seuls champs que la signature lit.
 fn vue(pane: &str, statut: AgentStatus, titre: &str, cwd: &str) -> AgentView {
     AgentView {
+        faits: Default::default(),
         pane_id: PaneId::from(String::from(pane)),
         tab_id: TabId::from(String::from("t1")),
         workspace_id: WorkspaceId::from(String::from("w1")),
@@ -65,6 +66,9 @@ fn vue(pane: &str, statut: AgentStatus, titre: &str, cwd: &str) -> AgentView {
         session_cwd: None,
         parent_session: None,
         session_cwd_matches: domain::observation::CwdMatch::Unverifiable,
+        turn: 0,
+        blocked_kind: None,
+        exit: None,
     }
 }
 
@@ -103,6 +107,55 @@ fn une_apparition_est_annoncee_apres_le_premier_tour() {
         changement.a,
         CibleDeChangement::Statut(AgentStatus::Working)
     );
+}
+
+/// La vue d'un agent à un tour donné.
+fn vue_au_tour(pane: &str, statut: AgentStatus, tour: u64) -> AgentView {
+    AgentView {
+        turn: tour,
+        ..vue(pane, statut, "t", "/p")
+    }
+}
+
+#[test]
+fn un_tour_entier_entre_deux_passages_notifie_la_fin() {
+    // B1.4 : done (tour 4) → [working → done, invisible] → done (tour 5).
+    // Le statut n'a pas changé ; le tour, si — l'agent a fini un AUTRE tour.
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![vue_au_tour("p1", AgentStatus::Done, 4)]);
+    let tour = veilleur.tick(vec![vue_au_tour("p1", AgentStatus::Done, 5)]);
+    assert_eq!(tour.changements.len(), 1, "{:?}", tour.changements);
+    let changement = &tour.changements[0];
+    assert_eq!(changement.genre, GenreDeChangement::Statut);
+    assert!(changement.tour_avance());
+    assert!(changement.faut_notifier(), "un tour fini se notifie");
+}
+
+#[test]
+fn une_permission_enchainee_redemande_l_utilisateur() {
+    // blocked (tour 6) → [réponse, working, nouvelle permission] → blocked
+    // (tour 7) : la deuxième demande n'est plus perdue.
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![vue_au_tour("p1", AgentStatus::Blocked, 6)]);
+    let tour = veilleur.tick(vec![vue_au_tour("p1", AgentStatus::Blocked, 7)]);
+    assert_eq!(tour.changements.len(), 1);
+    assert!(tour.changements[0].faut_notifier());
+}
+
+#[test]
+fn un_tour_qui_avance_vers_working_ou_qui_recule_ne_notifie_pas() {
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![vue_au_tour("p1", AgentStatus::Working, 2)]);
+    // Sorti puis rentré dans `working` : il travaille encore.
+    let tour = veilleur.tick(vec![vue_au_tour("p1", AgentStatus::Working, 3)]);
+    assert_eq!(tour.changements.len(), 1);
+    assert!(!tour.changements[0].faut_notifier());
+    // Un terminal réutilisé repart de zéro : un tour qui recule n'est pas un
+    // tour fini.
+    let _ = veilleur.tick(vec![vue_au_tour("p1", AgentStatus::Idle, 3)]);
+    let tour = veilleur.tick(vec![vue_au_tour("p1", AgentStatus::Idle, 0)]);
+    assert_eq!(tour.changements.len(), 1);
+    assert!(!tour.changements[0].faut_notifier());
 }
 
 #[test]
@@ -196,13 +249,20 @@ fn working_vers_tout_autre_statut_notifie() {
         AgentStatus::Blocked,
         AgentStatus::Done,
         AgentStatus::Error,
-        AgentStatus::Unknown,
     ] {
         assert!(
             faut_notifier(Some(AgentStatus::Working), CibleDeChangement::Statut(cible)),
             "working → {cible} doit notifier"
         );
     }
+    // B1.5 : un statut PERDU n'est pas une fin — « has finished » serait faux.
+    assert!(
+        !faut_notifier(
+            Some(AgentStatus::Working),
+            CibleDeChangement::Statut(AgentStatus::Unknown)
+        ),
+        "working → unknown ne notifie pas"
+    );
     assert!(
         !faut_notifier(
             Some(AgentStatus::Working),
@@ -747,4 +807,58 @@ fn un_agent_qui_ecrit_sans_changer_de_titre_publie_un_changement_de_contenu() {
         "la même révision n'est publiée qu'une fois"
     );
     let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn un_reveil_fait_repasser_la_veille_sans_attendre_sa_cadence() {
+    // Lot 4 : un événement de herdr-core réveille la boucle — le passage
+    // suivant part après l'écart minimal (750 ms), pas après l'intervalle.
+    let horloge = MaintenantTest::nouvelle();
+    let source = Arc::new(FauxSource::qui_rend(Vec::new()));
+    let source_trait: Arc<dyn SourceDeVues> = source.clone();
+    let boucle = Arc::new(BoucleDeVeille::avec_intervalle(
+        source_trait,
+        Arc::new(Veilleur::nouveau()),
+        Arc::new(FauxPublicateur::default()),
+        Arc::new(horloge),
+        Duration::from_secs(60),
+    ));
+    let fil = {
+        let boucle = Arc::clone(&boucle);
+        std::thread::spawn(move || boucle.boucle())
+    };
+    let attend_lectures = |n: u64, borne: Duration| {
+        let debut = Instant::now();
+        while source.lectures.load(Ordering::SeqCst) < n {
+            if debut.elapsed() > borne {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        true
+    };
+    assert!(
+        attend_lectures(1, Duration::from_secs(10)),
+        "le premier passage"
+    );
+    let debut = Instant::now();
+    boucle.reveille();
+    assert!(
+        attend_lectures(2, Duration::from_secs(10)),
+        "réveillée, la boucle repasse"
+    );
+    let delai = debut.elapsed();
+    assert!(
+        delai >= Duration::from_millis(700) && delai < Duration::from_secs(5),
+        "après l'écart minimal, bien avant la cadence de 60 s : {delai:?}"
+    );
+    assert!(!boucle.flux_actif() && boucle.dernier_evenement().is_none());
+    boucle.note_flux(true);
+    boucle.note_evenement();
+    assert!(boucle.flux_actif() && boucle.dernier_evenement().is_some());
+    // L'arrêt réveille aussi : le fil sort sans attendre 60 s.
+    let arret = Instant::now();
+    boucle.arreter();
+    fil.join().unwrap_or_else(|_| panic!("la boucle s'arrête"));
+    assert!(arret.elapsed() < Duration::from_secs(5), "arrêt immédiat");
 }

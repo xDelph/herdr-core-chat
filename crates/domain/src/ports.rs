@@ -57,6 +57,10 @@ pub struct TargetedPrompt {
 pub struct TargetedText {
     pub pane: PaneId,
     pub text: String,
+    /// `true` seulement pour la RÉPONSE LIBRE à une question affichée
+    /// (« Type something ») : c'est le seul envoi autorisé à forcer un agent
+    /// bloqué sur une question. Un prompt, un réglage : jamais (B1.2).
+    pub reponse_libre: bool,
 }
 
 /// Une séquence de touches pour un agent (`agent.send_keys`).
@@ -122,8 +126,48 @@ pub enum FocusEvidence {
 pub enum StopEvidence {
     /// Envoyée au terminal de l'agent courant — reçu, pas prouvé exécuté.
     InterruptSent,
+    /// Envoyée, et le core a observé la suite (`terminal.interrupt` →
+    /// `outcome`) : arrêté, sorti, toujours au travail, ou on ne sait pas.
+    Interrupted(StopOutcome),
     /// L'agent n'est pas en cours : il n'y avait rien à interrompre.
     NotRunning,
+}
+
+/// Ce que herdr-core a vu après la touche d'arrêt (`outcome`).
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Debug,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
+#[serde(rename_all = "kebab-case")]
+pub enum StopOutcome {
+    /// Le programme a cessé de travailler.
+    Stopped,
+    /// Le programme est sorti.
+    Exited,
+    /// Il travaille encore après le délai d'observation.
+    StillWorking,
+    /// Le core ne peut pas le dire (programme sans statut, délai).
+    Unknown,
+}
+
+impl StopOutcome {
+    /// Le mot de herdr-core → l'issue ; inconnu : `Unknown`.
+    #[must_use]
+    pub fn depuis_mot(mot: &str) -> Self {
+        match mot {
+            "stopped" => Self::Stopped,
+            "exited" => Self::Exited,
+            "still_working" => Self::StillWorking,
+            _ => Self::Unknown,
+        }
+    }
 }
 
 /// Création d'un tab non focalisé, avec son premier pane.
@@ -281,6 +325,31 @@ pub trait ControlPort: Send + Sync {
         let _ = (pane, vu_a);
         Box::pin(std::future::ready(Ok(None)))
     }
+    /// Épingle (ou désépingle) un agent, pour tous les clients (lot 4) —
+    /// sous herdr-core, le label `herdr.pinned` que Herdr.app lit aussi.
+    fn epingle(&self, pane: PaneId, epingle: bool) -> PortFuture<'_, ()> {
+        let _ = (pane, epingle);
+        Box::pin(std::future::ready(Err(PortError::Unsupported {
+            feature: String::from("pins"),
+        })))
+    }
+    /// Dépose un fichier à côté du terminal d'un agent, pour que son programme
+    /// le lise (une photo) — **rien n'est tapé** : le chemin rendu est à
+    /// coller dans le message (lot 4, `terminal.put`).
+    fn depose(&self, pane: PaneId, nom: String, octets: Vec<u8>) -> PortFuture<'_, FichierDepose> {
+        let _ = (pane, nom, octets);
+        Box::pin(std::future::ready(Err(PortError::Unsupported {
+            feature: String::from("attachments"),
+        })))
+    }
+}
+
+/// Un fichier déposé à côté d'un terminal : où il a atterri (vu de la
+/// machine du terminal), et sa taille.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct FichierDepose {
+    pub chemin: String,
+    pub octets: u64,
 }
 
 /// Le port de sessions : résoudre, paginer, décrire des réglages.

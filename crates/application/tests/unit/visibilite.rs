@@ -18,6 +18,7 @@ fn vue(
     status: AgentStatus,
 ) -> AgentView {
     AgentView {
+        faits: Default::default(),
         pane_id: PaneId::from(String::from(pane)),
         tab_id: TabId::from(String::from("t-1")),
         workspace_id: WorkspaceId::from(String::from("w1")),
@@ -38,6 +39,9 @@ fn vue(
         session_cwd: None,
         parent_session: None,
         session_cwd_matches: CwdMatch::Unverifiable,
+        turn: 0,
+        blocked_kind: None,
+        exit: None,
     }
 }
 
@@ -142,6 +146,7 @@ fn la_repartition_compte_les_masques_et_garde_les_visibles() {
 fn l_agent_sans_champs_est_bien_un_agent() {
     // Borne de la construction : chaque champ garde sa place.
     let agent = AgentObservation {
+        faits: Default::default(),
         pane_id: PaneId::from(String::from("p1")),
         tab_id: TabId::from(String::from("t-1")),
         workspace_id: WorkspaceId::from(String::from("w1")),
@@ -159,6 +164,9 @@ fn l_agent_sans_champs_est_bien_un_agent() {
         state_change_seq: None,
         session: None,
         seen_at: None,
+        status_msg: None,
+        blocked_kind: None,
+        exit: None,
     };
     assert!(type_lisible(agent.agent.as_ref()));
     assert!(agent.cwd.as_deref() == Some("/projets/atelier"));

@@ -47,12 +47,18 @@ use std::time::{Duration, Instant};
 pub const INTERVALLE_VEILLE: Duration = Duration::from_millis(500);
 
 /// La signature d'un agent : le diff ne publie que les changements réels
-/// (E02) — statut, titre, cwd, type, chemin de session. Un changement de
-/// métadonnées peut émettre un statut de→vers identiques : c'est voulu.
+/// (E02) — statut, tour, titre, cwd, type, chemin de session. Un changement
+/// de métadonnées peut émettre un statut de→vers identiques : c'est voulu.
+///
+/// ⚠️ **Le tour en fait partie (B1.4).** Un tour de moins de 2 s, ou un
+/// `done → working → done` entre deux passages, laissait la signature
+/// identique : aucune notification. Le tour de herdr-core avance à chaque
+/// sortie de `working` — il trahit le tour que la veille n'a pas vu.
 #[must_use]
 pub fn signature_de(agent: &AgentView) -> String {
     [
         agent.status.to_string(),
+        agent.turn.to_string(),
         agent.title.clone().unwrap_or_default(),
         agent.cwd.clone().unwrap_or_default(),
         agent
@@ -61,6 +67,16 @@ pub fn signature_de(agent: &AgentView) -> String {
             .map(ToString::to_string)
             .unwrap_or_default(),
         agent.session_path.clone().unwrap_or_default(),
+        // Lot 4 : un sous-agent qui naît, change d'état ou finit, une épingle
+        // posée sur le Mac — la liste doit le voir sans attendre.
+        agent
+            .faits
+            .sous_agents
+            .iter()
+            .map(|sous| format!("{}={}", sous.id, sous.status))
+            .collect::<Vec<_>>()
+            .join(","),
+        agent.faits.epingle.to_string(),
     ]
     .join("\u{0}")
 }
@@ -185,9 +201,40 @@ pub struct Changement {
     /// seule matière de `session_changed`. Aucun chemin n'est transporté.
     pub revision_avant: String,
     pub revision_apres: String,
+    /// Le tour de herdr-core avant et après (`None` : pas de vue de ce
+    /// côté — apparition, disparition).
+    pub tour_avant: Option<u64>,
+    pub tour_apres: Option<u64>,
 }
 
 impl Changement {
+    /// Le tour a-t-il avancé ? Un tour entier s'est alors joué depuis la
+    /// vue précédente, même si le statut est revenu au même mot.
+    #[must_use]
+    pub fn tour_avance(&self) -> bool {
+        matches!((self.tour_avant, self.tour_apres), (Some(avant), Some(apres)) if apres > avant)
+    }
+
+    /// Faut-il prévenir l'utilisateur ? La transition de statut ([`faut_notifier`]),
+    /// ou un tour qui s'est **terminé** entre deux passages : l'agent est
+    /// revenu au repos, ou bloqué, ou en erreur, à un tour plus loin (B1.4).
+    #[must_use]
+    pub fn faut_notifier(&self) -> bool {
+        if faut_notifier(self.de, self.a) {
+            return true;
+        }
+        self.tour_avance()
+            && matches!(
+                self.a,
+                CibleDeChangement::Statut(
+                    AgentStatus::Done
+                        | AgentStatus::Idle
+                        | AgentStatus::Blocked
+                        | AgentStatus::Error
+                )
+            )
+    }
+
     /// La source a-t-elle changé ? (apparition, disparition ou autre source)
     /// — la question que `session_changed` répond, et la seule.
     #[must_use]
@@ -207,6 +254,7 @@ struct EntreePrecedente {
     signature: String,
     revision: String,
     statut: AgentStatus,
+    tour: u64,
     vue: AgentView,
 }
 
@@ -244,6 +292,7 @@ impl Veilleur {
                     signature: signature.clone(),
                     revision: revision.clone(),
                     statut: agent.status,
+                    tour: agent.turn,
                     vue: agent.clone(),
                 },
             );
@@ -263,6 +312,8 @@ impl Veilleur {
                             // bien la révision.
                             revision_avant: revision_absente(),
                             revision_apres: revision.clone(),
+                            tour_avant: None,
+                            tour_apres: Some(agent.turn),
                         });
                     }
                 }
@@ -275,6 +326,8 @@ impl Veilleur {
                         disparu: None,
                         revision_avant: ancienne.revision.clone(),
                         revision_apres: revision,
+                        tour_avant: Some(ancienne.tour),
+                        tour_apres: Some(agent.turn),
                     });
                 }
                 /*
@@ -293,6 +346,8 @@ impl Veilleur {
                         disparu: None,
                         revision_avant: ancienne.revision.clone(),
                         revision_apres: revision,
+                        tour_avant: Some(ancienne.tour),
+                        tour_apres: Some(agent.turn),
                     });
                 }
                 Some(_) => {}
@@ -312,6 +367,8 @@ impl Veilleur {
                     revision_avant: connue
                         .map_or_else(revision_absente, |entree| entree.revision.clone()),
                     revision_apres: revision_absente(),
+                    tour_avant: connue.map(|entree| entree.tour),
+                    tour_apres: None,
                 });
             }
         }
@@ -332,6 +389,10 @@ impl Veilleur {
 /// ou demande de l'attention. Un agent qui entre en `blocked` ou en `error`
 /// depuis n'importe quel état demande l'utilisateur (herdr-core : la
 /// question peut arriver d'un agent au repos).
+///
+/// ⚠️ **`working → unknown` n'est pas une fin (B1.5).** Le programme a cessé
+/// de dire son état (statut perdu, programme remplacé) : rien ne prouve qu'il
+/// a fini, et « has finished working » serait faux. Pas de push.
 #[must_use]
 pub fn faut_notifier(de: Option<AgentStatus>, a: CibleDeChangement) -> bool {
     match a {
@@ -340,7 +401,8 @@ pub fn faut_notifier(de: Option<AgentStatus>, a: CibleDeChangement) -> bool {
         }
         CibleDeChangement::Statut(a) => {
             let attention = matches!(a, AgentStatus::Blocked | AgentStatus::Error);
-            (de == Some(AgentStatus::Working) && a != AgentStatus::Working)
+            (de == Some(AgentStatus::Working)
+                && !matches!(a, AgentStatus::Working | AgentStatus::Unknown))
                 || (attention && de.is_some() && de != Some(a))
         }
     }
@@ -370,7 +432,23 @@ pub struct BoucleDeVeille {
     dernier_succes: Mutex<Option<Instant>>,
     erreurs: AtomicU64,
     en_marche: AtomicBool,
+    en_panne: AtomicBool,
+    derniere_erreur: Mutex<Option<(String, Instant)>>,
+    /// Un réveil demandé (événement herdr-core, geste) — voir [`Self::reveille`].
+    reveil: Mutex<bool>,
+    signal: std::sync::Condvar,
+    /// Le flux d'événements de herdr-core est-il branché ?
+    flux: AtomicBool,
+    dernier_evenement: Mutex<Option<Instant>>,
 }
+
+/// ⚠️ **L'écart minimal entre deux passages réveillés : 750 ms (lot 4).**
+/// Un agent qui travaille émet des événements en rafale (statut, titre) ;
+/// chaque passage relit la liste et le doc. Les événements d'une rafale se
+/// fondent dans un seul passage, et la veille ne repasse jamais plus de
+/// ~1,3 fois par seconde — la leçon de la cadence à 500 ms (CPU des
+/// requêtes mangé par la veille).
+pub const ECART_MIN_VEILLE: Duration = Duration::from_millis(750);
 
 impl BoucleDeVeille {
     /// La boucle avec la cadence du contrat (2 s) et l'horloge injectée.
@@ -391,6 +469,12 @@ impl BoucleDeVeille {
             dernier_succes: Mutex::new(None),
             erreurs: AtomicU64::new(0),
             en_marche: AtomicBool::new(true),
+            en_panne: AtomicBool::new(false),
+            derniere_erreur: Mutex::new(None),
+            reveil: Mutex::new(false),
+            signal: std::sync::Condvar::new(),
+            flux: AtomicBool::new(false),
+            dernier_evenement: Mutex::new(None),
         }
     }
 
@@ -414,6 +498,7 @@ impl BoucleDeVeille {
         match self.source.vues() {
             Err(panne) => {
                 self.erreurs.fetch_add(1, Ordering::SeqCst);
+                self.note_issue(Some(&panne));
                 Err(panne)
             }
             Ok(agents) => {
@@ -427,6 +512,7 @@ impl BoucleDeVeille {
                     .dernier_succes
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner) = Some(self.maintenant.maintenant());
+                self.note_issue(None);
                 Ok(tour)
             }
         }
@@ -437,14 +523,125 @@ impl BoucleDeVeille {
     /// temps. À lancer dans son propre fil ; `arreter` la fait sortir.
     pub fn boucle(&self) {
         while self.en_marche.load(Ordering::SeqCst) {
-            let _ = self.une_fois();
-            std::thread::sleep(self.intervalle);
+            /*
+              ⚠️ **Une panne se DIT.** `let _ = self.une_fois()` taisait chaque
+              échec : la veille pouvait tourner à vide des heures sans une ligne
+              de journal. La cause est gardée (`/api/health`) et journalisée à
+              son apparition et à chaque changement — pas toutes les 2 s.
+              Un panic d'une itération ne tue pas la boucle non plus.
+            */
+            let tour = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.une_fois()));
+            if tour.is_err() {
+                self.erreurs.fetch_add(1, Ordering::SeqCst);
+                self.note_issue(Some("the watcher iteration panicked"));
+            }
+            self.attend_le_prochain_passage();
         }
+    }
+
+    /// L'attente entre deux passages : l'écart minimal (les événements d'une
+    /// rafale s'y fondent), puis l'intervalle — ou un réveil, le premier des
+    /// deux. Sans flux d'événements, c'est l'ancienne cadence fixe.
+    fn attend_le_prochain_passage(&self) {
+        let ecart = ECART_MIN_VEILLE.min(self.intervalle);
+        std::thread::sleep(ecart);
+        let reste = self.intervalle.saturating_sub(ecart);
+        let garde = self.reveil.lock().unwrap_or_else(PoisonError::into_inner);
+        let (mut garde, _) = self
+            .signal
+            .wait_timeout_while(garde, reste, |reveille| {
+                !*reveille && self.en_marche.load(Ordering::SeqCst)
+            })
+            .unwrap_or_else(PoisonError::into_inner);
+        *garde = false;
+    }
+
+    /// ⚠️ **Repasser tout de suite (lot 4)** : un événement de herdr-core
+    /// (statut, tour, fin, label…) ou un geste du démon. Le passage suivant
+    /// part dès l'écart minimal écoulé, au lieu d'attendre la cadence.
+    pub fn reveille(&self) {
+        *self.reveil.lock().unwrap_or_else(PoisonError::into_inner) = true;
+        self.signal.notify_all();
+    }
+
+    /// Le flux d'événements de herdr-core est branché (`true`) ou perdu.
+    pub fn note_flux(&self, branche: bool) {
+        self.flux.store(branche, Ordering::SeqCst);
+    }
+
+    /// Un événement (ou un battement) du flux vient d'arriver.
+    pub fn note_evenement(&self) {
+        *self
+            .dernier_evenement
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(self.maintenant.maintenant());
+    }
+
+    /// Le flux d'événements est-il branché ?
+    #[must_use]
+    pub fn flux_actif(&self) -> bool {
+        self.flux.load(Ordering::SeqCst)
+    }
+
+    /// L'instant du dernier signe du flux (événement ou battement).
+    #[must_use]
+    pub fn dernier_evenement(&self) -> Option<Instant> {
+        *self
+            .dernier_evenement
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Garde la dernière panne et la journalise à son APPARITION (et quand
+    /// sa cause change), puis le rétablissement — jamais toutes les 2 s.
+    fn note_issue(&self, panne: Option<&str>) {
+        let mut derniere = self
+            .derniere_erreur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let en_panne = self.en_panne.load(Ordering::SeqCst);
+        match panne {
+            Some(cause) => {
+                if !en_panne || derniere.as_ref().map(|(texte, _)| texte.as_str()) != Some(cause) {
+                    tracing::warn!("veille : itération en échec — {cause}");
+                }
+                *derniere = Some((cause.to_string(), self.maintenant.maintenant()));
+                self.en_panne.store(true, Ordering::SeqCst);
+            }
+            None if en_panne => {
+                tracing::info!("veille : rétablie");
+                self.en_panne.store(false, Ordering::SeqCst);
+            }
+            None => {}
+        }
+    }
+
+    /// La boucle tourne-t-elle encore (fil vivant, pas arrêtée) ?
+    #[must_use]
+    pub fn en_marche(&self) -> bool {
+        self.en_marche.load(Ordering::SeqCst)
+    }
+
+    /// La dernière itération a-t-elle échoué ?
+    #[must_use]
+    pub fn en_panne(&self) -> bool {
+        self.en_panne.load(Ordering::SeqCst)
+    }
+
+    /// La dernière panne et son instant — gardée après le rétablissement.
+    #[must_use]
+    pub fn derniere_erreur(&self) -> Option<(String, Instant)> {
+        self.derniere_erreur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// Arrête la boucle — au prochain point de contrôle.
     pub fn arreter(&self) {
         self.en_marche.store(false, Ordering::SeqCst);
+        // L'attente se termine aussitôt, pas à la fin de l'intervalle.
+        self.signal.notify_all();
     }
 
     /// Les dernières vues réussies — le cache du direct (E01).

@@ -34,6 +34,8 @@ fn hello_lu() -> HelloResult {
 
 fn terminal(adresse: &str, cwd: &str) -> Terminal {
     Terminal {
+        screen: None,
+        records: Default::default(),
         address: adresse.to_string(),
         name: None,
         argv: vec![String::from("/bin/zsh")],
@@ -49,6 +51,9 @@ fn terminal(adresse: &str, cwd: &str) -> Terminal {
         foreground_cwd: Some(cwd.to_string()),
         foreground_name: Some(String::from("claude")),
         foreground_argv: vec![String::from("claude")],
+        exit_code: None,
+        reason: None,
+        signal: None,
     }
 }
 

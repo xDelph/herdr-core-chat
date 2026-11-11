@@ -387,7 +387,13 @@ fn un_prompt_et_une_reponse_ne_s_entrelacent_pas() {
     attends_que("le prompt a commencé", || port.a_note("début prompt"));
     let port_reponse = Arc::clone(&port);
     let reponse = thread::spawn(move || {
-        application::commands::repondre_question(port_reponse.as_ref(), &pane("wT:p2"), 1, None)
+        application::commands::repondre_question(
+            port_reponse.as_ref(),
+            &pane("wT:p2"),
+            1,
+            None,
+            None,
+        )
     });
     assert!(prompt.join().is_ok());
     assert!(reponse.join().is_ok());
@@ -477,4 +483,39 @@ fn le_focus_passe_par_la_file_du_pane() {
             String::from("focus")
         ]
     );
+}
+
+#[test]
+fn un_effet_qui_panique_rend_son_galet() {
+    // B1.9 : huit panics gardaient huit galets — le pane restait saturé.
+    let tourniquet = std::sync::Arc::new(application::commands::admission::Tourniquet::nouveau());
+    let cible = pane("wP:p1");
+    for _ in 0..(application::commands::admission::FILE_PANE_MAX + 2) {
+        let tourniquet = std::sync::Arc::clone(&tourniquet);
+        let cible = cible.clone();
+        let issue = std::thread::spawn(move || {
+            let _ = tourniquet.admet(&cible, || -> Result<(), ()> { panic!("effet en panne") });
+        })
+        .join();
+        assert!(issue.is_err(), "l'effet a paniqué");
+    }
+    assert_eq!(tourniquet.occupation(&cible), 0, "tous les galets rendus");
+    assert_eq!(
+        tourniquet.admet(&cible, || Ok::<_, ()>(7)),
+        Ok(7),
+        "le pane reste admissible"
+    );
+}
+
+#[test]
+fn chaque_effet_acheve_compte_un_geste_meme_en_panique() {
+    let tourniquet = application::commands::admission::Tourniquet::nouveau();
+    let pane = domain::ids::PaneId::from(String::from("p-gestes"));
+    assert_eq!(tourniquet.gestes(&pane), 0, "un pane jamais touché");
+    let _ = tourniquet.admet(&pane, || Ok::<(), ()>(()));
+    let _ = tourniquet.admet(&pane, || Err::<(), ()>(()));
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = tourniquet.admet(&pane, || -> Result<(), ()> { panic!("effet en panique") });
+    }));
+    assert_eq!(tourniquet.gestes(&pane), 3);
 }

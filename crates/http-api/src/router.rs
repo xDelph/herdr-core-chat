@@ -25,6 +25,7 @@ use std::sync::Arc;
 /// ou redécouvertes (`OriginesAutorisees`).
 pub fn routeur(services: Arc<Services>, origines: impl Into<OriginesAutorisees>) -> Router<()> {
     let origines: OriginesAutorisees = origines.into();
+    let origines_depots = origines.clone();
     let lectures = Router::new()
         .route(
             "/api/health",
@@ -131,6 +132,7 @@ pub fn routeur(services: Arc<Services>, origines: impl Into<OriginesAutorisees>)
             "/api/agents/{paneId}/trust",
             post(handlers::confiance::confiance),
         )
+        .route("/api/agents/{paneId}/pin", post(handlers::epingle::epingle))
         .route("/api/log", post(handlers::journal_client::journal_client))
         .route(
             "/api/notifications/subscriptions",
@@ -140,12 +142,36 @@ pub fn routeur(services: Arc<Services>, origines: impl Into<OriginesAutorisees>)
             "/api/notifications/presence",
             post(handlers::push::presence),
         )
+        // L'idempotence (`Idempotency-Key`) : une répétition du transport
+        // n'est jamais ré-exécutée. Ajoutée AVANT la garde, elle court APRÈS
+        // elle — une requête refusée ne réserve aucune clé.
+        .route_layer(middleware::from_fn_with_state(
+            crate::idempotence::Idempotence::nouveau(),
+            crate::idempotence::idempotence,
+        ))
         // La garde partagée de TOUTES les mutations : origine, Content-Type,
         // taille déclarée — avant toute action.
         .route_layer(middleware::from_fn_with_state(origines, garde_mutation));
 
+    // H26 : les octets d'une photo — une garde à part (origine, type
+    // binaire, 8 Mo), la même idempotence.
+    let depots = Router::new()
+        .route(
+            "/api/agents/{paneId}/attachments",
+            post(handlers::piece_jointe::piece_jointe),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            crate::idempotence::Idempotence::nouveau(),
+            crate::idempotence::idempotence,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            origines_depots,
+            garde_piece_jointe,
+        ));
+
     lectures
         .merge(mutations)
+        .merge(depots)
         // Le repli : `/api/*` inconnu reste un JSON 404 (C08) ; tout le reste
         // va aux assets de la PWA (T054) — jamais du HTML sur `/api`.
         .fallback(handlers::assets_router::statique)
@@ -212,6 +238,65 @@ async fn garde_mutation(
         Ok(()) => suivant.run(demande).await,
         Err(refus) => reponse_refus(&refus),
     }
+}
+
+/// La garde de H26 : POST, origine autorisée, un type BINAIRE (`image/*`,
+/// `application/octet-stream` — aucun formulaire HTML ne les produit, et un
+/// `fetch` étranger doit passer un preflight que le démon ne valide pas),
+/// taille déclarée ≤ 8 Mo. La taille réelle est tranchée à la lecture.
+async fn garde_piece_jointe(
+    State(origines): State<OriginesAutorisees>,
+    demande: Request,
+    suivant: Next,
+) -> Response {
+    if demande.method() != axum::http::Method::POST {
+        return methode_non_autorisee_post(Request::new(Body::empty()));
+    }
+    let origine = en_tete(&demande, "origin");
+    let mut autorisee = crate::origin::est_autorisee(origine, &origines.liste());
+    if !autorisee && origine.is_some_and(|o| !o.is_empty()) {
+        let a_rafraichir = origines.clone();
+        let change = tokio::task::spawn_blocking(move || a_rafraichir.rafraichit())
+            .await
+            .unwrap_or(false);
+        autorisee = change && crate::origin::est_autorisee(origine, &origines.liste());
+    }
+    if origine.is_none_or(str::is_empty) || !autorisee {
+        return (
+            StatusCode::FORBIDDEN,
+            axum::Json(serde_json::json!({ "error": "origin not allowed for attachments" })),
+        )
+            .into_response();
+    }
+    let type_contenu = en_tete(&demande, "content-type")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !(type_contenu.starts_with("image/") || type_contenu.starts_with("application/octet-stream"))
+    {
+        return (
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            axum::Json(serde_json::json!({
+                "error": "attachments are raw bytes: image/* or application/octet-stream"
+            })),
+        )
+            .into_response();
+    }
+    if let Some(longueur) =
+        en_tete(&demande, "content-length").and_then(|l| l.trim().parse::<usize>().ok())
+        && longueur > contracts::limits::MAX_ATTACHMENT_BYTES
+    {
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            axum::Json(serde_json::json!({
+                "error": format!(
+                    "attachment too large (maximum {} bytes)",
+                    contracts::limits::MAX_ATTACHMENT_BYTES
+                )
+            })),
+        )
+            .into_response();
+    }
+    suivant.run(demande).await
 }
 
 /// Lit un en-tête — les noms HTTP sont insensibles à la casse ; axum le fait

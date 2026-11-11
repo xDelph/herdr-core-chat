@@ -130,6 +130,7 @@ impl ComposeurOverview {
         let session_cwd_matches =
             CwdMatch::from_parts(agent.cwd.as_deref(), session_cwd.as_deref());
         AgentView {
+            faits: agent.faits.clone(),
             pane_id: agent.pane_id.clone(),
             tab_id: agent.tab_id.clone(),
             workspace_id: agent.workspace_id.clone(),
@@ -157,6 +158,9 @@ impl ComposeurOverview {
             session_cwd,
             parent_session,
             session_cwd_matches,
+            turn: agent.revision,
+            blocked_kind: agent.blocked_kind,
+            exit: agent.exit.clone(),
         }
     }
 

@@ -23,6 +23,7 @@ pub fn vue_overview(vue: &VueOverview) -> OverviewResponse {
 }
 
 fn agent(agent: &AgentDomaine) -> AgentView {
+    let faits = contracts::http::overview::champs_des_faits(&agent.faits);
     AgentView {
         agent: Nullable::de_option(agent.agent.as_ref().map(ToString::to_string)),
         cwd: Nullable::de_option(agent.cwd.clone()),
@@ -44,6 +45,12 @@ fn agent(agent: &AgentDomaine) -> AgentView {
         title: Nullable::de_option(agent.title.clone()),
         workspace_label: Nullable::de_option(agent.workspace_label.clone()),
         workspace_id: agent.workspace_id.to_string(),
+        turn: Field::de_option(Some(agent.turn)),
+        blocked_kind: Field::de_option(agent.blocked_kind),
+        exit: Field::de_option(agent.exit.as_ref().map(Into::into)),
+        pinned: faits.0,
+        subagents: faits.1,
+        screen_inexact: faits.2,
     }
 }
 
@@ -83,6 +90,7 @@ pub fn liste_conversations(
 }
 
 fn ligne_conversation(ligne: &LigneConversation) -> ConversationSummary {
+    let faits = contracts::http::overview::champs_des_faits(&ligne.faits);
     ConversationSummary {
         agent: Nullable::de_option(ligne.agent.as_ref().map(ToString::to_string)),
         branch: Field::de_option(ligne.branche.clone()),
@@ -100,6 +108,7 @@ fn ligne_conversation(ligne: &LigneConversation) -> ConversationSummary {
         session_state: ligne.session_state,
         timestamp: Field::de_option(ligne.horodatage),
         tour_debut: Field::de_option(ligne.tour_debut),
+        activity: Field::de_option(ligne.activite.clone()),
         read_at: Field::de_option(None),
         taches_de_fond: Field::de_option(ligne.taches_de_fond.map(|compte| {
             contracts::http::taches::BackgroundTaskCount {
@@ -112,6 +121,12 @@ fn ligne_conversation(ligne: &LigneConversation) -> ConversationSummary {
         workspace_id: ligne.workspace_id.to_string(),
         tab_id: ligne.tab_id.to_string(),
         pane_id: ligne.pane_id.to_string(),
+        turn: Field::de_option(Some(ligne.tour)),
+        blocked_kind: Field::de_option(ligne.bloque),
+        exit: Field::de_option(ligne.fin.as_ref().map(Into::into)),
+        pinned: faits.0,
+        subagents: faits.1,
+        screen_inexact: faits.2,
     }
 }
 
@@ -119,6 +134,7 @@ fn question(question: &QuestionEcran) -> Question {
     Question {
         choix: question.choix.iter().map(choix).collect(),
         contexte: question.contexte.clone(),
+        empreinte: Field::de_option(Some(question.empreinte())),
         invite: Field::de_option(question.invite.clone()),
         texte: question.texte.clone(),
     }

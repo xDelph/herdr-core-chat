@@ -25,4 +25,4 @@ pub mod schema;
 // (C01 : une seule définition par union, jamais une copie).
 pub use domain::notifications::PushPayload;
 pub use domain::observation::{ReadSource, SessionRefKind};
-pub use domain::status::{AgentStatus, SessionState};
+pub use domain::status::{AgentStatus, BlockedKind, SessionState};

@@ -90,7 +90,14 @@ fn travaille(
     emetteur: tokio::sync::mpsc::Sender<Event>,
     battement: std::time::Duration,
 ) {
-    let frontiere = abonnement.dernier_id().map_or(0, |id| id.sequence);
+    /*
+      ⚠️ **La frontière est celle de l'INSCRIPTION**, lue sous la même
+      possession que le récepteur live. La relire ici (`dernier_id()`), après
+      coup, la faisait avancer sur un événement publié entre les deux : il
+      arrivait par la sonnette, `sequence <= curseur`, et était jeté comme
+      « déjà émis » — perdu sans resync.
+    */
+    let frontiere = abonnement.rattrapage().reprendre_de.sequence;
     let mut suivi = Suivi {
         curseur: frontiere,
         dernier_resync: None,
@@ -147,8 +154,20 @@ fn travaille(
         if !suivi.comble(&manquants, &emetteur) {
             return;
         }
-        // Rien : on n'invente pas d'événement. Le keep-alive d'axum écrit le
-        // commentaire `:` qui empêche un proxy de couper une connexion muette.
+        // Rien de neuf : le battement NOMMÉ (F1.8) — le client compte ses
+        // battements pour savoir que le flux vit encore. Le keep-alive d'axum
+        // garde son commentaire `:` pour les mandataires.
+        if !envoie(
+            &emetteur,
+            EvenementSse::sans_id(
+                "heartbeat",
+                &contracts::events::Heartbeat {
+                    cursor: suivi.curseur,
+                },
+            ),
+        ) {
+            return;
+        }
     }
 }
 
