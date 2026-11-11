@@ -4,7 +4,7 @@
  *
  * ```
  * 14:32   ● Live           [2 need you] [3 working] [2 to read]   Exit
- * ┌ à toi (répondable) ┐ ┌ au travail ┐ ┌ au travail ┐
+ * ┌ à toi (répondable) ┐ ┌ au travail ┐ ┌ en fond (sans chrono) ┐
  * │ question + choix   │ │ 6:28       │ │ 1:41       │
  * └────────────────────┘ └────────────┘ └────────────┘
  * ○ 11 idle  [logos]                         Screen kept awake
@@ -25,12 +25,13 @@ import { useEnLigne, useMaintenant } from "../app/hooks.ts";
 import type { EtatDonnees } from "../donnees.ts";
 import { DirectSeul } from "../inbox/Boite.tsx";
 import { CarteAttention } from "../inbox/CarteAttention.tsx";
+import { IndiceFond } from "../inbox/LigneAgent.tsx";
 import type { Lectures } from "../lectures.ts";
 import { lignesAffichees } from "../lignes-provisoires.ts";
 import { apercuTexte, chrono, dossierDe, premierNonVide, quand, titrePropre } from "../libelles.ts";
 import { routeToHash } from "../routing.ts";
 import { sectionConversations } from "../sections.ts";
-import { attenteDeTaches } from "../taches.ts";
+import { attenteDeTaches, commandesEnFond, libelleFond } from "../taches.ts";
 import { Marque } from "../ui/atomes.tsx";
 import { Icone } from "../ui/Icone.tsx";
 
@@ -197,7 +198,12 @@ export const Mur = ({
   // l'ordre du travail est celui des panes, stable, pas le plus récent.
   const travail = de("en-cours").toSorted((a, b) => a.paneId.localeCompare(b.paneId));
   const nonLus = de("done");
-  const repos = de("idle");
+  // ⚠️ Un agent au repos dont des commandes tournent en fond a sa tuile
+  // (retour du 2026-11-11 : « plutôt que rien ») — sans chronomètre : lui
+  // ne travaille pas. Le pied ne compte que le repos tranquille.
+  const tousAuRepos = de("idle");
+  const enFond = tousAuRepos.filter((c) => commandesEnFond(c.tachesDeFond) > 0);
+  const repos = tousAuRepos.filter((c) => commandesEnFond(c.tachesDeFond) === 0);
   const demiMinute = Math.floor(maintenant / 30_000) * 30_000;
 
   return (
@@ -275,7 +281,8 @@ export const Mur = ({
                       {projet}
                       {conversation.timestamp === undefined
                         ? ""
-                        : ` · ${quand(conversation.timestamp, demiMinute)}`}
+                        : ` · ${quand(conversation.timestamp, demiMinute)}`}{" "}
+                      <IndiceFond conversation={conversation} />
                     </span>
                   </span>
                 </a>
@@ -283,7 +290,37 @@ export const Mur = ({
             })}
           </div>
         ) : null}
-        {attente.length === 0 && travail.length === 0 && nonLus.length === 0 ? (
+        {enFond.length > 0 ? (
+          <div className="tuile tuile--lire tuile--fond">
+            <h2 className="tuile__section">
+              <Icone nom="term" petite />
+              In the background
+            </h2>
+            {enFond.map((conversation) => {
+              const titre = titrePropre(conversation.title);
+              const projet = nomDuProjet(conversation.workspaceId);
+              return (
+                <a
+                  key={conversation.paneId}
+                  className="tuile__lu"
+                  href={routeToHash({ kind: "agent", paneId: conversation.paneId })}
+                >
+                  <Marque kind={conversation.agent} />
+                  <span className="tuile__lu-texte">
+                    <b>{titre.length > 0 ? titre : projet}</b>
+                    <span>
+                      {projet} · {libelleFond(conversation.tachesDeFond)}
+                    </span>
+                  </span>
+                </a>
+              );
+            })}
+          </div>
+        ) : null}
+        {attente.length === 0 &&
+        travail.length === 0 &&
+        nonLus.length === 0 &&
+        enFond.length === 0 ? (
           <p className="mur__calme">Nothing needs you. No agent is working.</p>
         ) : null}
       </div>

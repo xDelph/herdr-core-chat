@@ -227,6 +227,47 @@ describe("le mur live (`#/mur`)", () => {
   });
 });
 
+describe("des commandes en fond d'un agent qui a fini : un indice, pas un chrono", () => {
+  const serveur = { agentsEnCours: 0, enCours: 1, total: 1 };
+
+  test("la ligne montre l'indice ; au travail, non", () => {
+    const html = ligne({ status: "done", tachesDeFond: serveur, timestamp: 4_000 });
+    expect(html).toContain("indice-fond");
+    expect(html).toContain("1 background task running");
+    expect(ligne({ status: "working", tachesDeFond: serveur })).not.toContain("indice-fond");
+  });
+
+  test("dans la liste, il reste au-dessus du pli « N idle »", () => {
+    const html = boite([
+      conversation({ paneId: "t1", status: "working", title: "busy one" }),
+      conversation({ paneId: "t2", tachesDeFond: serveur, title: "dev server one" }),
+      conversation({ paneId: "t3", title: "sleepy one" }),
+    ]);
+    expect(html).toContain("dev server one");
+    expect(html).toContain("1 idle");
+    expect(html).not.toContain("sleepy one");
+  });
+
+  test("au mur : une tuile « In the background », sans chrono, hors du pied", async () => {
+    const { Mur } = await import("../src/mur/Mur.tsx");
+    const html = renderToStaticMarkup(
+      createElement(Mur, {
+        donnees: donnees([
+          conversation({ paneId: "t1", tachesDeFond: serveur, title: "dev server one" }),
+          conversation({ agent: "codex", paneId: "t2", title: "sleepy one" }),
+        ]),
+        lectures: new Map(),
+        onQuitter: () => undefined,
+      }),
+    );
+    expect(html).toContain("In the background");
+    expect(html).toContain("dev server one");
+    expect(html).toContain("1 background task running");
+    expect(html).not.toContain("tuile__chrono");
+    expect(html).toContain("1 idle");
+  });
+});
+
 describe("le pied du mur : le repos par famille, jamais une ligne qui déborde", () => {
   test("un logo et un compte par famille, la plus nombreuse d'abord", async () => {
     const { famillesAuRepos } = await import("../src/mur/Mur.tsx");

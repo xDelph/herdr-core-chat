@@ -609,6 +609,23 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Des commandes tournent en fond d'un agent qui a fini : un indice, pas un état. */
+.indice-fond {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px 1px 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.indice-fond .i {
+  width: 13px;
+  height: 13px;
+}
 .ligne-repos__quand {
   flex: none;
   font-size: 12px;

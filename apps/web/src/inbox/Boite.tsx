@@ -25,6 +25,7 @@ import type { EtatDonnees } from "../donnees.ts";
 import { etatLecture, FENETRE_DEMARRAGE_MS, heureLue } from "../etats.ts";
 import { estNonLue, type Lectures } from "../lectures.ts";
 import { lignesAffichees } from "../lignes-provisoires.ts";
+import { commandesEnFond } from "../taches.ts";
 import { dossierDe, marqueAgent, premierNonVide, titrePropre } from "../libelles.ts";
 import type { Groupement, OrdreListe } from "../preferences.ts";
 import { routeToHash } from "../routing.ts";
@@ -542,27 +543,42 @@ const BoiteVisible = ({
           */
           const repli = groupe.cle === "idle" && !filtre && !provisoires && groupes.length > 1;
           if (repli) {
+            /*
+              ⚠️ Un agent au repos dont des commandes tournent en fond reste
+              VISIBLE au-dessus du pli (retour du 2026-11-11) : son indice
+              caché sous « N idle » ne servirait à rien.
+            */
+            const enFond = groupe.conversations.filter(
+              (conversation) => commandesEnFond(conversation.tachesDeFond) > 0,
+            );
+            const calmes = groupe.conversations.filter(
+              (conversation) => commandesEnFond(conversation.tachesDeFond) === 0,
+            );
+            const ligneRepos = (conversation: ConversationSummary) => (
+              <LigneRepos
+                key={conversation.paneId}
+                conversation={conversation}
+                projet={nomDuProjet(conversation.workspaceId)}
+                titre={titrePropre(conversation.title)}
+                maintenant={demiMinute}
+                courante={conversation.paneId === paneCourant}
+                avecProjet={projet === null}
+              />
+            );
             return (
               <section key={groupe.cle} className="groupe groupe--repos" aria-label="Idle">
-                <PliRepos
-                  conversations={groupe.conversations}
-                  ouvert={reposOuvert}
-                  onBascule={() => setReposOuvert((valeur) => !valeur)}
-                />
-                {reposOuvert ? (
-                  <div className="lignes-repos">
-                    {groupe.conversations.map((conversation) => (
-                      <LigneRepos
-                        key={conversation.paneId}
-                        conversation={conversation}
-                        projet={nomDuProjet(conversation.workspaceId)}
-                        titre={titrePropre(conversation.title)}
-                        maintenant={demiMinute}
-                        courante={conversation.paneId === paneCourant}
-                        avecProjet={projet === null}
-                      />
-                    ))}
-                  </div>
+                {enFond.length > 0 ? (
+                  <div className="lignes-repos">{enFond.map(ligneRepos)}</div>
+                ) : null}
+                {calmes.length === 0 ? null : (
+                  <PliRepos
+                    conversations={calmes}
+                    ouvert={reposOuvert}
+                    onBascule={() => setReposOuvert((valeur) => !valeur)}
+                  />
+                )}
+                {reposOuvert && calmes.length > 0 ? (
+                  <div className="lignes-repos">{calmes.map(ligneRepos)}</div>
                 ) : null}
               </section>
             );

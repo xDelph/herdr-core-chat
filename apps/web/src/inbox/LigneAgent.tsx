@@ -12,7 +12,9 @@
  *   depuis le passage à `working` *observé* ; sinon pas de durée inventée.
  *   La seconde ligne dit ce que l'agent dit faire (`activity`, `status.msg`
  *   de herdr-core, dans ses propres mots), à défaut la demande ;
- * - **en attente de ses tâches de fond** : « Waiting for 2 background tasks » ;
+ * - **en attente de ses sous-agents** : « Waiting on 2 subagents » ;
+ * - **des commandes en fond** (serveur de dev…) : une icône de terminal et
+ *   leur nombre à côté du titre, sans chronomètre ([`IndiceFond`]) ;
  * - **sinon** : la demande qui a lancé le travail (retour du 2026-10-29), le
  *   temps écoulé, et le point « non lu » tant qu'on ne l'a pas ouverte ici.
  *
@@ -23,7 +25,7 @@
 import { memo } from "react";
 import type { ConversationSummary } from "@herdr-core-chat/shared";
 import { apercuTexte, chrono, quand } from "../libelles.ts";
-import { attenteDeTaches } from "../taches.ts";
+import { attenteDeTaches, commandesEnFond, libelleFond } from "../taches.ts";
 import { routeToHash } from "../routing.ts";
 import { AvatarAgent, type Badge } from "../ui/atomes.tsx";
 import { Icone } from "../ui/Icone.tsx";
@@ -35,6 +37,25 @@ import { Icone } from "../ui/Icone.tsx";
  */
 const apercu = (conversation: ConversationSummary): string =>
   apercuTexte(conversation.lastPrompt ?? conversation.preview ?? "");
+
+/**
+ * L'indice d'un agent qui a fini mais dont des commandes tournent en fond :
+ * une icône de terminal et leur nombre, sans chronomètre — l'agent, lui, ne
+ * travaille pas.
+ */
+export const IndiceFond = ({ conversation }: { readonly conversation: ConversationSummary }) => {
+  const libelle = libelleFond(conversation.tachesDeFond);
+  if (libelle === null || conversation.status === "working") return null;
+  return (
+    <span className="indice-fond" title={libelle}>
+      <Icone nom="term" petite />
+      <span className="num" aria-hidden="true">
+        {commandesEnFond(conversation.tachesDeFond)}
+      </span>
+      <span className="sr">{libelle}</span>
+    </span>
+  );
+};
 
 /** Le badge d'une ligne qui n'est pas « à toi » (celles-là sont des cartes). */
 export const badgeDeLigne = (conversation: ConversationSummary, nonLue: boolean): Badge | null => {
@@ -107,6 +128,7 @@ export const LigneAgent = memo(
               </span>
             ) : null}
             <span className="ligne__titre">{intitule}</span>
+            <IndiceFond conversation={conversation} />
             {auTravail ? (
               <span className="ligne__quand ligne__quand--travail num">
                 {debut === undefined ? "Working" : chrono(maintenant - debut)}
@@ -183,6 +205,7 @@ export const LigneRepos = memo(
           {titreSeul ? titre : projet}
         </span>
         {montreProjet ? <span className="ligne-repos__projet">{projet}</span> : null}
+        <IndiceFond conversation={conversation} />
         {temps === null ? null : <span className="ligne-repos__quand num">{temps}</span>}
       </a>
     );

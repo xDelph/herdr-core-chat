@@ -114,6 +114,23 @@ export const nombreDeTaches = (nombre: number): string =>
   `${String(nombre)} background ${nombre > 1 ? "tasks" : "task"}`;
 
 /**
+ * Les commandes qui tournent EN FOND d'un agent qui a fini (serveur de dev,
+ * `tail -f`…) : elles ne le font pas travailler, mais on veut le savoir
+ * (retour du 2026-11-11 : « plutôt que rien »). `0` sans décompte.
+ */
+export const commandesEnFond = (
+  compte: { readonly enCours: number; readonly agentsEnCours: number } | undefined,
+): number => (compte === undefined ? 0 : Math.max(0, compte.enCours - compte.agentsEnCours));
+
+/** « 1 background task running », « 2 background tasks running », ou `null`. */
+export const libelleFond = (
+  compte: { readonly enCours: number; readonly agentsEnCours: number } | undefined,
+): string | null => {
+  const n = commandesEnFond(compte);
+  return n === 0 ? null : `${nombreDeTaches(n)} running`;
+};
+
+/**
  * Le libellé d'une ligne de liste qui attend ses **sous-agents**, ou `null`.
  *
  * ⚠️ Retour du 2026-11-11 : seuls les sous-agents font travailler l'agent.
