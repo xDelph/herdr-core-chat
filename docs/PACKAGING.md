@@ -1,9 +1,12 @@
 # herdr-core-chat — packaging Homebrew
 
-> État au 2026-11-08 : **tout est prêt, rien n'est publié.** Aucun dépôt GitHub,
-> aucune étiquette, aucun tap poussé, aucun service démarré. Les étapes
-> « publier » et « basculer » ci-dessous attendent une instruction explicite
-> (AGENTS §1.9). L'historique d'Herdr Chat est dans `../herdr-pwa/docs/PACKAGING.md`.
+> État au 2026-11-11 : **publié et basculé.** Dépôt public `xDelph/herdr-core-chat`
+> (historique anonymisé avant le premier push), releases `v0.1.0` puis `v0.1.1`
+> (CI `release-rust` verte, 4 cibles), formule dans le tap `xDelph/homebrew-herdr-chat`.
+> Sur ce Mac, le service `herdr-core-chat` 0.1.1 tient `127.0.0.1:8792` ; le démon
+> de dev est arrêté (dev désormais sur 8793, voir §3). Une nouvelle version suit
+> §2, puis `brew upgrade` — sur instruction explicite (AGENTS §1.9). L'historique
+> d'Herdr Chat est dans `../herdr-pwa/docs/PACKAGING.md`.
 
 ## Les noms
 
