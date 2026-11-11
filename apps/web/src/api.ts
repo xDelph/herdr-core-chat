@@ -816,6 +816,7 @@ export interface DependancesFluxGlobal {
   /** S'abonne au retour du réseau et au retour au premier plan ; rend le désabonnement. */
   readonly ecouteReveil?: (reveil: () => void) => () => void;
   readonly visible?: () => boolean;
+  readonly maintenant?: () => number;
 }
 
 /**
@@ -838,9 +839,11 @@ const planifieParDefaut = (action: () => void, delai: number): (() => void) => {
 const ecouteReveilParDefaut = (reveil: () => void): (() => void) => {
   if (typeof window === "undefined" || typeof document === "undefined") return () => undefined;
   window.addEventListener("online", reveil);
+  window.addEventListener("pageshow", reveil);
   document.addEventListener("visibilitychange", reveil);
   return () => {
     window.removeEventListener("online", reveil);
+    window.removeEventListener("pageshow", reveil);
     document.removeEventListener("visibilitychange", reveil);
   };
 };
@@ -892,6 +895,8 @@ export const openEventStream = (
   let essais = 0;
   let aDejaVecu = false;
   let resynchroniser = false;
+  const maintenant = deps.maintenant ?? (() => Date.now());
+  let derniereVie = maintenant();
 
   const markLive = () => {
     annuleBaisse?.();
@@ -913,6 +918,7 @@ export const openEventStream = (
    * un flux RECRÉÉ se resynchronise une fois.
    */
   const signeDeVie = () => {
+    derniereVie = maintenant();
     handlers.onVie?.();
     annuleReprise?.();
     annuleReprise = null;
@@ -1016,11 +1022,21 @@ export const openEventStream = (
     for (const kind of EVENEMENTS_SUIVIS) source.addEventListener(kind, forward(source, kind));
   }
 
-  // Retour du réseau ou au premier plan : un flux qui n'est pas ouvert est
-  // recréé tout de suite, sans attendre la prochaine reprise.
+  /*
+    Retour du réseau ou au premier plan : un flux qui n'est pas ouvert est
+    recréé tout de suite, sans attendre la prochaine reprise.
+
+    ⚠️ **Ni un flux « ouvert » mais muet** (retour du 2026-11-11 : un état
+    vu sur le Mac mettait une minute à arriver). Sorti de veille, l'iPhone
+    garde un `EventSource` OUVERT sur une connexion morte ; la veille du
+    silence (35 s) et ses minuteries étaient gelées pendant la veille. Sans
+    signe de vie depuis plus d'un battement et demi, on recrée : le nouveau
+    flux relit la liste (`resync`).
+  */
   const arreteReveil = (deps.ecouteReveil ?? ecouteReveilParDefaut)(() => {
     if (ferme || !visible()) return;
-    if (courant?.readyState !== SOURCE_OUVERTE) recree();
+    const muet = maintenant() - derniereVie > BATTEMENT_FLUX_MS * 1.5;
+    if (courant?.readyState !== SOURCE_OUVERTE || muet) recree();
   });
 
   connect();

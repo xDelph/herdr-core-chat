@@ -152,11 +152,32 @@ export const App = () => {
   }, []);
 
   useEffect(() => {
-    const surVisibilite = () => {
-      if (document.visibilityState === "visible") void magasin.rafraichit(true);
+    /*
+      Au premier plan : relire tout de suite, puis encore une fois un peu
+      après. ⚠️ Sorti de veille, l'iPhone n'a pas toujours le réseau à la
+      première milliseconde : la lecture immédiate échouait, et l'écran
+      gardait l'état d'avant la veille jusqu'au filet de 30 s (retour du
+      2026-11-11). `pageshow` couvre la page rendue depuis le cache.
+    */
+    const minuteries = new Set<number>();
+    const auPremierPlan = () => {
+      if (document.visibilityState !== "visible") return;
+      void magasin.rafraichit(true);
+      const minuterie = window.setTimeout(() => {
+        minuteries.delete(minuterie);
+        void magasin.rafraichit(true);
+      }, 1_500);
+      minuteries.add(minuterie);
     };
-    document.addEventListener("visibilitychange", surVisibilite);
-    return () => document.removeEventListener("visibilitychange", surVisibilite);
+    document.addEventListener("visibilitychange", auPremierPlan);
+    window.addEventListener("pageshow", auPremierPlan);
+    window.addEventListener("online", auPremierPlan);
+    return () => {
+      for (const minuterie of minuteries) window.clearTimeout(minuterie);
+      document.removeEventListener("visibilitychange", auPremierPlan);
+      window.removeEventListener("pageshow", auPremierPlan);
+      window.removeEventListener("online", auPremierPlan);
+    };
   }, []);
 
   const agents = useMemo(() => donnees.overview?.agents ?? [], [donnees.overview]);

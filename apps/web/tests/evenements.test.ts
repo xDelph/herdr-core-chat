@@ -257,7 +257,9 @@ describe("le flux global tombé est recréé (mesuré : rien en 60 s après une 
     const taches: Array<{ action: () => void; delai: number }> = [];
     let reveil: (() => void) | null = null;
     const { c, handlers } = compteurs();
+    const horloge = { t: 0 };
     const fermer = openEventStream(handlers, {
+      maintenant: () => horloge.t,
       ecouteReveil: (fn) => {
         reveil = fn;
         return () => undefined;
@@ -283,7 +285,7 @@ describe("le flux global tombé est recréé (mesuré : rien en 60 s après une 
         tache.action();
       }
     };
-    return { avance, c, fermer, reveiller: () => reveil?.(), sources };
+    return { avance, c, fermer, horloge, reveiller: () => reveil?.(), sources };
   };
 
   test("erreur : recréé à 1 s ; le nouveau, une fois vivant, fait relire la liste (resync)", () => {
@@ -338,6 +340,23 @@ describe("le flux global tombé est recréé (mesuré : rien en 60 s après une 
     sources[0]?.close();
     reveiller();
     expect(sources).toHaveLength(2);
+    fermer();
+  });
+
+  test("sortie de veille : un flux « ouvert » mais muet est recréé, et relit la liste", () => {
+    // Retour du 2026-11-11 : l'iPhone garde un EventSource ouvert sur une
+    // connexion morte, et ses minuteries étaient gelées pendant la veille.
+    const { c, fermer, horloge, reveiller, sources } = banc();
+    sources[0]?.emet("open");
+    horloge.t = 10_000;
+    reveiller();
+    expect(sources).toHaveLength(1);
+    horloge.t = 5 * 60_000;
+    reveiller();
+    expect(sources).toHaveLength(2);
+    expect(sources[0]?.ferme).toBe(true);
+    sources[1]?.emet("open");
+    expect(c.resync).toBe(1);
     fermer();
   });
 });
