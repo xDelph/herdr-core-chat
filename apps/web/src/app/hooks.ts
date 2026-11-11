@@ -6,7 +6,8 @@ import type { EtatAction } from "../actions-locales.ts";
 import type { EtatDonnees } from "../donnees.ts";
 import type { Envoi } from "../envois.ts";
 import { parseRoute, routeToHash, type Route } from "../routing.ts";
-import { actions, envois, magasin } from "./services.ts";
+import type { PremierMessage } from "../premier-message.ts";
+import { actions, envois, magasin, premiers } from "./services.ts";
 import { creeSuiviViewport } from "../viewport.ts";
 
 export const useDonnees = (): EtatDonnees =>
@@ -36,6 +37,24 @@ export const useEnvois = (paneId: string): ReadonlyArray<Envoi> => {
   const cle = `${paneId}:${String(version)}`;
   if (cache.cle !== cle) {
     const suivant = { cle, liste: envois.liste(paneId) };
+    setCache(suivant);
+    return suivant.liste;
+  }
+  return cache.liste;
+};
+
+/**
+ * Tous les envois, de tous les panes — la boîte d'envoi. Même règle que
+ * `useEnvois` : relus seulement quand la version change.
+ */
+export const useTousEnvois = (): ReadonlyArray<Envoi> => {
+  const version = useSyncExternalStore(envois.souscrire, versionEnvois, versionEnvois);
+  const [cache, setCache] = useState<{
+    readonly version: number;
+    readonly liste: ReadonlyArray<Envoi>;
+  }>(() => ({ liste: envois.tous(), version }));
+  if (cache.version !== version) {
+    const suivant = { liste: envois.tous(), version };
     setCache(suivant);
     return suivant.liste;
   }
@@ -104,6 +123,26 @@ const jamaisEtroit = (): boolean => false;
 export const useEtroit = (): boolean => useSyncExternalStore(souscrireEtroit, etroit, jamaisEtroit);
 
 /**
+ * Une requête média suivie en direct — `false` hors navigateur (rendu des
+ * tests). Sert aux panneaux du bureau : on ne calcule pas ce qu'on ne montre
+ * pas.
+ */
+export const useMedia = (requete: string): boolean =>
+  useSyncExternalStore(
+    useCallback(
+      (abonne: () => void) => {
+        if (typeof window === "undefined") return () => undefined;
+        const liste = window.matchMedia(requete);
+        liste.addEventListener("change", abonne);
+        return () => liste.removeEventListener("change", abonne);
+      },
+      [requete],
+    ),
+    () => typeof window !== "undefined" && window.matchMedia(requete).matches,
+    jamaisEtroit,
+  );
+
+/**
  * La hauteur réellement visible, clavier iOS compris.
  *
  * ⚠️ Safari iOS ignore `interactive-widget=resizes-content` : quand le clavier
@@ -116,6 +155,16 @@ export const useHauteurVisible = (): void => {
     const suivi = creeSuiviViewport();
     let derniere = "";
     const applique = () => {
+      /*
+        ⚠️ **Le document ne défile jamais — iOS si (retour du 2026-11-10).**
+        À l'ouverture du clavier, Safari fait glisser la page entière de la
+        hauteur du clavier (`scrollY` 339 mesuré) alors qu'elle ne déborde
+        pas. L'app suivait ce glissement par `--haut-visible`, mais les
+        touchers ne le suivaient pas : clavier ouvert, Envoyer ne répondait
+        plus tant que le champ gardait le focus. On ramène la page en haut :
+        l'app occupe alors exactement la zone visible, sans décalage.
+      */
+      if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
       const mesure = suivi({
         haut: Math.round(vue?.offsetTop ?? 0),
         hauteur: Math.round(vue?.height ?? window.innerHeight),
@@ -155,6 +204,7 @@ export const useHauteurVisible = (): void => {
     applique();
     vue?.addEventListener("resize", applique);
     vue?.addEventListener("scroll", applique);
+    window.addEventListener("scroll", applique, { passive: true });
     window.addEventListener("resize", appliqueEtRelit);
     window.addEventListener("orientationchange", appliqueEtRelit);
     return () => {
@@ -162,8 +212,15 @@ export const useHauteurVisible = (): void => {
       for (const minuterie of minuteries) window.clearTimeout(minuterie);
       vue?.removeEventListener("resize", applique);
       vue?.removeEventListener("scroll", applique);
+      window.removeEventListener("scroll", applique);
       window.removeEventListener("resize", appliqueEtRelit);
       window.removeEventListener("orientationchange", appliqueEtRelit);
     };
   }, []);
+};
+
+/** Le premier message qui attend sur ce pane (lancement), ou rien. */
+export const usePremier = (paneId: string): PremierMessage | undefined => {
+  useSyncExternalStore(premiers.souscrire, premiers.version, premiers.version);
+  return premiers.pour(paneId);
 };

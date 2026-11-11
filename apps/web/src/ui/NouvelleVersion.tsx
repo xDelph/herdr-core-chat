@@ -3,7 +3,7 @@
  * qu'un brouillon ou un envoi attend (recharger les effacerait).
  */
 import { useEffect, useSyncExternalStore } from "react";
-import { envois, version } from "../app/services.ts";
+import { envois, premiers, version } from "../app/services.ts";
 import { unBrouillonExiste } from "../brouillons.ts";
 import { offreRechargement } from "../nouvelle-version.ts";
 
@@ -12,7 +12,10 @@ const jamais = () => false;
 export const NouvelleVersion = () => {
   const nouvelle = useSyncExternalStore(version.souscrire, version.nouvelle, jamais);
   // Relu à chaque changement d'envoi ; le brouillon est relu au rendu.
-  const enAttente = useSyncExternalStore(envois.souscrire, envois.enAttente, jamais);
+  const envoiEnAttente = useSyncExternalStore(envois.souscrire, envois.enAttente, jamais);
+  // Un premier message qui attend son agent est un envoi comme un autre.
+  const premierEnAttente = useSyncExternalStore(premiers.souscrire, premiers.enAttente, jamais);
+  const enAttente = envoiEnAttente || premierEnAttente;
 
   useEffect(() => {
     if (import.meta.env.DEV) return undefined;

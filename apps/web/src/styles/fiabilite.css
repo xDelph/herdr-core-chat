@@ -97,7 +97,8 @@
 }
 .projet-tete__ligne h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 24px;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

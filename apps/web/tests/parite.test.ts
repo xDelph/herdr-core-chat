@@ -48,8 +48,8 @@ describe("préférences retrouvées", () => {
   });
 });
 
-describe("une ligne montre branche · modèle · réflexion", () => {
-  test("les trois, dans l'ordre, la réflexion en français", () => {
+describe("la ligne tait branche · modèle · réflexion (maquette « Inbox »)", () => {
+  test("ils vivent dans l'en-tête de la conversation, plus sur la ligne", () => {
     const html = rendu(
       createElement(LigneAgent, {
         conversation: conversation({ branch: "main", model: "gpt-5", thinking: "high" }),
@@ -61,7 +61,8 @@ describe("une ligne montre branche · modèle · réflexion", () => {
         titre: "titre",
       }),
     );
-    expect(html).toContain("main · gpt-5 · high");
+    expect(html).not.toContain("gpt-5");
+    expect(html).not.toContain("main ·");
   });
 
   test("rien à dire : pas de ligne vide", () => {
@@ -149,10 +150,15 @@ describe("le détail d'un projet (`#/projet/<id>`)", () => {
   });
 });
 
-describe("le tri de la liste est un choix, plus un « récent » figé", () => {
-  test("le bouton dit l'ordre courant", () => {
-    expect(boite(null, "nom")).toContain("By name");
-    expect(boite(null, "recent")).toContain("Most recent");
+describe("le tri reste un choix, rangé dans les réglages", () => {
+  test("la liste ne porte plus le bouton de tri (maquette « Inbox »)", () => {
+    expect(boite(null, "nom")).not.toContain("By name");
+    expect(boite(null, "recent")).not.toContain("Most recent");
+  });
+
+  test("l'ordre choisi s'applique toujours aux lignes", () => {
+    const html = boite(null, "nom");
+    expect(html.indexOf("alpha")).toBeLessThan(html.indexOf("zeta"));
   });
 });
 
@@ -253,8 +259,8 @@ describe("Herdr injoignable : une seule explication, la vraie", () => {
     expect(html).not.toContain("Unreadable");
   });
 
-  test("zéro se dit au pluriel", () => {
-    expect(injoignable()).toContain("0 agents");
+  test("pas de compte hors recherche : la liste ne s'encombre pas", () => {
+    expect(injoignable()).not.toContain("0 agents");
   });
 });
 

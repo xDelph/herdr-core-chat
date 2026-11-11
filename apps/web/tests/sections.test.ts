@@ -213,7 +213,7 @@ describe("U04 — structure et libellés", () => {
     expect(SECTION_LABEL["a-traiter"]).toBe("Needs you");
     expect(SECTION_LABEL["en-cours"]).toBe("Working");
     expect(SECTION_LABEL["idle"]).toBe("Idle");
-    expect(SECTION_LABEL["done"]).toBe("Done");
+    expect(SECTION_LABEL["done"]).toBe("Unread");
   });
 
   test("la réponse est stable à conversation identique", () => {

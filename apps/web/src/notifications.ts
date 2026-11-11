@@ -1,3 +1,27 @@
+import {
+  CLE_GENRES_COUPES,
+  corpsAbonnement,
+  genresCoupesEnregistres,
+  type GenreNotification,
+} from "./genres-notification.ts";
+
+/** Les genres que cet appareil a coupés (Réglages) — retenus ici. */
+export const lireGenresCoupes = (): GenreNotification[] => {
+  try {
+    return genresCoupesEnregistres(localStorage.getItem(CLE_GENRES_COUPES));
+  } catch {
+    return [];
+  }
+};
+
+const retenirGenresCoupes = (coupes: ReadonlyArray<GenreNotification>): void => {
+  try {
+    localStorage.setItem(CLE_GENRES_COUPES, JSON.stringify(coupes));
+  } catch {
+    // Navigation privée : le choix vaut pour cette session, et c'est tout.
+  }
+};
+
 const applicationServerKey = (encoded: string): Uint8Array<ArrayBuffer> => {
   const padded = `${encoded}${"=".repeat((4 - (encoded.length % 4)) % 4)}`;
   const binary = window.atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
@@ -67,7 +91,7 @@ export const enablePushNotifications = async (): Promise<void> => {
 
   const existing = await registration.pushManager.getSubscription();
   if (existing !== null) {
-    await subscriptionRequest(existing.toJSON());
+    await subscriptionRequest(corpsAbonnement(existing.toJSON(), lireGenresCoupes()));
     return;
   }
 
@@ -85,7 +109,7 @@ export const enablePushNotifications = async (): Promise<void> => {
     userVisibleOnly: true,
   });
   try {
-    await subscriptionRequest(subscription.toJSON());
+    await subscriptionRequest(corpsAbonnement(subscription.toJSON(), lireGenresCoupes()));
   } catch (cause) {
     await subscription.unsubscribe();
     throw cause;
@@ -101,4 +125,20 @@ export const disablePushNotifications = async (): Promise<void> => {
       "The subscription was removed from the server, but this browser could not unsubscribe.",
     );
   }
+};
+
+/**
+ * Change les genres coupés : retenus ici, et renvoyés au démon avec
+ * l'abonnement s'il existe (sinon au prochain « Turn on »). Un refus du démon
+ * remonte tel quel — le choix affiché n'est pas celui du Mac tant qu'il n'a
+ * pas répondu.
+ */
+export const appliquerGenresCoupes = async (
+  coupes: ReadonlyArray<GenreNotification>,
+): Promise<void> => {
+  const abonnement = await currentPushSubscription();
+  if (abonnement !== null) {
+    await subscriptionRequest(corpsAbonnement(abonnement.toJSON(), coupes));
+  }
+  retenirGenresCoupes(coupes);
 };

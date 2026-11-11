@@ -23,6 +23,7 @@ import { creeActionsLocales } from "../actions-locales.ts";
 import { creeMagasinDonnees } from "../donnees.ts";
 import { creeMagasinEnvois, planificateurReel, type Lanceur } from "../envois.ts";
 import { creeJournal } from "../journal.ts";
+import { creeMagasinPremiers } from "../premier-message.ts";
 import { creeMagasinNotifications } from "../notifications-ecran.ts";
 import { creeMagasinPleinEcran } from "../plein-ecran.ts";
 import { creeMagasinVersion } from "../nouvelle-version.ts";
@@ -69,6 +70,9 @@ const lanceur: Lanceur = async (pane, text) => {
 };
 
 export const envois = creeMagasinEnvois(lanceur, planificateurReel);
+
+/** Le premier message d'un agent lancé d'ici, qui attend que l'agent soit prêt. */
+export const premiers = creeMagasinPremiers();
 
 export const actions = creeActionsLocales();
 
@@ -150,7 +154,9 @@ export const presence = creePresence({
   endpoint: async () => {
     if (!("serviceWorker" in navigator)) return null;
     const enregistrement = await navigator.serviceWorker.getRegistration();
-    const abonnement = await enregistrement?.pushManager.getSubscription();
+    // ⚠️ Safari hors écran d'accueil a un worker SANS `pushManager` : sans
+    // ce `?.`, chaque présence échouait (« presence not sent » au journal).
+    const abonnement = await enregistrement?.pushManager?.getSubscription();
     return abonnement?.endpoint ?? null;
   },
   envoie: signalePresence,

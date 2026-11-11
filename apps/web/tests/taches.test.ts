@@ -163,6 +163,40 @@ describe("le harnais n'est pas l'utilisateur", () => {
     expect(html).not.toContain("Running cargo test");
   });
 
+  test("au travail, la seconde ligne dit ce que l'agent fait ; sinon la demande", () => {
+    const proprietes = {
+      courante: false,
+      debutTravail: undefined,
+      maintenant: 0,
+      nonLue: false,
+      projet: "atelier",
+      titre: "",
+    };
+    const auTravail = rendu(
+      createElement(LigneAgent, {
+        ...proprietes,
+        conversation: conversation("p1", {
+          activity: "Inspecting the status records",
+          lastPrompt: "fix the iPad sheets",
+          status: "working",
+        }),
+      }),
+    );
+    // Deux lignes au plus (maquette « Inbox ») : ce qui change passe devant.
+    expect(auTravail).toContain("Inspecting the status records");
+    expect(auTravail).not.toContain("fix the iPad sheets");
+    const auRepos = rendu(
+      createElement(LigneAgent, {
+        ...proprietes,
+        conversation: conversation("p1", {
+          activity: "Inspecting the status records",
+          status: "idle",
+        }),
+      }),
+    );
+    expect(auRepos).not.toContain("Inspecting the status records");
+  });
+
   test("la carte se titre avec la description et l'état connus", () => {
     const messages = toMessages([
       rapport("r1", "court", "2026-10-29T10:05:00.000Z"),
@@ -300,7 +334,10 @@ describe("la liste suit les tâches de fond et la session", () => {
       "",
     );
     const html = rendu(
-      createElement(PuceTaches, { compte: { enCours: 2, total: 5 }, onOuvrir: () => undefined }),
+      createElement(PuceTaches, {
+        compte: { enCours: 2, total: 5 },
+        onOuvrir: () => undefined,
+      }),
     );
     expect(html).toContain("2 background tasks");
     expect(html).toContain("spin");

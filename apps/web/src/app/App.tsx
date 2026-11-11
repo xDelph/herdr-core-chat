@@ -5,8 +5,10 @@
  * conversation à droite.
  */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import type { AgentView } from "@herdr-core-chat/shared";
+import type { AgentView, ConversationSummary } from "@herdr-core-chat/shared";
 import { Boite } from "../inbox/Boite.tsx";
+import { Rail } from "../inbox/Rail.tsx";
+import type { Section } from "../sections.ts";
 import { ecritLectures, litLectures, noteLecture, type Lectures } from "../lectures.ts";
 import { dossierDe, premierNonVide } from "../libelles.ts";
 import { purgeAnciennesPositions, stockageNavigateur } from "../memoire-defilement.ts";
@@ -20,13 +22,23 @@ import {
 } from "../preferences.ts";
 import { retiens } from "../pane-ouvert.ts";
 import { estAdresseDOnglet, HOME } from "../routing.ts";
-import { useDonnees, useEtroit, useHauteurVisible, useRoute } from "./hooks.ts";
+import {
+  useDonnees,
+  useEnLigne,
+  useEtroit,
+  useHauteurVisible,
+  useMaintenant,
+  useRoute,
+  useTousEnvois,
+} from "./hooks.ts";
+import { ecrireBrouillon } from "../brouillons.ts";
+import { titrePropre } from "../libelles.ts";
 import { Notifications } from "../ui/Notifications.tsx";
 import { NouvelleVersion } from "../ui/NouvelleVersion.tsx";
 import { PleinEcran } from "../ui/PleinEcran.tsx";
 import { SqueletteFil } from "../ui/Squelettes.tsx";
 import type { PreuvePrompt } from "../envois.ts";
-import { envois, magasin, partageLecture } from "./services.ts";
+import { envois, magasin, partageLecture, premiers } from "./services.ts";
 
 /**
  * La conversation est chargée **à la demande** : le fil, le Markdown et
@@ -54,6 +66,22 @@ const Reglages = lazy(async () => {
   return { default: module.Reglages };
 });
 
+const BoiteEnvoi = lazy(async () => {
+  const module = await import("../feuilles/BoiteEnvoi.tsx");
+  return { default: module.BoiteEnvoi };
+});
+
+/** Le mur live (`#/mur`) : une tablette posée — chargé seulement là. */
+const Mur = lazy(async () => {
+  const module = await import("../mur/Mur.tsx");
+  return { default: module.Mur };
+});
+
+const Connexion = lazy(async () => {
+  const module = await import("../feuilles/Connexion.tsx");
+  return { default: module.Connexion };
+});
+
 /**
  * L'attente du module de conversation (chargé à la demande) : déjà la forme
  * d'un fil, pas un texte au milieu du vide.
@@ -68,7 +96,12 @@ const ATTENTE_CONVERSATION = (
   </section>
 );
 
-type FeuilleApp = { readonly genre: "lancement" } | { readonly genre: "reglages" } | null;
+type FeuilleApp =
+  | { readonly genre: "lancement" }
+  | { readonly genre: "reglages" }
+  | { readonly genre: "envois" }
+  | { readonly genre: "connexion" }
+  | null;
 
 /** Le pane et la preuve d'un événement `prompt` — ou rien s'il est hors forme. */
 const preuveDe = (donnees: unknown): { pane: string; preuve: PreuvePrompt } | undefined => {
@@ -90,6 +123,8 @@ export const App = () => {
   const [ordre, setOrdre] = useState<OrdreListe>(lireOrdre);
   const [lectures, setLectures] = useState<Lectures>(() => litLectures(stockageNavigateur()));
   const [feuille, setFeuille] = useState<FeuilleApp>(null);
+  /** Le filtre d'état du rail (bureau) ; `null` : toute la liste. */
+  const [filtreSection, setFiltreSection] = useState<Section | null>(null);
   /**
    * Le dernier état connu de chaque pane ouvert — pour les **libellés**
    * seulement (titre, projet, agent). ⚠️ Jamais pour l'état : un pane fermé
@@ -129,6 +164,14 @@ export const App = () => {
   const agentLu =
     paneOuvert === null ? undefined : agents.find((agent) => agent.paneId === paneOuvert);
 
+  // Le premier message d'un agent lancé d'ici part quand l'agent est prêt
+  // (`premier-message.ts`) — par les envois, avec leurs preuves et leurs états.
+  useEffect(() => {
+    for (const message of premiers.prets(agents)) {
+      envois.ajoute({ apres: null, creeA: message.creeA, pane: message.pane, text: message.texte });
+    }
+  }, [agents]);
+
   useEffect(() => {
     if (agentLu === undefined) return;
     setMemoire((precedente) => retiens(precedente, agentLu.paneId, agentLu));
@@ -153,7 +196,39 @@ export const App = () => {
     partageLecture(paneId, instant);
   }, []);
 
+  /** « Mark all read » : chaque réponse finie, lue maintenant (et partagée). */
+  const toutLire = useCallback(
+    (lignes: ReadonlyArray<ConversationSummary>) => {
+      const instant = Date.now();
+      for (const ligne of lignes) noteVue(ligne.paneId, instant);
+    },
+    [noteVue],
+  );
+
   const retour = useCallback(() => navigue({ kind: "liste" }), [navigue]);
+  // Stables : la boîte est mémoïsée, une flèche neuve à chaque rendu la
+  // redessinerait pour rien.
+  const ouvreLancement = useCallback(() => setFeuille({ genre: "lancement" }), []);
+  const ouvreReglages = useCallback(() => setFeuille({ genre: "reglages" }), []);
+  const ouvreBoiteEnvoi = useCallback(() => setFeuille({ genre: "envois" }), []);
+  const ouvreConnexion = useCallback(() => setFeuille({ genre: "connexion" }), []);
+  const tousEnvois = useTousEnvois();
+  const enLigne = useEnLigne();
+  // L'horloge des feuilles « âge » : seulement quand l'une d'elles est ouverte.
+  const maintenant = useMaintenant(
+    feuille?.genre === "envois" || feuille?.genre === "connexion" ? 1_000 : null,
+  );
+  /** Le nom d'un pane pour la boîte d'envoi : la ligne lue, sinon l'overview. */
+  const titreDe = useCallback(
+    (pane: string): string => {
+      const ligne = donnees.conversations?.find((candidat) => candidat.paneId === pane);
+      if (ligne !== undefined) return titrePropre(ligne.title);
+      const vu = donnees.overview?.agents.find((candidat) => candidat.paneId === pane);
+      return premierNonVide(vu?.name, vu?.workspaceLabel, pane);
+    },
+    [donnees.conversations, donnees.overview],
+  );
+  const reessaie = useCallback(() => void magasin.rafraichit(true), []);
 
   // Les libellés et les voisins lisent le vivant, sinon le souvenir ; l'état et
   // les gestes de la conversation ne lisent que le vivant (`agentLu`).
@@ -192,23 +267,48 @@ export const App = () => {
     [agent, agents],
   );
 
+  if (route.kind === "mur") {
+    return (
+      <div className="app" data-vue="mur">
+        <Notifications />
+        <NouvelleVersion />
+        <Suspense fallback={null}>
+          <Mur donnees={donnees} lectures={lectures} onQuitter={retour} />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="app" data-vue={route.kind === "agent" ? "agent" : "liste"}>
       <div className="barre-etat" aria-hidden="true" />
       <Notifications />
       <NouvelleVersion />
       <PleinEcran />
+      <Rail
+        donnees={donnees}
+        lectures={lectures}
+        filtre={filtreSection}
+        projetCourant={route.kind === "projet" ? route.workspaceId : null}
+        onFiltre={setFiltreSection}
+        onLancer={ouvreLancement}
+        onBoiteEnvoi={ouvreBoiteEnvoi}
+        onReglages={ouvreReglages}
+        onConnexion={ouvreConnexion}
+      />
       <Boite
         donnees={donnees}
         lectures={lectures}
         groupement={groupement}
-        onGroupement={changeGroupement}
         ordre={ordre}
-        onOrdre={changeOrdre}
         projet={route.kind === "projet" ? route.workspaceId : null}
-        onLancer={() => setFeuille({ genre: "lancement" })}
-        onReglages={() => setFeuille({ genre: "reglages" })}
-        onReessayer={() => void magasin.rafraichit(true)}
+        filtreSection={filtreSection}
+        onToutLire={toutLire}
+        onLancer={ouvreLancement}
+        onReglages={ouvreReglages}
+        onConnexion={ouvreConnexion}
+        onBoiteEnvoi={ouvreBoiteEnvoi}
+        onReessayer={reessaie}
         paneCourant={paneOuvert}
         cachee={etroit && paneOuvert !== null}
       />
@@ -245,10 +345,44 @@ export const App = () => {
               route.kind === "projet" ? route.workspaceId : (agent?.workspaceId ?? null)
             }
             onClose={() => setFeuille(null)}
-            onLance={(paneId) => {
+            onLance={(paneId, premier) => {
               setFeuille(null);
+              premiers.attend(paneId, premier, Date.now());
               navigue({ kind: "agent", paneId });
             }}
+          />
+        </Suspense>
+      ) : null}
+      {feuille?.genre === "envois" ? (
+        <Suspense fallback={null}>
+          <BoiteEnvoi
+            envois={tousEnvois}
+            magasin={envois}
+            titreDe={titreDe}
+            maintenant={maintenant}
+            paneCourant={paneOuvert}
+            onOuvrir={(pane) => {
+              setFeuille(null);
+              navigue({ kind: "agent", paneId: pane });
+            }}
+            onModifier={(pane, texte) => {
+              ecrireBrouillon(pane, texte);
+              setFeuille(null);
+              navigue({ kind: "agent", paneId: pane });
+            }}
+            onClose={() => setFeuille(null)}
+          />
+        </Suspense>
+      ) : null}
+      {feuille?.genre === "connexion" ? (
+        <Suspense fallback={null}>
+          <Connexion
+            donnees={donnees}
+            enLigne={enLigne}
+            derniereVie={magasin.derniereVie()}
+            maintenant={maintenant}
+            onReessayer={reessaie}
+            onClose={() => setFeuille(null)}
           />
         </Suspense>
       ) : null}
@@ -260,6 +394,8 @@ export const App = () => {
             overview={donnees.overview}
             groupement={groupement}
             onGroupement={changeGroupement}
+            ordre={ordre}
+            onOrdre={changeOrdre}
             onClose={() => setFeuille(null)}
           />
         </Suspense>

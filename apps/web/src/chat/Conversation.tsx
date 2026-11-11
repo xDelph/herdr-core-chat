@@ -12,7 +12,8 @@ import type { AgentView, ConversationSummary } from "@herdr-core-chat/shared";
 import { cleAction } from "../actions-locales.ts";
 import { envoisApparus } from "../apparition-envois.ts";
 import { touchedFilesOf, type Block } from "../blocks.ts";
-import { arreter } from "../app/gestes.ts";
+import { arreter, epingler } from "../app/gestes.ts";
+import { uploadAttachment } from "../api.ts";
 import { useAction, useEnvois } from "../app/hooks.ts";
 import { envois } from "../app/services.ts";
 import { creeTranscripteur, tourEnCours } from "../transcript.ts";
@@ -27,7 +28,8 @@ import { Taches } from "../feuilles/Taches.tsx";
 import { infosDesTaches, type RapportDeTache } from "../taches.ts";
 import { InfosTaches } from "./CarteRapport.tsx";
 import { useListeTaches } from "./useTaches.ts";
-import { Composeur, type PoigneeComposeur } from "./Composeur.tsx";
+import { Composeur, type Deposeur, type PoigneeComposeur } from "./Composeur.tsx";
+import { SousAgents } from "./SousAgents.tsx";
 import { EnTete, Voisins } from "./EnTete.tsx";
 import { Envois } from "./Envois.tsx";
 import { Fil } from "./Fil.tsx";
@@ -35,7 +37,9 @@ import { LigneTravail } from "./LigneTravail.tsx";
 import { Question } from "./Question.tsx";
 import { useSuiviSession } from "./useSuiviSession.ts";
 import { demandesEnFile } from "../file-attente.ts";
+import { Details } from "./Details.tsx";
 import { FileAttente } from "./FileAttente.tsx";
+import { PremierEnAttente } from "./PremierEnAttente.tsx";
 
 type Feuille =
   | { readonly genre: "modele" }
@@ -182,6 +186,7 @@ export const Conversation = ({
   const composeur = useRef<PoigneeComposeur | null>(null);
   const [feuille, setFeuille] = useState<Feuille | null>(null);
   const arret = useAction(cleAction(paneId, "arret"));
+  const epinglage = useAction(cleAction(paneId, "epingle"));
 
   // La lecture est notée ici, sur le téléphone — jamais par un focus sur le Mac.
   // ⚠️ **Seulement page visible.** Une conversation ouverte dans un onglet en
@@ -222,6 +227,13 @@ export const Conversation = ({
     [paneId],
   );
   const arrete = useCallback(() => void arreter(paneId), [paneId]);
+  const epingle = useCallback((pinned: boolean) => void epingler(paneId, pinned), [paneId]);
+  // La cible est capturée ici : une photo part vers CE pane, même si l'on
+  // change de conversation pendant le dépôt.
+  const deposer = useCallback<Deposeur>(
+    (fichier) => uploadAttachment(paneId, fichier, fichier.name),
+    [paneId],
+  );
   const remettre = useCallback((texte: string) => composeur.current?.remettre(texte), []);
   const ouvrirFichier = useCallback(
     (chemin: string) => setFeuille({ chemin, depuisFichiers: false, genre: "fichier" }),
@@ -238,9 +250,12 @@ export const Conversation = ({
 
   // ⚠️ Mémoïsé : un `children` neuf à chaque rendu défaisait le `memo` du fil.
   const travaille = status === "working";
+  const sousAgents = conversation?.subagents ?? agent?.subagents;
   const basDuFil = useMemo(
     () => (
       <>
+        {sousAgents === undefined ? null : <SousAgents liste={sousAgents} />}
+        <PremierEnAttente paneId={paneId} agentNom={agentNom} onRemettre={remettre} />
         <Envois liste={liste} onRemettre={remettre} travaille={travaille} />
         <FileAttente
           demandes={enFile}
@@ -249,7 +264,7 @@ export const Conversation = ({
         {travaille ? <LigneTravail tour={tour} debutObserve={debutObserve} cwd={cwd} /> : null}
       </>
     ),
-    [cwd, debutObserve, enFile, liste, remettre, tour, travaille],
+    [agentNom, cwd, debutObserve, enFile, liste, paneId, remettre, sousAgents, tour, travaille],
   );
   // Le compte des fichiers modifiés n'est calculé qu'à l'ouverture du menu.
   const compteFichiers = useCallback(() => touchedFilesOf(messages).length, [messages]);
@@ -263,95 +278,130 @@ export const Conversation = ({
 
   return (
     <section className="conversation" aria-label={`Conversation ${titre}`}>
-      <EnTete
-        titre={titre}
-        projet={projet}
+      <div className="conversation__principal">
+        <EnTete
+          titre={titre}
+          projet={projet}
+          kind={kind}
+          modele={conversation?.model ?? reglages.modele}
+          reflexion={conversation?.thinking ?? reglages.reflexion}
+          branche={conversation?.branch}
+          status={status}
+          transport={vue.transport}
+          causeRepli={vue.causeRepli}
+          inactif={disparu}
+          compteFichiers={compteFichiers}
+          tachesDeFond={conversation?.tachesDeFond}
+          onTaches={() => setFeuille({ genre: "taches" })}
+          epingle={disparu ? undefined : (conversation?.pinned ?? agent?.pinned ?? false)}
+          epinglageEnCours={epinglage?.phase === "en-cours"}
+          onEpingle={epingle}
+          onRetour={onRetour}
+          onModele={() => setFeuille({ genre: "modele" })}
+          onFichiers={() => setFeuille({ genre: "fichiers" })}
+        />
+        <BandeauConnexion />
+        <Voisins agents={voisins} courant={paneId} />
+        {disparu ? (
+          <Avis ton="attention" annonce="statut">
+            Herdr no longer knows this pane — it was closed. Showing the last items read; nothing
+            can be sent to it anymore.
+          </Avis>
+        ) : null}
+        {(conversation?.screenInexact ?? agent?.screenInexact) === true ? (
+          <Avis ton="attention" annonce="statut">
+            Screen may be incomplete — herdr-core restarted after a crash.
+          </Avis>
+        ) : null}
+        {vue.fin === null ? null : (
+          <Avis ton="attention" annonce="statut">
+            The session stream stopped: {vue.fin}
+          </Avis>
+        )}
+        {vue.erreur !== null && vue.entries.length > 0 ? (
+          <Avis ton="erreur" annonce="alerte">
+            {vue.avertissement ?? vue.erreur}
+          </Avis>
+        ) : vue.avertissement === null ? null : (
+          <Avis ton="attention" annonce="statut">
+            {vue.avertissement}
+          </Avis>
+        )}
+
+        <InfosTaches.Provider value={infosTaches}>
+          <Fil
+            paneId={paneId}
+            items={items}
+            vue={vue}
+            suivi={suivi}
+            status={status}
+            cwd={cwd}
+            onOuvrirFichier={ouvrirFichier}
+            aUneSession={aUneSession}
+            envoisEnAttente={liste.length}
+          >
+            {basDuFil}
+          </Fil>
+          {feuille?.genre === "taches" ? (
+            <Taches
+              paneId={paneId}
+              cwd={cwd}
+              onClose={() => setFeuille(null)}
+              onOuvrirFichier={ouvrirFichier}
+            />
+          ) : null}
+        </InfosTaches.Provider>
+
+        {bloque && conversation !== null ? (
+          <Question conversation={conversation} agentNom={agentNom} lueA={lueA} />
+        ) : null}
+        <Composeur
+          ref={composeur}
+          paneId={paneId}
+          agentNom={agentNom}
+          travaille={status === "working"}
+          interruptible={
+            status === "working" ||
+            status === "blocked" ||
+            status === "error" ||
+            status === "unknown"
+          }
+          arretEnCours={arret?.phase === "en-cours"}
+          aide={aide}
+          envoiImpossible={sansEnvoi !== null}
+          inactif={disparu}
+          onEnvoie={envoie}
+          onArrete={arrete}
+          deposer={disparu ? undefined : deposer}
+        />
+      </div>
+      <Details
         kind={kind}
+        agentNom={agentNom}
         modele={conversation?.model ?? reglages.modele}
         reflexion={conversation?.thinking ?? reglages.reflexion}
-        status={status}
-        transport={vue.transport}
-        causeRepli={vue.causeRepli}
-        inactif={disparu}
-        compteFichiers={compteFichiers}
+        branche={conversation?.branch}
+        cwd={cwd}
+        agent={connu}
+        messages={messages}
+        sousAgents={(sousAgents ?? []).filter((sous) => sous.status === "working").length}
         tachesDeFond={conversation?.tachesDeFond}
-        onTaches={() => setFeuille({ genre: "taches" })}
-        onRetour={onRetour}
+        inactif={disparu || status === "working" || status === "blocked"}
         onModele={() => setFeuille({ genre: "modele" })}
         onFichiers={() => setFeuille({ genre: "fichiers" })}
-      />
-      <BandeauConnexion />
-      <Voisins agents={voisins} courant={paneId} />
-      {disparu ? (
-        <Avis ton="attention" annonce="statut">
-          Herdr no longer knows this pane — it was closed. Showing the last items read; nothing can
-          be sent to it anymore.
-        </Avis>
-      ) : null}
-      {vue.fin === null ? null : (
-        <Avis ton="attention" annonce="statut">
-          The session stream stopped: {vue.fin}
-        </Avis>
-      )}
-      {vue.erreur !== null && vue.entries.length > 0 ? (
-        <Avis ton="erreur" annonce="alerte">
-          {vue.avertissement ?? vue.erreur}
-        </Avis>
-      ) : vue.avertissement === null ? null : (
-        <Avis ton="attention" annonce="statut">
-          {vue.avertissement}
-        </Avis>
-      )}
-
-      <InfosTaches.Provider value={infosTaches}>
-        <Fil
-          paneId={paneId}
-          items={items}
-          vue={vue}
-          suivi={suivi}
-          status={status}
-          cwd={cwd}
-          onOuvrirFichier={ouvrirFichier}
-          aUneSession={aUneSession}
-          envoisEnAttente={liste.length}
-        >
-          {basDuFil}
-        </Fil>
-        {feuille?.genre === "taches" ? (
-          <Taches
-            paneId={paneId}
-            cwd={cwd}
-            onClose={() => setFeuille(null)}
-            onOuvrirFichier={ouvrirFichier}
-          />
-        ) : null}
-      </InfosTaches.Provider>
-
-      {bloque && conversation !== null ? (
-        <Question conversation={conversation} agentNom={agentNom} lueA={lueA} />
-      ) : null}
-      <Composeur
-        ref={composeur}
-        paneId={paneId}
-        agentNom={agentNom}
-        travaille={status === "working"}
-        arretEnCours={arret?.phase === "en-cours"}
-        aide={aide}
-        envoiImpossible={sansEnvoi !== null}
-        inactif={disparu}
-        onEnvoie={envoie}
-        onArrete={arrete}
+        onTaches={() => setFeuille({ genre: "taches" })}
+        onOuvrirFichier={ouvrirFichier}
       />
 
       {feuille?.genre === "modele" ? (
         <Modele
-          statut={status}
           paneId={paneId}
           kind={kind ?? "pi"}
           agentNom={agentNom}
           modeleActuel={conversation?.model ?? reglages.modele}
           fournisseurActuel={conversation?.provider ?? reglages.fournisseur}
           reflexionActuelle={conversation?.thinking ?? reglages.reflexion}
+          statut={status}
           onClose={() => setFeuille(null)}
         />
       ) : null}

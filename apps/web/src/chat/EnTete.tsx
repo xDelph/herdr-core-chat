@@ -30,6 +30,7 @@ export const EnTete = memo(
     kind,
     modele,
     reflexion,
+    branche,
     status,
     transport,
     causeRepli = null,
@@ -37,6 +38,9 @@ export const EnTete = memo(
     compteFichiers,
     tachesDeFond,
     onTaches,
+    epingle,
+    epinglageEnCours = false,
+    onEpingle,
     onRetour,
     onModele,
     onFichiers,
@@ -46,6 +50,8 @@ export const EnTete = memo(
     readonly kind: string | null;
     readonly modele: string | undefined;
     readonly reflexion: string | undefined;
+    /** La branche du dépôt — sortie des lignes de la liste, elle vit ici. */
+    readonly branche?: string | undefined;
     readonly status: AgentStatus;
     readonly transport: Transport;
     /** Pourquoi ce pane est en repli — dite telle quelle, jamais devinée. */
@@ -57,6 +63,10 @@ export const EnTete = memo(
     /** Le décompte des tâches de fond (puce « 2 tâches de fond »), s'il existe. */
     readonly tachesDeFond?: BackgroundTaskCount | undefined;
     readonly onTaches?: (() => void) | undefined;
+    /** Épinglé (Herdr.app ou téléphone) ; `undefined` : le geste n'est pas offert. */
+    readonly epingle?: boolean | undefined;
+    readonly epinglageEnCours?: boolean;
+    readonly onEpingle?: ((pinned: boolean) => void) | undefined;
     readonly onRetour: () => void;
     readonly onModele: () => void;
     readonly onFichiers: () => void;
@@ -95,6 +105,7 @@ export const EnTete = memo(
       titre === projet ? undefined : projet,
       modele,
       reflexion === undefined ? undefined : libelleReflexion(reflexion),
+      branche,
     ].filter((morceau): morceau is string => morceau !== undefined && morceau.length > 0);
 
     return (
@@ -107,12 +118,13 @@ export const EnTete = memo(
         >
           <Icone nom="back" />
         </button>
+        {/* Le logo de l'agent, en grand : c'est lui qu'on reconnaît (maquette « Inbox »). */}
+        <span className="tete__logo">
+          <Marque kind={kind} />
+        </span>
         <div className="tete__titre">
           <strong>{titre}</strong>
-          <span>
-            <Marque kind={kind} petite />
-            {reglages.join(" · ")}
-          </span>
+          <span>{reglages.join(" · ")}</span>
         </div>
         {onTaches === undefined ? null : <PuceTaches compte={tachesDeFond} onOuvrir={onTaches} />}
         <Pastille status={status} />
@@ -146,6 +158,16 @@ export const EnTete = memo(
                 <Icone nom="sliders" petite />
                 Model and thinking…
               </button>
+              {onEpingle === undefined || epingle === undefined ? null : (
+                <button
+                  type="button"
+                  onClick={choisit(() => onEpingle(!epingle))}
+                  disabled={inactif || epinglageEnCours}
+                >
+                  <Icone nom="pin" petite />
+                  {epingle ? "Unpin" : "Pin to the top"}
+                </button>
+              )}
               <button type="button" onClick={choisit(onFichiers)} disabled={nombreFichiers === 0}>
                 <Icone nom="file" petite />
                 Changed files ({String(nombreFichiers)})

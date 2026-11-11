@@ -1,33 +1,66 @@
-/* Boîte de réception. */
+/*
+  Boîte de réception — maquette « Inbox » (2026-11-10).
+
+  Deux lignes par agent au plus, le logo de l'agent en tête et son état en
+  badge dessus. Uniquement des jetons de tokens.css : le thème sombre suit
+  sans une ligne de plus.
+*/
 .boite {
+  position: relative;
+  /* Élément de grille : sans min-width 0, le texte d'une ligne (nowrap)
+     élargissait la colonne au-delà de l'écran. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--ground);
+  background: var(--surface);
   padding-top: var(--haut-sur);
 }
+
+/* ---------- en-tête ---------- */
 .boite__haut {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 8px 8px 0 20px;
+  gap: 2px;
+  padding: 12px 8px 6px 20px;
   flex: none;
 }
-.boite__haut h1 {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+.boite__titre {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
+  min-width: 0;
+}
+.boite__titre h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.boite__hote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3);
+  min-height: 28px;
+}
+.boite__hote > .i {
+  flex: none;
 }
 .direct {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ok);
-  font-weight: 500;
-  margin-right: 4px;
+  font-weight: 600;
   white-space: nowrap;
+}
+.direct .point {
+  width: 7px;
+  height: 7px;
+  animation: pouls 2s ease-in-out infinite;
 }
 .direct--attente {
   color: var(--ink-3);
@@ -35,23 +68,98 @@
 .direct--coupe {
   color: var(--err);
 }
+.direct--attente .point,
+.direct--coupe .point {
+  animation: none;
+}
+@keyframes pouls {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .direct .point {
+    animation: none;
+  }
+}
+/* L'indicateur ouvre le centre de connexion (lot 4) : un bouton sans habit. */
+.direct__bouton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* La boîte d'envoi : une icône et son compte, orange si un envoi demande un regard. */
+.pastille-envois {
+  position: relative;
+  width: var(--cible);
+  height: var(--cible);
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-m);
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  flex: none;
+}
+.pastille-envois:hover {
+  background: var(--surface-2);
+}
+.pastille-envois__n {
+  position: absolute;
+  top: 5px;
+  right: 3px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--ink-3);
+  color: var(--surface);
+}
+.pastille-envois--attn .pastille-envois__n {
+  background: var(--attn);
+}
+
+/* ---------- recherche ---------- */
 .recherche {
-  margin: 8px 16px 0;
+  display: grid;
+  gap: 8px;
+  padding: 4px 16px 8px;
+  flex: none;
+}
+.recherche__ligne {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
+}
+.recherche__champ {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--cible);
   padding: 0 12px;
   border-radius: var(--r-m);
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--line);
   color: var(--ink-3);
-  flex: none;
 }
-.recherche:focus-within {
-  border-color: var(--ink-3);
+.recherche__champ:focus-within {
+  border-color: var(--ink);
 }
-.recherche input {
+.recherche__champ input {
   border: 0;
   background: none;
   outline: none;
@@ -60,22 +168,65 @@
   color: var(--ink);
   font-size: 16px;
 }
-.recherche input::placeholder {
+.recherche__champ input::placeholder {
   color: var(--ink-3);
 }
-.boite__outils {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px 4px;
-  flex: none;
+.recherche__annuler {
+  min-height: var(--cible);
+  padding: 0 4px;
+  font-size: 15px;
+  font-weight: 600;
 }
+.recherche__filtres {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+/* La liste déroulante de projets (retour du 2026-11-11 : des puces, « un peu
+   dégueulasse »). Le vrai <select> : la roue du téléphone, le clavier partout. */
+.deroulant {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.deroulant select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 36px;
+  max-width: 240px;
+  padding: 0 32px 0 12px;
+  border-radius: var(--r-s);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.deroulant select:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.deroulant .i {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
+  color: var(--ink-3);
+  transform: rotate(90deg);
+}
+
+/* ---------- liste ---------- */
 .boite__liste {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: calc(24px + var(--bas-sur));
+  /* Le bouton flottant ne cache jamais la dernière ligne. */
+  padding-bottom: calc(96px + var(--bas-sur));
 }
 .boite__vide {
   margin: 24px 20px;
@@ -83,78 +234,231 @@
   text-align: center;
 }
 .boite__fin {
-  height: 16px;
+  height: 8px;
 }
 
 .groupe {
-  padding: 12px 16px 4px;
-  display: grid;
-  gap: 8px;
+  padding-top: 6px;
 }
 .groupe__tete {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 4px 4px 0;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 16px 2px 20px;
 }
 .groupe__tete h2 {
   margin: 0;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
-.groupe__tete span {
-  font-size: 12px;
-  color: var(--ink-3);
+.groupe__tete h2 a {
+  color: inherit;
+  text-decoration: none;
 }
-.groupe--attn .groupe__tete h2,
-.groupe--attn .groupe__tete span {
+.groupe__n {
+  font-size: 13px;
+  color: var(--ink-3);
+  flex: 1;
+}
+.groupe--a-traiter .groupe__tete h2 {
   color: var(--attn);
 }
-
-/* ---------- cartes d'attention ---------- */
-.carte {
-  background: var(--surface);
-  border: 1px solid var(--attn-line);
-  border-radius: var(--r-l);
-  padding: 14px;
-  display: grid;
-  gap: 10px;
-  min-width: 0;
+.groupe--en-cours .groupe__tete h2 {
+  color: var(--work);
 }
-.carte__qui {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.groupe__action {
+  min-height: 36px;
   font-size: 13px;
-  color: var(--ink-2);
-  min-width: 0;
-}
-.carte__projet {
   font-weight: 600;
-  color: var(--ink);
 }
-.carte__quand {
-  margin-left: auto;
-  color: var(--ink-3);
-  white-space: nowrap;
+
+/* ---------- l'avatar : logo de l'agent + badge d'état ---------- */
+.avatar {
+  position: relative;
+  flex: none;
+  display: inline-grid;
 }
-.carte__titre {
+.avatar--grande .marque {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   font-size: 13px;
-  color: var(--ink-3);
-  margin: -4px 0 0 30px;
+}
+.avatar--petite .marque {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+.avatar__badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  /* Le glyphe prend la couleur du fond de page : blanc en clair, encre
+     sombre sur l'orange et le rouge plus clairs du thème sombre. */
+  color: var(--surface);
+}
+.avatar__badge--question {
+  background: var(--attn);
+}
+.avatar__badge--erreur {
+  background: var(--err);
+}
+.avatar__badge--erreur .i {
+  width: 10px;
+  height: 10px;
+  stroke-width: 3.5;
+}
+.avatar__badge--travail {
+  background: var(--surface);
+  color: var(--work);
+}
+.avatar__badge--travail .spin {
+  width: 12px;
+  height: 12px;
+}
+.avatar__badge--non-lu {
+  width: 14px;
+  height: 14px;
+  right: -3px;
+  bottom: -3px;
+  background: var(--work);
+}
+.ligne:hover .avatar__badge,
+.carte__tete:hover .avatar__badge {
+  border-color: var(--surface-2);
+}
+
+/* ---------- la ligne ---------- */
+.ligne,
+.carte__tete {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 16px 12px 20px;
+  text-decoration: none;
+  color: inherit;
+  min-height: 60px;
+}
+.ligne:hover,
+.carte__tete:hover {
+  background: var(--surface-2);
+}
+.ligne[aria-current="page"] {
+  background: var(--surface-2);
+  box-shadow: inset 3px 0 0 var(--ink);
+}
+.ligne__corps {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.ligne__l1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.ligne__titre {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.ligne__quand {
+  flex: none;
+  font-size: 13px;
+  color: var(--ink-3);
   white-space: nowrap;
+}
+.ligne__quand--travail {
+  color: var(--work);
+  font-weight: 600;
+}
+.ligne__quand--attn {
+  color: var(--attn);
+  font-weight: 600;
+}
+.ligne__quand--err {
+  color: var(--err);
+  font-weight: 600;
+}
+.ligne__l2 {
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ligne__projet {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.ligne__l2--travail {
+  color: var(--ink-2);
+}
+.ligne__l2--absent {
+  font-style: italic;
+}
+.ligne--non-lue .ligne__l2 {
+  color: var(--ink-2);
+}
+/* Épinglé (lot 4, `herdr.pinned`) : le trombone de Herdr.app, à l'encre. */
+.ligne__epingle {
+  color: var(--ink-2);
+  flex: none;
+  align-self: center;
+  display: inline-flex;
+}
+
+/* ---------- les cartes « à toi » : une ligne, et ses réponses dessous ---------- */
+.carte {
+  min-width: 0;
+}
+.carte .ligne__l2 {
+  color: var(--ink-2);
+}
+.carte__nature {
+  color: var(--attn);
+  font-weight: 600;
+}
+.carte--erreur .carte__nature {
+  color: var(--err);
+}
+/* Les réponses s'alignent sous le texte, pas sous le logo. */
+.carte__suite {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 14px 68px;
+  margin-top: -4px;
 }
 .carte__q {
   margin: 0;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+.carte--erreur .carte__q {
+  color: var(--err);
 }
 .carte__contexte {
   margin: -4px 0 0;
@@ -166,10 +470,27 @@
   align-items: center;
 }
 .carte__options .bouton {
-  min-height: 40px;
-  padding: 0 12px;
+  min-height: var(--cible);
+  padding: 0 14px;
   font-size: 14px;
   text-decoration: none;
+}
+/* Le libellé et son détail, écrits (F1.5) : un `title` ne se lit pas au doigt. */
+.bouton__corps {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 6px 0;
+}
+.bouton__corps small {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+/* Un choix à risque armé par un premier appui : le second confirme. */
+.bouton--arme {
+  outline: 2px solid var(--attn);
+  outline-offset: 1px;
 }
 .carte__ecran {
   margin: 0;
@@ -197,85 +518,266 @@
   color: var(--err);
 }
 
-/* ---------- lignes ---------- */
-.lignes {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-l);
-  overflow: hidden;
+/* ---------- le pli « N idle » ---------- */
+.groupe--repos {
+  padding: 14px 16px 0;
 }
-.ligne {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  gap: 4px 10px;
-  padding: 12px 14px;
+.pli {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
   align-items: center;
-  text-decoration: none;
-  color: inherit;
-  min-height: 56px;
+  gap: 10px;
+  padding: 0 14px 0 16px;
+  border-radius: var(--r-l);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
 }
-.ligne + .ligne {
-  border-top: 1px solid var(--line);
-}
-.ligne:hover {
+.pli:hover {
   background: var(--surface-2);
 }
-.ligne[aria-current="page"] {
+.pli .anneau {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
+  color: var(--ink-3);
+}
+.pli > .i {
+  color: var(--ink-3);
+  transition: transform 0.2s;
+}
+.pli[aria-expanded="true"] > .i {
+  transform: rotate(90deg);
+}
+.pli__libelle {
+  flex: 1;
+  text-align: left;
+}
+.pli__logos {
+  display: flex;
+  padding-left: 6px;
+}
+.pli__logos .marque {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.lignes-repos {
+  padding: 6px 0 4px;
+  margin: 0 -16px;
+}
+.ligne-repos {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 0 16px 0 26px;
+  text-decoration: none;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+.ligne-repos:hover {
+  background: var(--surface-2);
+}
+.ligne-repos[aria-current="page"] {
   background: var(--surface-2);
   box-shadow: inset 3px 0 0 var(--ink);
 }
-.ligne__nom {
-  font-weight: 600;
-  font-size: 15px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ligne__nom span {
-  font-weight: 400;
-  color: var(--ink-3);
-}
-.ligne__point {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--work);
-  display: inline-block;
-  margin-right: 6px;
-  vertical-align: 2px;
-}
-.ligne__meta {
-  font-size: 13px;
-  color: var(--ink-3);
-  white-space: nowrap;
-  display: inline-flex;
+.ligne-repos__titre {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   align-items: center;
   gap: 6px;
-}
-.ligne__meta .etat svg.i.s {
-  width: 14px;
-  height: 14px;
-}
-.ligne__meta .tirets {
-  width: 10px;
-  height: 10px;
-}
-.ligne__texte {
-  grid-column: 2 / 4;
-  font-size: 14px;
-  color: var(--ink-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ligne__texte--travail {
-  color: var(--ink-2);
-}
-.ligne__texte--absent {
+.ligne-repos__projet {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 32%;
+  font-size: 12px;
   color: var(--ink-3);
-  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.ligne--non-lue .ligne__texte {
-  color: var(--ink);
+.ligne-repos__quand {
+  flex: none;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* ---------- le bouton flottant « lancer » ---------- */
+.fab {
+  position: absolute;
+  right: 20px;
+  bottom: calc(24px + var(--bas-sur));
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--primary);
+  color: var(--on-primary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+  z-index: 2;
+}
+.fab .i {
+  width: 24px;
+  height: 24px;
+}
+.fab:active {
+  transform: scale(0.96);
+}
+
+/* ---------- rail du bureau (≥ 1200 px — `Rail.tsx`) ---------- */
+.rail {
+  display: none;
+}
+@media (min-width: 1200px) {
+  .app {
+    grid-template-columns: 232px minmax(340px, 400px) 1fr;
+  }
+  .app > .rail {
+    min-height: 0;
+    height: 100%;
+    display: flex;
+  }
+  /* Le rail a son « New agent » et son « Live wall » : ils feraient doublon. */
+  .boite .fab,
+  .boite__mur {
+    display: none;
+  }
+}
+.rail {
+  flex-direction: column;
+  gap: 2px;
+  padding: calc(14px + var(--haut-sur)) 10px 14px;
+  border-right: 1px solid var(--line);
+  background: var(--surface-2);
+  overflow-y: auto;
+  min-width: 0;
+}
+.rail__marque {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 8px 12px;
+}
+.rail__logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 800;
+  font-size: 15px;
+  flex: none;
+}
+.rail__nom {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rail__nom b {
+  font-size: 15px;
+}
+.rail__nom .direct__bouton {
+  min-height: 20px;
+}
+.rail__nom .direct {
+  font-size: 12px;
+}
+.rail__lancer {
+  margin: 0 2px 12px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.rail__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 14px;
   font-weight: 500;
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+.rail__item:hover {
+  background: var(--surface-3, var(--line));
+}
+.rail__item--on {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--ombre);
+}
+.rail__forme {
+  width: 10px;
+  height: 10px;
+  margin: 0 3px;
+}
+.rail__item--a-traiter .rail__forme {
+  color: var(--attn);
+}
+.rail__item--en-cours .rail__forme {
+  color: var(--work);
+}
+.rail__item--done .rail__forme {
+  color: var(--work);
+}
+.rail__item--idle .rail__forme {
+  color: var(--ink-3);
+  border-width: 1.5px;
+}
+.rail__n {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.rail__n--attn {
+  color: var(--attn);
+  font-weight: 700;
+}
+.rail__titre {
+  margin: 0;
+  padding: 16px 10px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.rail__projet {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rail__vide {
+  flex: 1;
+  min-height: 16px;
 }

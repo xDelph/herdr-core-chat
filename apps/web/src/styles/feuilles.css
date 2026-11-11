@@ -126,6 +126,20 @@
   background: var(--ground);
   font-size: 16px;
 }
+/* Le premier message du lancement, facultatif. */
+.champ__zone {
+  width: 100%;
+  min-height: 84px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--ground);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.45;
+  resize: vertical;
+}
 .types {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
@@ -197,6 +211,57 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+/* Quels genres recevoir : un interrupteur par genre. */
+.choix-notifs {
+  display: grid;
+  gap: 10px;
+  border: 0;
+  margin: 0;
+  padding: 6px 0 0;
+  min-width: 0;
+}
+.choix-notifs legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.bascule {
+  position: relative;
+  width: 46px;
+  height: 28px;
+  flex: none;
+  border: 0;
+  border-radius: 14px;
+  background: var(--ok);
+  cursor: pointer;
+}
+.bascule::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 21px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface);
+  transition: left 0.15s;
+}
+.bascule--off {
+  background: var(--line);
+}
+.bascule--off::after {
+  left: 3px;
+}
+.bascule:disabled {
+  opacity: 0.6;
+}
+.bascule:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 .sante {
   display: grid;
@@ -311,4 +376,134 @@
   text-align: right;
   color: var(--ink-3);
   user-select: none;
+}
+
+/* La boîte d'envoi (lot 4, maquette D). */
+.boite-envoi__resume {
+  margin: 0 0 8px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.boite-envoi {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.envoi-boite {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--surface);
+}
+.envoi-boite--non-confirme {
+  border-color: var(--attn-line);
+}
+.envoi-boite--non-envoye {
+  border-color: var(--err);
+}
+.envoi-boite p {
+  margin: 0 0 6px;
+}
+.envoi-boite__tete {
+  font-size: 13px;
+}
+.envoi-boite__genre {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.envoi-boite--non-confirme .envoi-boite__genre {
+  color: var(--attn);
+}
+.envoi-boite--non-envoye .envoi-boite__genre {
+  color: var(--err);
+}
+.envoi-boite__texte {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.envoi-boite__etat {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.envoi-boite__gestes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Le centre de connexion (lot 4, maquette B) : la couleur porte l'état. */
+.connexion__bilan {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+.connexion__bilan--ok {
+  color: var(--ok);
+}
+.connexion__bilan--attention {
+  color: var(--attn);
+}
+.connexion__bilan--erreur {
+  color: var(--err);
+}
+.connexion__bilan--inconnu {
+  color: var(--ink-3);
+}
+.connexion {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.maillon {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.maillon__point {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.maillon--ok .maillon__point {
+  background: var(--ok);
+}
+.maillon--attention .maillon__point {
+  background: var(--attn);
+}
+.maillon--erreur .maillon__point {
+  background: var(--err);
+}
+.maillon__corps {
+  min-width: 0;
+}
+.maillon__corps p {
+  margin: 0;
+}
+.maillon__titre {
+  font-weight: 600;
+}
+.maillon__texte {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.maillon__detail {
+  margin-top: 4px !important;
+  font-size: 12px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.connexion__gestes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
 }

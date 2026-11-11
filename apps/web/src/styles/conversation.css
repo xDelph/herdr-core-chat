@@ -1,10 +1,133 @@
 /* Conversation : en-tête, fil, travail, envois, question, composeur. */
 .conversation {
   display: flex;
-  flex-direction: column;
   background: var(--ground);
   min-width: 0;
   position: relative;
+}
+/* Le fil et son composeur ; le panneau de détails se range à droite (bureau). */
+.conversation__principal {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ---------- panneau de détails (bureau, ≥ 1400 px — `Details.tsx`) ---------- */
+.details {
+  width: 300px;
+  flex: none;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  padding: calc(16px + var(--haut-sur)) 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  overflow-y: auto;
+}
+.details__bloc {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.details__bloc .bouton {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  font-size: 13px;
+}
+.details__titre {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.details__compte {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+.details__agent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.details__agent .marque {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+.details__agent b {
+  font-size: 15px;
+}
+.details__agent p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+.details__liste {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  font-size: 13px;
+}
+.details__liste dt {
+  color: var(--ink-3);
+}
+.details__liste dd {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.details__fichiers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.details__fichier {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.details__fichier:hover {
+  background: var(--surface-2);
+}
+.details__fichier .mono {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.details__plus {
+  color: var(--ok);
+}
+.details__moins {
+  color: var(--err);
 }
 
 /* ---------- en-tête ---------- */
@@ -14,25 +137,36 @@
   gap: 2px;
   padding: calc(4px + var(--haut-sur)) 4px 6px;
   border-bottom: 1px solid var(--line);
-  background: var(--ground);
+  background: var(--surface);
   flex: none;
+}
+.tete__logo {
+  flex: none;
+  display: inline-grid;
+  margin-left: 2px;
+}
+.tete__logo .marque {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 12px;
 }
 .tete__titre {
   flex: 1;
   min-width: 0;
   display: grid;
   gap: 1px;
-  padding-left: 4px;
+  padding-left: 8px;
 }
 .tete__titre strong {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .tete__titre > span {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-3);
   display: flex;
   gap: 6px;
@@ -287,7 +421,14 @@
   width: 11px;
   height: 11px;
 }
+/*
+  ⚠️ Cancel, Retry, Edit et Dismiss ne faisaient que 22 px de haut : sous le
+  pouce, on touchait le voisin. La zone d'appui fait la cible entière (44 px)
+  sans grandir la bulle : un pseudo-élément déborde verticalement.
+*/
 .moi__etat button {
+  position: relative;
+  min-width: var(--cible);
   border: 0;
   background: none;
   color: var(--ink);
@@ -295,6 +436,11 @@
   text-underline-offset: 2px;
   padding: 4px 0;
   font-size: 12px;
+}
+.moi__etat button::after {
+  content: "";
+  position: absolute;
+  inset: calc((var(--cible) - 100%) / -2) 0;
 }
 .moi--uncertain {
   border-color: var(--attn-line);
@@ -371,6 +517,32 @@
 }
 .outils__tete .etat {
   font-size: 12px;
+}
+/* La barre des étapes : l'allure du tour sans déplier (`barre-etapes.ts`). */
+.outils__barre {
+  flex: 1;
+  min-width: 24px;
+  display: flex;
+  gap: 2px;
+  max-width: 220px;
+}
+.outils__segment {
+  flex: 1 1 0;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ok) 45%, transparent);
+}
+.outils__segment--echec {
+  background: var(--err);
+}
+.outils__segment--cours {
+  background: var(--work);
+  animation: pouls 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .outils__segment--cours {
+    animation: none;
+  }
 }
 .outils__tete .etat .spin {
   width: 11px;
@@ -736,4 +908,65 @@
 }
 .conversation__attente {
   margin: auto;
+}
+
+/* ---------- sous-agents en direct (lot 4) ---------- */
+.sous-agents {
+  margin: 4px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s, 8px);
+  font-size: 13px;
+}
+.sous-agents__titre {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.sous-agents ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.sous-agents__ligne {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.sous-agents__nom {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.sous-agents__msg {
+  color: var(--ink-3);
+  padding-left: 20px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- pièce jointe (lot 4) : n'existe que pendant un dépôt ---------- */
+.composeur__piece {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-2);
+  padding: 0 4px;
+  min-width: 0;
+}
+.composeur__piece--erreur {
+  color: var(--err);
+}
+.composeur__piece span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.rond--piece {
+  background: none;
+  color: var(--ink-2);
+}
+.rond--piece:disabled {
+  opacity: 0.35;
 }

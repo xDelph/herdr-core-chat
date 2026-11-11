@@ -1,22 +1,32 @@
 /**
- * Une ligne de la liste : un agent au travail, ou une conversation récente.
+ * Une ligne de la liste (maquette « Inbox », 2026-11-10) : **deux lignes au
+ * plus**, le logo de l'agent en tête et son état en badge dessus.
+ *
+ * ```
+ * [logo+badge]  Titre                         6:28 | 1 h
+ *               projet · ce qui change
+ * ```
  *
  * - **au travail** : le chronomètre depuis la demande qui a ouvert le tour,
  *   lue dans la session (`tourDebut`, la même origine que le chat) ; à défaut,
- *   depuis le passage à `working` *observé* ; sinon pas de durée inventée ;
- * - **en attente de ses tâches de fond** : « Attend 2 tâches de fond » ;
- * - **récente** : le temps écoulé, et le point « non lu » tant qu'on ne l'a
- *   pas ouverte ici.
+ *   depuis le passage à `working` *observé* ; sinon pas de durée inventée.
+ *   La seconde ligne dit ce que l'agent dit faire (`activity`, `status.msg`
+ *   de herdr-core, dans ses propres mots), à défaut la demande ;
+ * - **en attente de ses tâches de fond** : « Waiting for 2 background tasks » ;
+ * - **sinon** : la demande qui a lancé le travail (retour du 2026-10-29), le
+ *   temps écoulé, et le point « non lu » tant qu'on ne l'a pas ouverte ici.
  *
- * Le texte de la ligne est toujours la demande qui a lancé le travail ; le
- * chat montre l'action exacte.
+ * ⚠️ **Branche, modèle et réflexion ne sont plus sur la ligne** (retour du
+ * 2026-11-10 : « develop · claude-opus » répété sur 18 lignes ne disait
+ * rien). Ils vivent dans l'en-tête de la conversation.
  */
 import { memo } from "react";
 import type { ConversationSummary } from "@herdr-core-chat/shared";
-import { apercuTexte, chrono, libelleReflexion, quand } from "../libelles.ts";
+import { apercuTexte, chrono, quand } from "../libelles.ts";
 import { attenteDeTaches } from "../taches.ts";
 import { routeToHash } from "../routing.ts";
-import { Etat, FormeEtat, Marque } from "../ui/atomes.tsx";
+import { AvatarAgent, type Badge } from "../ui/atomes.tsx";
+import { Icone } from "../ui/Icone.tsx";
 
 /**
  * La demande qui a lancé le travail — toujours elle, quand elle existe : ni un
@@ -26,15 +36,14 @@ import { Etat, FormeEtat, Marque } from "../ui/atomes.tsx";
 const apercu = (conversation: ConversationSummary): string =>
   apercuTexte(conversation.lastPrompt ?? conversation.preview ?? "");
 
-/** Branche · modèle · réflexion — ce que la ligne montrait avant la réécriture. */
-const details = (conversation: ConversationSummary): string =>
-  [
-    conversation.branch,
-    conversation.model,
-    conversation.thinking === undefined ? undefined : libelleReflexion(conversation.thinking),
-  ]
-    .filter((morceau) => morceau !== undefined && morceau.length > 0)
-    .join(" · ");
+/** Le badge d'une ligne qui n'est pas « à toi » (celles-là sont des cartes). */
+export const badgeDeLigne = (conversation: ConversationSummary, nonLue: boolean): Badge | null => {
+  if (conversation.status === "blocked") return "question";
+  if (conversation.status === "error") return "erreur";
+  if (conversation.status === "working" || attenteDeTaches(conversation.tachesDeFond) !== null)
+    return "travail";
+  return nonLue ? "non-lu" : null;
+};
 
 export const LigneAgent = memo(
   ({
@@ -45,6 +54,7 @@ export const LigneAgent = memo(
     nonLue,
     debutTravail,
     courante,
+    avecProjet = true,
   }: {
     readonly conversation: ConversationSummary;
     readonly projet: string;
@@ -53,64 +63,129 @@ export const LigneAgent = memo(
     readonly nonLue: boolean;
     readonly debutTravail: number | undefined;
     readonly courante: boolean;
+    /** Dans le détail d'un projet, son nom est le titre de l'écran : la ligne le tait. */
+    readonly avecProjet?: boolean;
   }) => {
-    const texte = apercu(conversation);
-    const reglages = details(conversation);
     const auTravail = conversation.status === "working";
     // La session d'abord : le chat et la liste partent du même instant.
     const debut = conversation.tourDebut ?? debutTravail;
     const attente = auTravail ? null : attenteDeTaches(conversation.tachesDeFond);
+    // Un titre vide ou égal au projet : le projet devient le titre, une fois.
+    const titreSeul = titre.length > 0 && titre !== projet;
+    const intitule = titreSeul ? titre : projet;
+    const montreProjet = avecProjet && titreSeul;
+
+    const demande = apercu(conversation);
+    const texte =
+      auTravail && conversation.activity !== undefined
+        ? conversation.activity
+        : attente !== null
+          ? attente
+          : demande;
+    const absent =
+      texte.length === 0 && conversation.sessionState !== "available"
+        ? conversation.sessionState === "absent"
+          ? "No readable session for this agent"
+          : "Unreadable session"
+        : null;
+
+    const classes = ["ligne"];
+    if (nonLue) classes.push("ligne--non-lue");
     return (
       <a
-        className={nonLue ? "ligne ligne--non-lue" : "ligne"}
+        className={classes.join(" ")}
         href={routeToHash({ kind: "agent", paneId: conversation.paneId })}
         aria-current={courante ? "page" : undefined}
       >
-        <Marque kind={conversation.agent} />
-        <span className="ligne__nom">
-          {nonLue ? (
-            <>
-              <span className="ligne__point" aria-hidden="true" />
-              <span className="sr">Unread: </span>
-            </>
-          ) : null}
-          {projet}
-          {titre.length > 0 && titre !== projet ? <span> · {titre}</span> : null}
-        </span>
-        {auTravail ? (
-          <Etat status="working">
-            <span className="num">
-              {debut === undefined ? "Working" : chrono(maintenant - debut)}
-            </span>
-          </Etat>
-        ) : attente !== null ? (
-          <Etat status="working">{attente}</Etat>
-        ) : (
-          <span className="ligne__meta num">
-            {conversation.status === "done" || conversation.status === "unknown" ? (
-              <span className={`etat etat--${conversation.status === "done" ? "ok" : "unknown"}`}>
-                <FormeEtat status={conversation.status} />
+        <AvatarAgent kind={conversation.agent} badge={badgeDeLigne(conversation, nonLue)} />
+        <span className="ligne__corps">
+          <span className="ligne__l1">
+            {conversation.pinned === true ? (
+              <span className="ligne__epingle" title="Pinned">
+                <Icone nom="pin" petite />
+                <span className="sr">Pinned: </span>
               </span>
             ) : null}
-            {conversation.timestamp === undefined
-              ? null
-              : quand(conversation.timestamp, maintenant)}
+            <span className="ligne__titre">{intitule}</span>
+            {auTravail ? (
+              <span className="ligne__quand ligne__quand--travail num">
+                {debut === undefined ? "Working" : chrono(maintenant - debut)}
+              </span>
+            ) : conversation.timestamp === undefined ? null : (
+              <span className="ligne__quand num">{quand(conversation.timestamp, maintenant)}</span>
+            )}
           </span>
-        )}
-        {texte.length > 0 ? (
-          <span className={auTravail ? "ligne__texte ligne__texte--travail" : "ligne__texte"}>
-            {texte}
-          </span>
-        ) : conversation.sessionState !== "available" ? (
-          <span className="ligne__texte ligne__texte--absent">
-            {conversation.sessionState === "absent"
-              ? "No readable session for this agent"
-              : "Unreadable session"}
-          </span>
-        ) : null}
-        {reglages.length > 0 ? <span className="ligne__details">{reglages}</span> : null}
+          {texte.length > 0 || absent !== null || montreProjet ? (
+            <span
+              className={
+                absent !== null
+                  ? "ligne__l2 ligne__l2--absent"
+                  : auTravail
+                    ? "ligne__l2 ligne__l2--travail"
+                    : "ligne__l2"
+              }
+            >
+              {montreProjet ? <span className="ligne__projet">{projet}</span> : null}
+              {montreProjet && (texte.length > 0 || absent !== null) ? " · " : null}
+              {auTravail && conversation.activity !== undefined ? (
+                <span className="sr">Now: </span>
+              ) : null}
+              {absent ?? texte}
+            </span>
+          ) : null}
+        </span>
       </a>
     );
   },
 );
 LigneAgent.displayName = "LigneAgent";
+
+/**
+ * Une ligne d'agent **au repos**, sous le pli « N idle » : une seule ligne,
+ * petit logo, titre, projet · temps. Ce qui n'attend rien ne prend pas plus
+ * de place.
+ */
+export const LigneRepos = memo(
+  ({
+    conversation,
+    projet,
+    titre,
+    maintenant,
+    courante,
+    avecProjet = true,
+  }: {
+    readonly conversation: ConversationSummary;
+    readonly projet: string;
+    readonly titre: string;
+    readonly maintenant: number;
+    readonly courante: boolean;
+    readonly avecProjet?: boolean;
+  }) => {
+    const titreSeul = titre.length > 0 && titre !== projet;
+    // Le projet se tronque, le temps jamais : c'est lui qu'on lit d'abord.
+    const montreProjet = avecProjet && titreSeul;
+    const temps =
+      conversation.timestamp === undefined ? null : quand(conversation.timestamp, maintenant);
+    return (
+      <a
+        className="ligne-repos"
+        href={routeToHash({ kind: "agent", paneId: conversation.paneId })}
+        aria-current={courante ? "page" : undefined}
+      >
+        <AvatarAgent kind={conversation.agent} badge={null} taille="petite" />
+        <span className="ligne-repos__titre">
+          {conversation.pinned === true ? (
+            <span className="ligne__epingle" title="Pinned">
+              <Icone nom="pin" petite />
+              <span className="sr">Pinned: </span>
+            </span>
+          ) : null}
+          {titreSeul ? titre : projet}
+        </span>
+        {montreProjet ? <span className="ligne-repos__projet">{projet}</span> : null}
+        {temps === null ? null : <span className="ligne-repos__quand num">{temps}</span>}
+      </a>
+    );
+  },
+);
+LigneRepos.displayName = "LigneRepos";

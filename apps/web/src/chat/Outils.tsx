@@ -18,6 +18,7 @@ import {
   type LigneAffichee,
   type LigneCommande,
 } from "../actions.ts";
+import { segmentsDe } from "../barre-etapes.ts";
 import {
   commandeSansCd,
   commandTextOf,
@@ -348,6 +349,16 @@ export const GroupeOutils = memo(
         >
           <span className="num">
             {actions.length} action{actions.length > 1 ? "s" : ""}
+          </span>
+          <span className="outils__barre" aria-hidden="true">
+            {segmentsDe(
+              actions.map((ligne) => ligne.enEchec),
+              enCours,
+            ).map((segment, index) => (
+              // L'ordre est celui des actions, et il ne change pas : l'index est la clé.
+              // oxlint-disable-next-line react/no-array-index-key -- segments sans identité propre
+              <span key={index} className={`outils__segment outils__segment--${segment}`} />
+            ))}
           </span>
           {enCours ? (
             <span className="etat etat--work">

@@ -9,15 +9,26 @@
  * focus ou non. L'ancien composeur cachait le bouton dès qu'on tapait : on ne
  * pouvait plus arrêter un agent pendant qu'on lui écrivait la correction.
  *
+ * ⚠️ **Un agent bloqué, en erreur ou muet s'arrête aussi** (B1.14) : champ
+ * vide, Stop prend la place d'Envoyer — le démon accepte désormais de
+ * l'interrompre.
+ *
  * ⚠️ Un brouillon par pane, en mémoire (`brouillons.ts`) : jamais écrit sur le
  * disque, jamais partagé entre deux agents.
+ *
+ * ⚠️ **Une photo devient un CHEMIN dans le brouillon (lot 4).** Elle est posée
+ * à côté du terminal de l'agent (`terminal.put`), puis son chemin s'ajoute au
+ * message, sur sa ligne — rien n'est envoyé tant qu'on n'appuie pas sur
+ * Envoyer. La ligne d'état du dépôt n'existe que pendant un dépôt ou après un
+ * échec : sans pièce jointe, le composeur garde sa hauteur.
  */
+import { suitLeBas } from "../defilement.ts";
 import {
   memo,
   useCallback,
-  useEffect,
   useId,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
   type Ref,
@@ -29,6 +40,19 @@ export interface PoigneeComposeur {
   readonly remettre: (texte: string) => void;
 }
 
+/** Ce que le dépôt d'une photo rend : le chemin à coller dans le message. */
+export type Deposeur = (fichier: File) => Promise<{ readonly path: string }>;
+
+/** Le brouillon avec le chemin d'une pièce jointe, sur sa propre ligne. */
+export const avecPieceJointe = (brouillon: string, chemin: string): string => {
+  const debut = brouillon.trimEnd();
+  return debut.length === 0 ? `${chemin}\n` : `${debut}\n${chemin}\n`;
+};
+
+type EtatPiece =
+  | { readonly phase: "envoi"; readonly nom: string }
+  | { readonly phase: "erreur"; readonly nom: string; readonly texte: string };
+
 const HAUTEUR_LIGNE = 21;
 const LIGNES_MAX = 6;
 
@@ -37,17 +61,21 @@ export const Composeur = memo(
     paneId,
     agentNom,
     travaille,
+    interruptible = travaille,
     arretEnCours,
     aide,
     envoiImpossible = false,
     inactif = false,
     onEnvoie,
     onArrete,
+    deposer,
     ref,
   }: {
     readonly paneId: string;
     readonly agentNom: string;
     readonly travaille: boolean;
+    /** Stop a un sens : l'agent travaille, attend, est en erreur ou ne dit rien. */
+    readonly interruptible?: boolean;
     readonly arretEnCours: boolean;
     readonly aide: string | null;
     /**
@@ -59,22 +87,49 @@ export const Composeur = memo(
     readonly inactif?: boolean;
     readonly onEnvoie: (texte: string) => void;
     readonly onArrete: () => void;
+    /** Pose une photo à côté du terminal ; absent : pas de bouton de pièce jointe. */
+    readonly deposer?: Deposeur | undefined;
     readonly ref?: Ref<PoigneeComposeur>;
   }) => {
     const [brouillon, setBrouillon] = useState(() => lireBrouillon(paneId));
     const champ = useRef<HTMLTextAreaElement | null>(null);
+    const selecteur = useRef<HTMLInputElement | null>(null);
+    const [piece, setPiece] = useState<EtatPiece | null>(null);
     const id = useId();
 
+    /*
+      ⚠️ **Le fil ne saute plus quand le champ grandit** (retour du
+      2026-11-11). Pour se mesurer, le champ se replie un instant à `auto` :
+      le fil, au-dessus, grandissait d'autant le temps du calcul, le
+      navigateur y bornait le défilement, puis le champ reprenait sa hauteur —
+      le texte de la conversation descendait d'un cran, puis remontait quand
+      l'observateur du fil rattrapait le bas. La position du fil est donc
+      relevée AVANT la mesure et rendue APRÈS, dans le même calcul, avant
+      toute peinture : au bas, il reste au bas ; plus haut, il ne bouge pas.
+    */
     const ajuste = useCallback(() => {
       const element = champ.current;
       if (element === null) return;
-      element.style.height = "auto";
+      const fil =
+        element.closest(".conversation__principal")?.querySelector<HTMLElement>(".fil") ?? null;
+      const position =
+        fil === null
+          ? null
+          : {
+              auBas: suitLeBas(fil),
+              scrollTop: fil.scrollTop,
+            };
       const maximum = HAUTEUR_LIGNE * LIGNES_MAX + 24;
+      element.style.height = "auto";
       element.style.height = `${String(Math.min(element.scrollHeight, maximum))}px`;
       element.style.overflowY = element.scrollHeight > maximum ? "auto" : "hidden";
+      if (fil === null || position === null) return;
+      fil.scrollTop = position.auBas ? fil.scrollHeight : position.scrollTop;
     }, []);
 
-    useEffect(ajuste, [ajuste, brouillon]);
+    // Avant la peinture : sinon une image passait avec l'ancienne hauteur (le
+    // texte saisi glissait dans le champ, puis le champ grandissait).
+    useLayoutEffect(ajuste, [ajuste, brouillon]);
 
     const change = useCallback(
       (texte: string) => {
@@ -95,6 +150,32 @@ export const Composeur = memo(
       [change],
     );
 
+    const joint = useCallback(
+      async (fichier: File) => {
+        if (deposer === undefined) return;
+        setPiece({ nom: fichier.name, phase: "envoi" });
+        try {
+          const depose = await deposer(fichier);
+          // Le brouillon le plus récent : un dépôt qui finit après une frappe
+          // ajoute son chemin à CE texte, pas à celui du début du dépôt.
+          setBrouillon((courant) => {
+            const suivant = avecPieceJointe(courant, depose.path);
+            ecrireBrouillon(paneId, suivant);
+            return suivant;
+          });
+          setPiece(null);
+          champ.current?.focus();
+        } catch (erreur) {
+          setPiece({
+            nom: fichier.name,
+            phase: "erreur",
+            texte: erreur instanceof Error ? erreur.message : String(erreur),
+          });
+        }
+      },
+      [deposer, paneId],
+    );
+
     const bloque = envoiImpossible || inactif;
     const envoie = useCallback(() => {
       const texte = brouillon.trim();
@@ -104,6 +185,7 @@ export const Composeur = memo(
     }, [bloque, brouillon, change, onEnvoie]);
 
     const vide = brouillon.trim().length === 0;
+    const montrerStop = interruptible && !inactif && (travaille || vide);
 
     return (
       <form
@@ -113,7 +195,65 @@ export const Composeur = memo(
           envoie();
         }}
       >
+        {piece === null ? null : (
+          <div
+            className={
+              piece.phase === "erreur"
+                ? "composeur__piece composeur__piece--erreur"
+                : "composeur__piece"
+            }
+            role={piece.phase === "erreur" ? "alert" : "status"}
+          >
+            {piece.phase === "envoi" ? (
+              <>
+                <span className="spin" aria-hidden="true" />
+                <span>Uploading {piece.nom}…</span>
+              </>
+            ) : (
+              <>
+                <span>
+                  {piece.nom} was not attached: {piece.texte}
+                </span>
+                <button
+                  type="button"
+                  className="bouton-icone"
+                  aria-label="Dismiss"
+                  onClick={() => setPiece(null)}
+                >
+                  <Icone nom="x" petite />
+                </button>
+              </>
+            )}
+          </div>
+        )}
         <div className="composeur__champ">
+          {deposer === undefined ? null : (
+            <>
+              <input
+                ref={selecteur}
+                type="file"
+                accept="image/*"
+                className="sr"
+                tabIndex={-1}
+                aria-hidden="true"
+                onChange={(evenement) => {
+                  const fichier = evenement.target.files?.[0];
+                  // Le même fichier choisi deux fois doit redéclencher `change`.
+                  evenement.target.value = "";
+                  if (fichier !== undefined) void joint(fichier);
+                }}
+              />
+              <button
+                type="button"
+                className="rond rond--piece"
+                aria-label="Attach a photo"
+                disabled={inactif || piece?.phase === "envoi"}
+                onClick={() => selecteur.current?.click()}
+              >
+                <Icone nom="clip" />
+              </button>
+            </>
+          )}
           <label className="sr" htmlFor={id}>
             Message {agentNom}
           </label>
@@ -137,7 +277,7 @@ export const Composeur = memo(
               }
             }}
           />
-          {travaille && !inactif ? (
+          {montrerStop ? (
             <button
               type="button"
               className="rond rond--stop"
@@ -148,7 +288,7 @@ export const Composeur = memo(
               <span className="carre" aria-hidden="true" />
             </button>
           ) : null}
-          {!travaille || !vide ? (
+          {!montrerStop || !vide ? (
             <button
               type="submit"
               className="rond rond--envoi"

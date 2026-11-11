@@ -32,6 +32,7 @@ import "./styles/feuilles.css";
 import "./styles/fiabilite.css";
 import "./styles/taches.css";
 import "./styles/squelettes.css";
+import "./styles/mur.css";
 
 poserTheme(lireTheme());
 poserStyleMarque(lireStyleMarque());

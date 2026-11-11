@@ -26,7 +26,7 @@ import { faireConfiance, repondre } from "../app/gestes.ts";
 import { useAction } from "../app/hooks.ts";
 import { marqueAgent, quand } from "../libelles.ts";
 import { routeToHash } from "../routing.ts";
-import { Marque } from "../ui/atomes.tsx";
+import { AvatarAgent } from "../ui/atomes.tsx";
 import { IssueAction } from "../ui/IssueAction.tsx";
 
 export const CarteAttention = memo(
@@ -67,139 +67,167 @@ export const CarteAttention = memo(
     }, [texteQuestion]);
 
     return (
-      <article className="carte" aria-label={`${projet} needs a decision`}>
-        <div className="carte__qui">
-          <Marque kind={conversation.agent} />
-          <span className="carte__projet">{projet}</span>
-          <span>{marqueAgent(conversation.agent).nom}</span>
-          {conversation.timestamp === undefined ? null : (
-            <span className="carte__quand num">{quand(conversation.timestamp, maintenant)}</span>
-          )}
-        </div>
-        {titre.length > 0 && titre !== projet ? <div className="carte__titre">{titre}</div> : null}
-        {nature === null ? null : <p className="carte__nature">{nature}</p>}
-
-        {trust !== undefined ? (
-          <>
-            <p className="carte__q">
-              Trust the folder <span className="mono">{trust.folder}</span>?
-            </p>
-            <p className="discret">
-              The agent will be able to read, write and run code there without asking again. This
-              choice is saved on the Mac.
-            </p>
-            <div className="carte__options">
-              <button
-                type="button"
-                className="bouton bouton--principal"
-                disabled={occupe}
-                onClick={() => void faireConfiance(paneId, trust.folder, true)}
-              >
-                Trust
-              </button>
-              <button
-                type="button"
-                className="bouton"
-                disabled={occupe}
-                onClick={() => void faireConfiance(paneId, trust.folder, false)}
-              >
-                {libelleRefus(trust.kind)}
-              </button>
-            </div>
-          </>
-        ) : question !== undefined ? (
-          <>
-            <p className="carte__q">{question.texte}</p>
-            {question.contexte.length > 0 ? (
-              <p className="discret carte__contexte">{question.contexte.join(" · ")}</p>
-            ) : null}
-            <div className="carte__options">
-              {question.choix.map((choix) =>
-                estOptionSaisieLibre(choix.libelle) ? (
-                  <a key={choix.numero} className="bouton" href={lien}>
-                    <span className="k">{choix.numero}</span>
-                    Answer freely…
-                  </a>
-                ) : (
-                  <button
-                    key={choix.numero}
-                    type="button"
-                    className={
-                      arme === choix.numero
-                        ? "bouton bouton--attn bouton--arme"
-                        : choix.selectionne
-                          ? "bouton bouton--attn"
-                          : "bouton"
-                    }
-                    disabled={occupe}
-                    onClick={() => {
-                      if (estChoixARisque(choix.libelle, choix.detail) && arme !== choix.numero) {
-                        setArme(choix.numero);
-                        return;
-                      }
-                      setArme(null);
-                      void repondre(paneId, question, choix.numero);
-                    }}
-                  >
-                    <span className="k">{choix.numero}</span>
-                    <span className="bouton__corps">
-                      {arme === choix.numero
-                        ? `Tap again to confirm: ${choix.libelle}`
-                        : choix.libelle}
-                      {choix.detail === undefined ? null : <small>{choix.detail}</small>}
-                    </span>
-                  </button>
-                ),
+      <article
+        className={enErreur ? "carte carte--erreur" : "carte"}
+        aria-label={`${projet} needs a decision`}
+      >
+        {/*
+          La tête de la carte est une ligne comme les autres (maquette
+          « Inbox ») : logo + badge, titre, temps, puis projet · nature. Elle
+          ouvre la conversation ; les réponses restent dessous, à portée.
+        */}
+        <a className="carte__tete" href={lien}>
+          <AvatarAgent kind={conversation.agent} badge={enErreur ? "erreur" : "question"} />
+          <span className="ligne__corps">
+            <span className="ligne__l1">
+              <span className="ligne__titre">
+                {titre.length > 0 && titre !== projet ? titre : projet}
+              </span>
+              {conversation.timestamp === undefined ? null : (
+                <span
+                  className={
+                    enErreur
+                      ? "ligne__quand ligne__quand--err num"
+                      : "ligne__quand ligne__quand--attn num"
+                  }
+                >
+                  {quand(conversation.timestamp, maintenant)}
+                </span>
               )}
-              <a className="lien" href={lien}>
-                Open
-              </a>
-            </div>
-          </>
-        ) : enErreur ? (
-          <>
-            <p className="carte__q">Stopped with an error</p>
-            {fin === null ? null : <p className="discret num">{fin}</p>}
-            {conversation.activity === undefined ? null : (
-              <pre className="carte__ecran">{conversation.activity}</pre>
-            )}
-            <div className="carte__options">
-              <a className="bouton" href={lien}>
-                Open
-              </a>
-            </div>
-          </>
-        ) : connexion ? (
-          <>
-            <p className="carte__q">Sign-in required</p>
-            <p className="discret">
-              {marqueAgent(conversation.agent).nom} is waiting for authentication. Finish sign-in on
-              the Mac.
-            </p>
-            <div className="carte__options">
-              <a className="bouton" href={lien}>
-                Open
-              </a>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="carte__q">
-              {waiting === undefined
-                ? "The agent is waiting, but its screen shows nothing readable."
-                : "The agent is waiting for input — no numbered choices."}
-            </p>
-            {waiting === undefined ? null : (
-              <pre className="carte__ecran">{waiting.split("\n").slice(-6).join("\n")}</pre>
-            )}
-            <div className="carte__options">
-              <a className="bouton" href={lien}>
-                Open to answer
-              </a>
-            </div>
-          </>
-        )}
-        <IssueAction issue={issue} enCours="Sending the answer…" />
+            </span>
+            <span className="ligne__l2">
+              {titre.length > 0 && titre !== projet ? (
+                <span className="ligne__projet">{projet} · </span>
+              ) : null}
+              {marqueAgent(conversation.agent).nom}
+              {nature === null ? null : <span className="carte__nature"> · {nature}</span>}
+            </span>
+          </span>
+        </a>
+
+        <div className="carte__suite">
+          {trust !== undefined ? (
+            <>
+              <p className="carte__q">
+                Trust the folder <span className="mono">{trust.folder}</span>?
+              </p>
+              <p className="discret">
+                The agent will be able to read, write and run code there without asking again. This
+                choice is saved on the Mac.
+              </p>
+              <div className="carte__options">
+                <button
+                  type="button"
+                  className="bouton bouton--principal"
+                  disabled={occupe}
+                  onClick={() => void faireConfiance(paneId, trust.folder, true)}
+                >
+                  Trust
+                </button>
+                <button
+                  type="button"
+                  className="bouton"
+                  disabled={occupe}
+                  onClick={() => void faireConfiance(paneId, trust.folder, false)}
+                >
+                  {libelleRefus(trust.kind)}
+                </button>
+              </div>
+            </>
+          ) : question !== undefined ? (
+            <>
+              <p className="carte__q">{question.texte}</p>
+              {question.contexte.length > 0 ? (
+                <p className="discret carte__contexte">{question.contexte.join(" · ")}</p>
+              ) : null}
+              <div className="carte__options">
+                {question.choix.map((choix) =>
+                  estOptionSaisieLibre(choix.libelle) ? (
+                    <a key={choix.numero} className="bouton" href={lien}>
+                      <span className="k">{choix.numero}</span>
+                      Answer freely…
+                    </a>
+                  ) : (
+                    <button
+                      key={choix.numero}
+                      type="button"
+                      className={
+                        arme === choix.numero
+                          ? "bouton bouton--attn bouton--arme"
+                          : choix.selectionne
+                            ? "bouton bouton--attn"
+                            : "bouton"
+                      }
+                      disabled={occupe}
+                      onClick={() => {
+                        if (estChoixARisque(choix.libelle, choix.detail) && arme !== choix.numero) {
+                          setArme(choix.numero);
+                          return;
+                        }
+                        setArme(null);
+                        void repondre(paneId, question, choix.numero);
+                      }}
+                    >
+                      <span className="k">{choix.numero}</span>
+                      <span className="bouton__corps">
+                        {arme === choix.numero
+                          ? `Tap again to confirm: ${choix.libelle}`
+                          : choix.libelle}
+                        {choix.detail === undefined ? null : <small>{choix.detail}</small>}
+                      </span>
+                    </button>
+                  ),
+                )}
+                <a className="lien" href={lien}>
+                  Open
+                </a>
+              </div>
+            </>
+          ) : enErreur ? (
+            <>
+              <p className="carte__q">Stopped with an error</p>
+              {fin === null ? null : <p className="discret num">{fin}</p>}
+              {conversation.activity === undefined ? null : (
+                <pre className="carte__ecran">{conversation.activity}</pre>
+              )}
+              <div className="carte__options">
+                <a className="bouton" href={lien}>
+                  Open
+                </a>
+              </div>
+            </>
+          ) : connexion ? (
+            <>
+              <p className="carte__q">Sign-in required</p>
+              <p className="discret">
+                {marqueAgent(conversation.agent).nom} is waiting for authentication. Finish sign-in
+                on the Mac.
+              </p>
+              <div className="carte__options">
+                <a className="bouton" href={lien}>
+                  Open
+                </a>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="carte__q">
+                {waiting === undefined
+                  ? "The agent is waiting, but its screen shows nothing readable."
+                  : "The agent is waiting for input — no numbered choices."}
+              </p>
+              {waiting === undefined ? null : (
+                <pre className="carte__ecran">{waiting.split("\n").slice(-6).join("\n")}</pre>
+              )}
+              <div className="carte__options">
+                <a className="bouton" href={lien}>
+                  Open to answer
+                </a>
+              </div>
+            </>
+          )}
+          <IssueAction issue={issue} enCours="Sending the answer…" />
+        </div>
       </article>
     );
   },

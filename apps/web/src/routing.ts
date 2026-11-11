@@ -20,7 +20,9 @@ export const HOME = "#/liste";
 export type Route =
   | { readonly kind: "liste" }
   | { readonly kind: "agent"; readonly paneId: string }
-  | { readonly kind: "projet"; readonly workspaceId: string };
+  | { readonly kind: "projet"; readonly workspaceId: string }
+  /** Le mur live (`#/mur`) : une tablette posée, tout d'un coup d'œil. */
+  | { readonly kind: "mur" };
 
 /**
  * Environnements d'URL encore acceptés, et où ils mènent.
@@ -51,6 +53,7 @@ export const parseRoute = (hash: string): Route => {
       return { kind: "projet", workspaceId };
     }
   }
+  if (clean === "mur") return { kind: "mur" };
   return { kind: "liste" };
 };
 
@@ -62,6 +65,7 @@ export const estAdresseDOnglet = (hash: string): boolean =>
 export const routeToHash = (route: Route): string => {
   if (route.kind === "agent") return `#/agent/${encodeURIComponent(route.paneId)}`;
   if (route.kind === "projet") return `#/projet/${encodeURIComponent(route.workspaceId)}`;
+  if (route.kind === "mur") return "#/mur";
   return HOME;
 };
 

@@ -12,23 +12,33 @@ import {
   disablePushNotifications,
   enablePushNotifications,
   pushSupported,
+  appliquerGenresCoupes,
+  lireGenresCoupes,
 } from "../notifications.ts";
+import {
+  basculeGenres,
+  CHOIX_NOTIFICATIONS,
+  type GenreNotification,
+} from "../genres-notification.ts";
 import {
   appliquerStyleMarque,
   appliquerTheme,
   GROUPEMENT_LABEL,
   GROUPEMENTS,
   lireStyleMarque,
+  ORDRES_LISTE,
   lireTheme,
   STYLE_MARQUE_LABEL,
   STYLES_MARQUE,
   THEME_LABEL,
   THEMES,
   type Groupement,
+  type OrdreListe,
   type StyleMarque,
   type Theme,
 } from "../preferences.ts";
 import { dureeLongue, versionDeLApp } from "../libelles.ts";
+import { ORDRE_LABEL } from "../sections.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Feuille } from "../ui/Feuille.tsx";
 
@@ -112,7 +122,61 @@ const Notifications = () => {
           {erreur}
         </Avis>
       )}
+      <ChoixNotifications />
     </>
+  );
+};
+
+/**
+ * Quels genres recevoir sur cet appareil (`genres-notification.ts`) : le tri
+ * se fait sur le Mac. Un interrupteur ne bascule qu'une fois le démon
+ * d'accord ; un refus est écrit sous la liste.
+ */
+const ChoixNotifications = () => {
+  const [coupes, setCoupes] = useState<ReadonlyArray<GenreNotification>>(lireGenresCoupes);
+  const [occupe, setOccupe] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  const change = async (genres: ReadonlyArray<GenreNotification>, recevoir: boolean) => {
+    const suivants = basculeGenres(coupes, genres, recevoir);
+    setOccupe(true);
+    setErreur(null);
+    try {
+      await appliquerGenresCoupes(suivants);
+      setCoupes(suivants);
+    } catch (cause) {
+      setErreur(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setOccupe(false);
+    }
+  };
+
+  return (
+    <fieldset className="choix-notifs">
+      <legend className="discret">Notify me on this device when</legend>
+      {CHOIX_NOTIFICATIONS.map((choix) => {
+        const recu = !choix.genres.some((genre) => coupes.includes(genre));
+        return (
+          <div key={choix.cle} className="reglage">
+            <span>{choix.libelle}</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={recu}
+              aria-label={choix.libelle}
+              className={recu ? "bascule" : "bascule bascule--off"}
+              disabled={occupe}
+              onClick={() => void change(choix.genres, !recu)}
+            />
+          </div>
+        );
+      })}
+      {erreur === null ? null : (
+        <Avis ton="erreur" annonce="alerte">
+          Not saved on the Mac: {erreur}
+        </Avis>
+      )}
+    </fieldset>
   );
 };
 
@@ -122,6 +186,8 @@ export const Reglages = ({
   overview,
   groupement,
   onGroupement,
+  ordre,
+  onOrdre,
   onClose,
 }: {
   readonly health: Health | null;
@@ -129,6 +195,9 @@ export const Reglages = ({
   readonly overview: Overview | null;
   readonly groupement: Groupement;
   readonly onGroupement: (suivant: Groupement) => void;
+  /** L'ordre des lignes — sorti de la liste (maquette « Inbox ») pour l'alléger. */
+  readonly ordre: OrdreListe;
+  readonly onOrdre: (suivant: OrdreListe) => void;
   readonly onClose: () => void;
 }) => {
   const [theme, setTheme] = useState<Theme>(lireTheme);
@@ -192,6 +261,18 @@ export const Reglages = ({
         <p className="discret">
           Agents that need you or are working stay on top; “By project” groups the rest by project.
         </p>
+        <fieldset className="seg seg--plein" aria-label="List order">
+          {ORDRES_LISTE.map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={ordre === option}
+              onClick={() => onOrdre(option)}
+            >
+              {ORDRE_LABEL[option]}
+            </button>
+          ))}
+        </fieldset>
       </fieldset>
       <fieldset className="champ">
         <legend>Notifications</legend>

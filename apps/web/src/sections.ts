@@ -31,7 +31,8 @@ export const SECTION_LABEL: Record<Section, string> = {
   "a-traiter": "Needs you",
   "en-cours": "Working",
   idle: "Idle",
-  done: "Done",
+  // Une réponse finie qu'on n'a pas ouverte (maquette « Inbox ») : « Unread ».
+  done: "Unread",
 };
 
 /**
@@ -176,12 +177,23 @@ export interface Groupe {
   readonly conversations: ReadonlyArray<ConversationSummary>;
 }
 
+/**
+ * ⚠️ **Les épinglés d'abord (lot 4)**, dans leur groupe, comme les listes
+ * d'agents de Herdr.app (`herdr.pinned`, posé sur le Mac ou ici) — puis
+ * l'ordre choisi, entre épinglés comme entre les autres. Une épingle ne fait
+ * jamais changer un agent de section : un bloqué reste dans « Needs you ».
+ */
+const epingleDabord =
+  (comparer: (a: ConversationSummary, b: ConversationSummary) => number) =>
+  (a: ConversationSummary, b: ConversationSummary): number =>
+    Number(b.pinned === true) - Number(a.pinned === true) || comparer(a, b);
+
 /** Trie des lignes selon l'ordre choisi — un seul endroit. */
 const trier = (
   conversations: ReadonlyArray<ConversationSummary>,
   ordre: Ordre,
 ): ReadonlyArray<ConversationSummary> =>
-  conversations.toSorted(ordre === "nom" ? comparerParNom : comparerParDate);
+  conversations.toSorted(epingleDabord(ordre === "nom" ? comparerParNom : comparerParDate));
 
 /**
  * Répartit et trie les conversations par **état**.

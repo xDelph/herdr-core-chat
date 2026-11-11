@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import type { InstalledKind, WorkspaceView } from "@herdr-core-chat/shared";
 import {
   fetchModelCatalog,
+  LancementIncertain,
   launchAgent,
   reportError,
   TrustRequiredError,
@@ -88,7 +89,8 @@ export const Lancement = ({
   readonly espaceInitial: string | null;
   readonly onClose: () => void;
   /** Le pane est lancé : l'appelant l'ouvre. */
-  readonly onLance: (paneId: string) => void;
+  /** Le pane lancé, et le premier message à lui envoyer quand il sera prêt (ou ""). */
+  readonly onLance: (paneId: string, premier: string) => void;
 }) => {
   const [espace, setEspace] = useState(
     espaceInitial ??
@@ -103,12 +105,35 @@ export const Lancement = ({
   const [filtre, setFiltre] = useState("");
   const [modele, setModele] = useState("");
   const [reflexion, setReflexion] = useState("");
+  /** Le premier message, facultatif : il part quand l'agent est prêt (`premier-message.ts`). */
+  const [premier, setPremier] = useState("");
   const [catalogue, setCatalogue] = useState<ModelCatalog | null>(null);
   const [lecture, setLecture] = useState<"en-cours" | "faite">("en-cours");
   const [erreurCatalogue, setErreurCatalogue] = useState<string | null>(null);
   const [lancement, setLancement] = useState<"repos" | "en-cours">("repos");
   const [echec, setEchec] = useState<string | null>(null);
+  /*
+    ⚠️ **Une issue inconnue n'est pas un échec** (F1.1). On garde les agents
+    que le projet avait AU MOMENT du clic : un agent apparu depuis dans ce
+    projet est très probablement le nôtre — on propose de l'ouvrir, plutôt que
+    de relancer et d'en créer un second.
+  */
+  const [incertain, setIncertain] = useState<{
+    readonly message: string;
+    readonly espace: string;
+    readonly avant: ReadonlySet<string>;
+  } | null>(null);
   const [confiance, setConfiance] = useState<TrustRequired | null>(null);
+
+  // ⚠️ Ouverte avant que la liste des espaces arrive, la feuille gardait un
+  // projet vide pour toujours : le bouton « Launch » restait sans cible.
+  useEffect(() => {
+    if (espace === "" && espaces.length > 0) {
+      setEspace(
+        espaces.find((candidat) => candidat.focused)?.workspaceId ?? espaces[0]?.workspaceId ?? "",
+      );
+    }
+  }, [espace, espaces]);
 
   useEffect(() => {
     if (kind === "" && kinds !== null && kinds.length > 0) {
@@ -170,18 +195,38 @@ export const Lancement = ({
             kind !== "pi" || (fournisseur !== null && candidat.id.startsWith(`${fournisseur}/`)),
         );
 
+  const apparu =
+    incertain === null
+      ? undefined
+      : espaces
+          .find((candidat) => candidat.workspaceId === incertain.espace)
+          ?.agentPanes.find((pane) => !incertain.avant.has(pane));
+
   const lancer = async () => {
     if (!verdict.envoyable || lancement === "en-cours" || espace === "") return;
+    const avant = new Set(
+      espaces.find((candidat) => candidat.workspaceId === espace)?.agentPanes ?? [],
+    );
     setLancement("en-cours");
     setEchec(null);
+    setIncertain(null);
     setConfiance(null);
     try {
       const lance = await launchAgent(espace, kind, verdict.choix);
       void magasin.rafraichit();
-      onLance(lance.paneId);
+      onLance(lance.paneId, premier);
     } catch (cause) {
       if (cause instanceof TrustRequiredError) {
         setConfiance(cause.request);
+      } else if (cause instanceof LancementIncertain) {
+        setIncertain({ avant, espace, message: cause.message });
+        // La liste relue tout de suite : l'agent apparaît s'il a démarré.
+        void magasin.rafraichit();
+        reportError("launch outcome unknown", {
+          kind,
+          message: cause.message,
+          workspaceId: espace,
+        });
       } else {
         const message = cause instanceof Error ? cause.message : String(cause);
         setEchec(message);
@@ -357,18 +402,66 @@ export const Lancement = ({
         </fieldset>
       )}
 
+      <fieldset className="champ">
+        <legend>First message</legend>
+        <label className="sr" htmlFor="premier-message">
+          First message, optional
+        </label>
+        <textarea
+          id="premier-message"
+          className="champ__zone"
+          rows={3}
+          value={premier}
+          placeholder="Optional — leave empty to open the agent and type later"
+          onChange={(evenement) => setPremier(evenement.target.value)}
+        />
+        <p className="discret">Sent as soon as the agent is ready, never typed into the shell.</p>
+      </fieldset>
+
       {verdict.envoyable ? null : <Avis ton="erreur">{verdict.raison}</Avis>}
       {echec === null ? null : (
         <Avis ton="erreur" annonce="alerte">
           Launch failed: {echec}
         </Avis>
       )}
+      {incertain === null ? null : (
+        <Avis ton="attention" annonce="alerte">
+          Launch outcome unknown: {incertain.message}{" "}
+          {apparu === undefined
+            ? "Check the list before launching again — a second launch would start a second agent."
+            : "A new agent appeared in this project since the launch."}
+        </Avis>
+      )}
       {confiance === null ? null : <Confiance demande={confiance} />}
-      {confiance !== null ? (
+      {incertain !== null && apparu !== undefined ? (
+        <button
+          type="button"
+          className="bouton bouton--principal bouton--plein"
+          onClick={() => onLance(apparu, premier)}
+        >
+          Found it: open the agent
+        </button>
+      ) : incertain !== null ? (
+        <div className="dock__boutons">
+          <button type="button" className="bouton" onClick={() => void magasin.rafraichit()}>
+            Check again
+          </button>
+          <button
+            type="button"
+            className="bouton"
+            disabled={
+              !verdict.envoyable || lancement === "en-cours" || espace === "" || kind === ""
+            }
+            onClick={() => void lancer()}
+          >
+            Launch anyway
+          </button>
+        </div>
+      ) : confiance !== null ? (
         <button
           type="button"
           className="bouton bouton--plein"
-          onClick={() => onLance(confiance.paneId)}
+          onClick={() => onLance(confiance.paneId, premier)}
         >
           Open the agent
         </button>

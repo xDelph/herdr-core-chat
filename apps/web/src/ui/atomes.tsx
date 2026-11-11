@@ -46,6 +46,54 @@ export const Marque = memo(
 );
 Marque.displayName = "Marque";
 
+/** Ce que le badge posé sur le logo dit de l'agent. */
+export type Badge = "question" | "erreur" | "travail" | "non-lu";
+
+const LIBELLE_BADGE: Record<Badge, string> = {
+  erreur: "Error",
+  "non-lu": "Unread",
+  question: "Needs you",
+  travail: "Working",
+};
+
+/**
+ * Le logo de l'agent **en tête de ligne**, et son état en badge dessus
+ * (maquette « Inbox », 2026-11-10) : `?` à toi, `×` erreur, spirale au
+ * travail, point bleu non lu. Rien pour le repos : l'absence de badge suffit.
+ *
+ * ⚠️ Le logo reste celui de l'AGENT (Claude, Codex, Pi…) : plusieurs agents
+ * différents travaillent sur le même projet, c'est lui qu'on reconnaît d'un
+ * coup d'œil — le projet est écrit sur la ligne.
+ */
+export const AvatarAgent = memo(
+  ({
+    kind,
+    badge,
+    taille = "grande",
+  }: {
+    readonly kind: string | null;
+    readonly badge: Badge | null;
+    readonly taille?: "grande" | "petite";
+  }) => (
+    <span className={`avatar avatar--${taille}`}>
+      <Marque kind={kind} />
+      {badge === null ? null : (
+        <span className={`avatar__badge avatar__badge--${badge}`}>
+          {badge === "question" ? (
+            <span aria-hidden="true">?</span>
+          ) : badge === "erreur" ? (
+            <Icone nom="x" petite />
+          ) : badge === "travail" ? (
+            <span className="spin" aria-hidden="true" />
+          ) : null}
+          <span className="sr">{LIBELLE_BADGE[badge]}</span>
+        </span>
+      )}
+    </span>
+  ),
+);
+AvatarAgent.displayName = "AvatarAgent";
+
 const TON: Record<AgentStatus, string> = {
   blocked: "attn",
   done: "ok",

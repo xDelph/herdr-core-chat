@@ -22,7 +22,11 @@ export type NomIcone =
   | "folder"
   | "x"
   | "mac"
-  | "sliders";
+  | "send"
+  | "sliders"
+  | "pin"
+  | "clip"
+  | "tuiles";
 
 const TRACES: Record<NomIcone, ReactNode> = {
   back: <path d="m15 18-6-6 6-6" />,
@@ -80,6 +84,15 @@ const TRACES: Record<NomIcone, ReactNode> = {
       <circle cx="12" cy="19" r="1" />
     </>
   ),
+  clip: (
+    <path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7" />
+  ),
+  pin: (
+    <>
+      <path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z" />
+      <path d="M12 15v6" />
+    </>
+  ),
   plus: <path d="M12 5v14M5 12h14" />,
   result: <path d="M5 7h14M5 12h14M5 17h9" />,
   search: (
@@ -88,8 +101,11 @@ const TRACES: Record<NomIcone, ReactNode> = {
       <path d="m20 20-3.5-3.5" />
     </>
   ),
+  send: <path d="M4 12 20 4l-4 16-4-7zM12 13l8-9" />,
   sliders: <path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6" />,
   term: <path d="m4 17 6-5-6-5M12 19h8" />,
+  /** Le mur live : des tuiles. */
+  tuiles: <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />,
   up: <path d="M12 19V5M5 12l7-7 7 7" />,
   web: (
     <>
