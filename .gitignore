@@ -43,3 +43,6 @@ target/
 compatibility/benchmark/fixtures/delta/
 # Captures d'écran locales (T072) — reproductibles, jamais livrées
 apps/web/captures/
+# Captures réelles de l'app (noms de projets, chemins personnels) : gardées en
+# local, jamais publiées — retirées de l'historique avant le premier push.
+/docs/screenshots/
