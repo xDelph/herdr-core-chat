@@ -5,6 +5,14 @@
   border: 0;
   width: 100%;
   max-width: 560px;
+  /*
+    ⚠️ **Jamais une feuille de hauteur nulle.** Si la hauteur mesurée
+    (`--hauteur-app`) est faible — la rotation de l'iPad l'a fait arriver ainsi —
+    `max-height` s'effondrait à 0 : la feuille existait, sans rien à l'écran
+    (Settings et « changed files », retour du 2026-11-12). Le minimum l'emporte
+    sur ce plafond ; le contenu défile.
+  */
+  min-height: min(420px, calc(100vh - 24px));
   max-height: calc(var(--hauteur-app, 100dvh) - 24px);
   background: var(--surface);
   color: var(--ink);
