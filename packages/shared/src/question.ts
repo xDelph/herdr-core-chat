@@ -123,6 +123,30 @@ const LIGNE_CONTEXTE = /^[ \t]*[A-Za-z][\w ._-]{0,24}:[ \t]*\S/;
  * un texte : les libellés sont alignés sur la droite, donc l'écart minimal est
  * parfois en début de ligne (« 2. Allow for this session  Run… »).
  */
+/**
+ * La marque de case d'un choix à cocher (multi-choix de Claude Code : `[ ]`,
+ * `[✔]`, `☐`, `☑`) : elle n'est pas le libellé — sinon « [ ] Type something »
+ * n'était pas reconnue comme saisie libre.
+ */
+const sansCoche = (libelle: string): string => {
+  const reste = libelle.trimStart();
+  for (const marque of ["[ ]", "[x]", "[X]", "[✔]", "[✓]", "[*]", "☐", "☑", "☒"]) {
+    if (reste.startsWith(marque)) return reste.slice(marque.length).trimStart();
+  }
+  return reste;
+};
+
+/**
+ * La ligne « Submit » d'un multi-choix : le bouton de validation, pas la
+ * description du choix au-dessus.
+ */
+const estLigneSoumission = (ligne: string): boolean =>
+  ligne
+    .trim()
+    .replace(/^[✔✓ ]+/u, "")
+    .replace(/[→ ]+$/u, "")
+    .toLowerCase() === "submit";
+
 const separerLibelle = (brut: string): { libelle: string; detail?: string } => {
   const texte = brut.trimEnd();
   // Un séparateur est un « trou » d'au moins deux espaces **cerné** de texte.
@@ -207,6 +231,7 @@ export const questionDeLEcran = (ecran: string): Question | undefined => {
     if (trouve === null) continue;
     const corps = trouve[3] ?? "";
     const lu = separerLibelle(corps);
+    const libelle = sansCoche(lu.libelle);
     /*
       ⚠️ **Le détail peut être sur la ligne suivante.** opencode l'y met, indenté
       plus profond que le choix, là où pi et codex l'écrivent sur la même ligne
@@ -223,13 +248,14 @@ export const questionDeLEcran = (ecran: string): Question | undefined => {
       suivante.trim().length > 0 &&
       !LIGNE_CHOIX.test(suivante) &&
       !LIGNE_INVITE.test(suivante) &&
+      !estLigneSoumission(suivante) &&
       indentation(suivante) > indentation(lignes[index] ?? "")
         ? suivante.trim()
         : undefined;
     const detail = lu.detail ?? surLaSuivante;
     choix.push({
       ...(detail === undefined ? {} : { detail }),
-      libelle: lu.libelle,
+      libelle,
       numero: Number.parseInt(trouve[2] ?? "0", 10),
       selectionne: trouve[1] === "›" || trouve[1] === "❯",
     });

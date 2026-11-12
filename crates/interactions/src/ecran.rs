@@ -268,6 +268,32 @@ fn separer_libelle(brut: &str) -> (String, Option<String>) {
     }
 }
 
+/// La marque de case d'un choix à cocher (multi-choix de Claude Code :
+/// `[ ]`, `[✔]`, `☐`, `☑`) : elle n'est pas le libellé. ⚠️ Sans cela,
+/// « [ ] Type something » n'était ni reconnu comme saisie libre ni comparable
+/// à « Type something » : l'application envoyait le chiffre seul.
+fn sans_coche(libelle: &str) -> &str {
+    const MARQUES: [&str; 9] = ["[ ]", "[x]", "[X]", "[✔]", "[✓]", "[*]", "☐", "☑", "☒"];
+    let reste = libelle.trim_start();
+    for marque in MARQUES {
+        if let Some(suite) = reste.strip_prefix(marque) {
+            return suite.trim_start();
+        }
+    }
+    reste
+}
+
+/// La ligne « Submit » d'un multi-choix : le bouton de validation, qui n'est
+/// PAS la description du choix au-dessus. ⚠️ Elle était prise pour un détail
+/// (« Type something » affichait « Submit » en petit) et le bouton disparaissait.
+fn est_ligne_soumission(ligne: &str) -> bool {
+    let propre = ligne
+        .trim()
+        .trim_start_matches(['✔', '✓', ' '])
+        .trim_end_matches(['→', ' ']);
+    propre.eq_ignore_ascii_case("submit")
+}
+
 /// La chaîne que **opencode ajoute lui-même** pour la saisie libre —
 /// relevée dans son bundle (2.0.23) : la reconnaître sert à ne PAS
 /// l'envoyer comme un choix (le choisir ouvre un champ texte).
@@ -318,16 +344,18 @@ pub fn question_de_l_ecran(ecran: &str) -> Option<Question> {
     for &index in retenues {
         let (selectionne, numero, corps) = ligne_choix(lignes[index])?;
         let (libelle, detail_meme_ligne) = separer_libelle(corps);
+        let libelle = sans_coche(&libelle).to_string();
         // ⚠️ Le détail peut être sur la LIGNE SUIVANTE, indentée plus
-        // profond que le choix — deux garde-fous : plus indentée, et pas
-        // une ligne de choix ni d'invite (sans le second, `enter to
-        // submit` devenait le détail du dernier choix).
+        // profond que le choix — garde-fous : plus indentée, pas une ligne
+        // de choix ni d'invite (sans le second, `enter to submit` devenait
+        // le détail du dernier choix), et pas la ligne « Submit ».
         let sur_la_suivante = match lignes.get(index + 1) {
             Some(suivante)
                 if detail_meme_ligne.is_none()
                     && !suivante.trim().is_empty()
                     && ligne_choix(suivante).is_none()
                     && !est_ligne_invite(suivante)
+                    && !est_ligne_soumission(suivante)
                     && indentation(suivante) > indentation(lignes[index]) =>
             {
                 Some(suivante.trim().to_string())

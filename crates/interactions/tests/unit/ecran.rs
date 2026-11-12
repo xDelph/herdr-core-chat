@@ -206,6 +206,49 @@ fn la_question_de_claude_se_lit_avec_son_curseur() {
     );
 }
 
+/// Le multi-choix de Claude Code : marques de case `[ ]` / `[✔]` devant chaque
+/// libellé, et la ligne « Submit » sous « Type something ».
+pub(crate) const ECRAN_MULTI: &str = concat!(
+    "────────────────────────────────────────────────────────────────────\n",
+    "Which decisions apply here?\n",
+    "\n",
+    "  1. [✔] Densité / diamètre / temp.\n",
+    "     Propriétés de la matière.\n",
+    "  2. [ ] Prix par taille\n",
+    "  3. [ ] Type something\n",
+    "     Submit\n",
+    "────────────────────────────────────────────────────────────────────\n",
+    "  4. Chat about this\n",
+    "\n",
+    "Enter to select · ↑/↓ to navigate · Esc to cancel\n",
+);
+
+#[test]
+fn le_multi_choix_retire_les_cases_et_garde_le_submit_a_part() {
+    let question =
+        question_de_l_ecran(ECRAN_MULTI).unwrap_or_else(|| panic!("le multi-choix doit se lire"));
+    let libelles: Vec<&str> = question.choix.iter().map(|c| c.libelle.as_str()).collect();
+    assert_eq!(
+        libelles,
+        vec![
+            "Densité / diamètre / temp.",
+            "Prix par taille",
+            "Type something",
+            "Chat about this"
+        ]
+    );
+    assert_eq!(
+        question.choix[0].detail.as_deref(),
+        Some("Propriétés de la matière."),
+        "la description reste celle du choix 1"
+    );
+    assert_eq!(
+        question.choix[2].detail, None,
+        "« Submit » n'est pas la description de « Type something »"
+    );
+    assert!(est_option_saisie_libre(&question.choix[2].libelle));
+}
+
 /// Le sélecteur des extensions de pi (`extension-selector.js`) : cadre,
 /// titre, description, options NON numérotées avec le curseur `→`, aide.
 pub(crate) fn ecran_pi(curseur: usize) -> String {

@@ -770,9 +770,17 @@
   background: var(--surface);
   border-top: 1px solid var(--attn-line);
   padding: 14px 16px 10px;
-  display: grid;
+  /* Pile en flex, pas en grille : en grille, un choix dont la description
+     dépasse le plafond de 55 % était écrasé, et le choix suivant masquait
+     sa description (« une gamme », « filament » coupés). Ici chaque enfant
+     garde sa hauteur, et c'est le panneau qui défile. */
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   box-shadow: 0 -8px 24px -16px rgba(0, 0, 0, 0.25);
+}
+.dock > * {
+  flex: none;
 }
 .dock__de {
   display: flex;

@@ -220,3 +220,35 @@ describe("opencode — le filet de rendu ne cache plus la question", () => {
     expect(questionDeLEcran(sansQuestion)).toBeUndefined();
   });
 });
+
+describe("multi-choix de Claude Code", () => {
+  // Marques de case devant chaque libellé, « Submit » sous « Type something ».
+  const ecran = [
+    "Which decisions apply here?",
+    "",
+    "  1. [✔] Densité / diamètre / temp.",
+    "     Propriétés de la matière.",
+    "  2. [ ] Prix par taille",
+    "  3. [ ] Type something",
+    "     Submit",
+    "  4. Chat about this",
+    "",
+    "Enter to select · ↑/↓ to navigate · Esc to cancel",
+  ].join("\n");
+
+  test("les marques de case ne font pas partie du libellé", () => {
+    const question = questionDeLEcran(ecran);
+    expect(question?.choix.map((c) => c.libelle)).toEqual([
+      "Densité / diamètre / temp.",
+      "Prix par taille",
+      "Type something",
+      "Chat about this",
+    ]);
+  });
+
+  test("« Submit » n'est pas la description du choix au-dessus", () => {
+    const question = questionDeLEcran(ecran);
+    expect(question?.choix[2]?.detail).toBeUndefined();
+    expect(question?.choix[0]?.detail).toBe("Propriétés de la matière.");
+  });
+});
