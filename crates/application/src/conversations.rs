@@ -705,6 +705,11 @@ impl ServiceConversations {
             },
             Ok(entrees) => {
                 let details = Self::details_de(&entrees, taches.as_deref().unwrap_or(&[]));
+                let horodatage = activite_au_repos(
+                    details.horodatage,
+                    preuv.agent.status,
+                    preuv.agent.state_change_seq,
+                );
                 LigneConversation {
                     session_state: SessionState::Available,
                     dernier_texte: details.dernier_texte,
@@ -712,7 +717,7 @@ impl ServiceConversations {
                     modele: details.modele,
                     fournisseur: details.fournisseur,
                     pensee: details.pensee,
-                    horodatage: details.horodatage,
+                    horodatage,
                     tour_debut: details.tour_debut,
                     ..base
                 }
@@ -1032,6 +1037,31 @@ struct DetailsLigne {
     pensee: Option<String>,
     horodatage: Option<u64>,
     tour_debut: Option<u64>,
+}
+
+/// L'activité d'une conversation **au repos** : son dernier tour s'est terminé
+/// à `changement` (`state_change_seq` = `status_ms`, l'instant du changement de
+/// statut). Une entrée écrite après ce changement n'est pas du travail de
+/// l'agent — un résumé d'absence, un hook, une notification de fond — et ne
+/// doit pas rouvrir une conversation déjà lue.
+///
+/// ⚠️ **Retour du 2026-11-12 : « lu sur le PC, toujours non lu ».** Le « vu »
+/// de Herdr vaut la fin du tour (`status_ms`) ; or la dernière entrée de la
+/// session était un `away_summary` écrit 3 min plus tard. `timestamp >
+/// readAt` restait vrai, la conversation redevenait « non lue ».
+///
+/// Hors repos (en cours, bloqué, erreur), la dernière entrée reste l'activité.
+fn activite_au_repos(
+    horodatage: Option<u64>,
+    statut: AgentStatus,
+    changement: Option<u64>,
+) -> Option<u64> {
+    match (horodatage, changement) {
+        (Some(entree), Some(fin)) if matches!(statut, AgentStatus::Done | AgentStatus::Idle) => {
+            Some(entree.min(fin))
+        }
+        (entree, _) => entree,
+    }
 }
 
 /// Un message qui PEUT ouvrir un tour : une demande de l'utilisateur, hors

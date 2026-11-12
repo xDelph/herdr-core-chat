@@ -1208,3 +1208,54 @@ fn un_agent_sans_session_compte_ses_sous_agents_en_direct() {
     assert_eq!((compte.en_cours, compte.total), (1, 1));
     assert_eq!(lignes[0].faits.sous_agents.len(), 1);
 }
+
+#[test]
+fn une_entree_ecrite_apres_la_fin_du_tour_ne_rouvre_pas_la_conversation() {
+    // Retour du 2026-11-12 : un `away_summary` écrit 3 min après la fin du
+    // tour repoussait l'horodatage, et la conversation lue sur le Mac
+    // redevenait « non lue ». La fin du tour (`status_ms`) fait foi.
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture(
+            "p1",
+            Ok(vec![
+                entree_datee(RoleDeSession::Assistant, "c'est fait", 1_000_000, false),
+                entree_datee(
+                    RoleDeSession::Assistant,
+                    "résumé d'absence",
+                    1_180_000,
+                    false,
+                ),
+            ]),
+        );
+    let service = service(faux);
+    let mut fini = agent("p1", Some("claude"), AgentStatus::Done, None);
+    fini.state_change_seq = Some(1_000_400);
+    let lignes = service.lignes(&HerdrFaux::nouveau(), &borne(vec![fini]));
+    assert_eq!(
+        lignes[0].horodatage,
+        Some(1_000_400),
+        "au repos, l'activité est la fin du tour, pas l'entrée tardive"
+    );
+}
+
+#[test]
+fn un_agent_en_cours_garde_sa_derniere_entree_pour_horodatage() {
+    // Hors repos, la dernière entrée reste l'activité : rien n'est bridé.
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture(
+            "p1",
+            Ok(vec![entree_datee(
+                RoleDeSession::Assistant,
+                "je travaille",
+                1_180_000,
+                false,
+            )]),
+        );
+    let service = service(faux);
+    let mut en_cours = agent("p1", Some("claude"), AgentStatus::Working, None);
+    en_cours.state_change_seq = Some(1_000_400);
+    let lignes = service.lignes(&HerdrFaux::nouveau(), &borne(vec![en_cours]));
+    assert_eq!(lignes[0].horodatage, Some(1_180_000));
+}
