@@ -95,12 +95,17 @@ impl Notifieur {
         self
     }
 
-    /// Enfile la notification vers les abonnements courants, sauf les
-    /// appareils où l'app est au premier plan — rend le nombre d'abonnements
-    /// visés (0 : personne à prévenir, rien n'est enfilé). Ne bloque jamais
-    /// sur le réseau.
+    /// Enfile la notification vers les abonnements courants — rend le nombre
+    /// d'abonnements visés (0 : personne à prévenir, rien n'est enfilé). Ne
+    /// bloque jamais sur le réseau.
+    ///
+    /// ⚠️ **Une PWA au premier plan sur un appareil quelconque suffit à se
+    /// taire** : rien ne part, ni vers elle ni vers les autres.
     pub fn notifie(&self, payload: &PayloadNotification) -> Result<usize, ErreurNotification> {
         let maintenant = std::time::Instant::now();
+        if self.presence.quelqu_un_est_la(maintenant) {
+            return Ok(0);
+        }
         let coupes = self.store.coupes().map_err(ErreurNotification::Store)?;
         let abonnements: Vec<_> = self
             .store

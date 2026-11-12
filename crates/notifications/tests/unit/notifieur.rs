@@ -138,11 +138,12 @@ async fn un_store_illisible_est_une_cause_nommee() {
     ));
 }
 
-/// H23 — l'appareil où l'app est au premier plan n'est pas notifié ; les
-/// autres le sont toujours. Retour du 2026-10-29 : « je suis dans l'app, et je
-/// reçois quand même la notif ».
+/// H23 — une PWA au premier plan retient les notifications pour TOUS les
+/// appareils, pas seulement pour celui où elle tourne. Retour du 2026-10-29 :
+/// « je suis dans l'app, et je reçois quand même la notif » ; 2026-11-12 : PWA
+/// ouverte sur la tablette, téléphone notifié quand même.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn l_appareil_au_premier_plan_n_est_pas_notifie() {
+async fn une_pwa_au_premier_plan_retient_toutes_les_notifications() {
     use notifications::presence::PresenceAppareils;
     let service = Arc::new(FauxService::default());
     let gardien = store();
@@ -163,24 +164,41 @@ async fn l_appareil_au_premier_plan_n_est_pas_notifie() {
     let notifieur =
         Notifieur::nouveau(service.clone(), gardien).avec_presence(Arc::clone(&presence));
     let payload = payload_de_notification("pixel", Some("w1:p1"), StatutDeFin::Fini);
-    assert_eq!(notifieur.notifie(&payload).ok(), Some(1));
-    service.attend(1).await;
-    assert_eq!(
-        service
-            .envois()
-            .into_iter()
-            .map(|(endpoint, _)| endpoint)
-            .collect::<Vec<_>>(),
-        vec![String::from("https://push.example/ipad")]
-    );
+    assert_eq!(notifieur.notifie(&payload).ok(), Some(0));
+    service.attend(0).await;
+    assert!(service.envois().is_empty(), "rien ne part, ni vers l'iPad");
 
-    // Il quitte l'app : il est de nouveau notifié.
+    // La PWA quitte le premier plan : tout le monde est de nouveau prévenu.
     presence.marque(
         "https://push.example/telephone",
         false,
         std::time::Instant::now(),
     );
     assert_eq!(notifieur.notifie(&payload).ok(), Some(2));
+}
+
+/// Retour du 2026-11-12 : la PWA ouverte sur la tablette (sans notifications
+/// activées, donc sans abonnement), le téléphone abonné ne doit RIEN recevoir.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn une_pwa_ouverte_sur_un_appareil_sans_abonnement_retient_tout() {
+    use notifications::presence::PresenceAppareils;
+    let service = Arc::new(FauxService::default());
+    let gardien = store();
+    gardien
+        .abonne(&abonnement("https://push.example/telephone"))
+        .unwrap_or_else(|erreur| panic!("abonnement : {erreur:?}"));
+    let presence = Arc::new(PresenceAppareils::nouvelle());
+    presence.marque("tablette-sans-abonnement", true, std::time::Instant::now());
+    let notifieur =
+        Notifieur::nouveau(service.clone(), gardien).avec_presence(Arc::clone(&presence));
+    let payload = payload_de_notification("pixel", Some("w1:p1"), StatutDeFin::Fini);
+    assert_eq!(notifieur.notifie(&payload).ok(), Some(0));
+    service.attend(0).await;
+    assert!(service.envois().is_empty(), "rien ne part");
+
+    // La tablette quitte l'app : le téléphone est de nouveau prévenu.
+    presence.marque("tablette-sans-abonnement", false, std::time::Instant::now());
+    assert_eq!(notifieur.notifie(&payload).ok(), Some(1));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

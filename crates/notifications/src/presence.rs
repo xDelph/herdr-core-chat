@@ -65,4 +65,17 @@ impl PresenceAppareils {
             .get(endpoint)
             .is_some_and(|vu| maintenant.saturating_duration_since(*vu) <= DUREE_PRESENCE)
     }
+
+    /// Une PWA est-elle au premier plan, **sur n'importe quel appareil** ?
+    /// Si oui, aucune notification ne part — ni vers cet appareil, ni vers les
+    /// autres (retour du 2026-11-12 : PWA ouverte sur la tablette, téléphone
+    /// notifié quand même).
+    #[must_use]
+    pub fn quelqu_un_est_la(&self, maintenant: Instant) -> bool {
+        self.vus
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .any(|vu| maintenant.saturating_duration_since(*vu) <= DUREE_PRESENCE)
+    }
 }

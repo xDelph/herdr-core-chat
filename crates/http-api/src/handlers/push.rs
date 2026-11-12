@@ -142,9 +142,10 @@ pub async fn abonnements(
     }
 }
 
-/// `POST /api/notifications/presence` (H23) — l'app est au premier plan sur
-/// cet appareil (ou vient de le quitter) : il n'est pas notifié tant qu'il
-/// est là. Les autres appareils le sont toujours.
+/// `POST /api/notifications/presence` (H23) — une PWA est au premier plan sur
+/// un appareil (ou vient de le quitter) : tant qu'elle y est, rien n'est
+/// notifié, sur aucun appareil. L'appareil se nomme par `appareil` (tous, y
+/// compris ceux sans abonnement), ou par `endpoint` pour une PWA déjà chargée.
 pub async fn presence(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
     corps: CorpsBorne,
@@ -156,18 +157,33 @@ pub async fn presence(
         )
             .into_response();
     };
-    let Ok(PresenceRequest { endpoint, visible }) =
-        serde_json::from_slice::<PresenceRequest>(&corps.octets)
-    else {
-        return (
+    let refus = || {
+        (
             axum::http::StatusCode::BAD_REQUEST,
             axum::Json(serde_json::json!({
-                "error": "invalid body: `endpoint` (string) and `visible` (boolean) required"
+                "error": "invalid body: `appareil` or `endpoint` (string) and `visible` (boolean) required"
             })),
         )
-            .into_response();
+            .into_response()
     };
-    match port.presence(endpoint, visible).await {
+    let Ok(PresenceRequest {
+        appareil,
+        endpoint,
+        visible,
+    }) = serde_json::from_slice::<PresenceRequest>(&corps.octets)
+    else {
+        return refus();
+    };
+    // La clé du registre : l'appareil s'il se nomme, sinon son endpoint. Un
+    // corps qui ne nomme rien ne dit pas QUI est là : refusé, pas deviné.
+    let Some(cle) = appareil
+        .en_option()
+        .filter(|nom| !nom.is_empty())
+        .or_else(|| endpoint.en_option().filter(|url| !url.is_empty()))
+    else {
+        return refus();
+    };
+    match port.presence(cle, visible).await {
         Ok(()) => acquittement(),
         Err(cause) => repondre_panne(RouteId::Presence, "Could not record presence", &cause),
     }

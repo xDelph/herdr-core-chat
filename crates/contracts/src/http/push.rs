@@ -11,12 +11,23 @@ pub struct UnsubscribeRequest {
 }
 
 /// La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier
-/// plan (`visible: true`) ou vient de le quitter — l'endpoint push nomme
-/// l'appareil, qui n'est alors pas notifié.
+/// plan (`visible: true`) ou vient de la quitter.
+///
+/// ⚠️ **Tant qu'une PWA est au premier plan, AUCUNE notification ne part** —
+/// quel que soit l'appareil où elle tourne, et qu'il ait activé les
+/// notifications ou non (retour du 2026-11-12 : PWA ouverte sur la tablette,
+/// le téléphone notifié quand même). Un appareil sans abonnement push n'a donc
+/// pas d'endpoint : il s'identifie par `appareil`.
+///
+/// `appareil` (identifiant stable de la PWA) ou, pour une PWA déjà chargée qui
+/// ne l'envoie pas, `endpoint` : l'un des deux est requis.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PresenceRequest {
-    pub endpoint: String,
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub appareil: crate::presence::Field<String>,
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub endpoint: crate::presence::Field<String>,
     pub visible: bool,
 }
 

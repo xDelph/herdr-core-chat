@@ -298,6 +298,42 @@ async fn presence_204_notee() {
     );
 }
 
+/// Retour du 2026-11-12 : une PWA sans abonnement (la tablette) se nomme par
+/// son identifiant d'appareil, sans endpoint, et sa présence compte.
+#[tokio::test(flavor = "multi_thread")]
+async fn presence_204_par_appareil_sans_abonnement() {
+    let (partage, puits) = puits();
+    let services = services_retouches(HerdrFaux::nouveau(), move |services| {
+        services.notifications = Some(partage);
+    });
+    let (statut, _) = envoie_post(
+        routeur(services, vec![]),
+        "/api/notifications/presence",
+        json!({ "appareil": "tablette-1", "visible": true })
+            .to_string()
+            .into_bytes(),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::NO_CONTENT);
+    assert_eq!(puits.presences(), vec![(String::from("tablette-1"), true)]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn presence_400_sans_appareil_ni_endpoint() {
+    let (partage, puits) = puits();
+    let services = services_retouches(HerdrFaux::nouveau(), move |services| {
+        services.notifications = Some(partage);
+    });
+    let (statut, _) = envoie_post(
+        routeur(services, vec![]),
+        "/api/notifications/presence",
+        json!({ "visible": true }).to_string().into_bytes(),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::BAD_REQUEST);
+    assert!(puits.presences().is_empty(), "rien n'est deviné");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn presence_400_corps_invalide() {
     let (partage, puits) = puits();

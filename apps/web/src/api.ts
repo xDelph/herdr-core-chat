@@ -1210,10 +1210,18 @@ export const changeModel = async (
 /**
  * H23 — l'app est au premier plan sur cet appareil (ou vient de le quitter).
  * `keepalive` : le départ doit partir même si la page gèle juste après.
+ *
+ * ⚠️ `endpoint` est **omis** (pas `null`) quand l'appareil n'est pas abonné :
+ * le démon refuse un `null` explicite. L'identifiant `appareil` le nomme.
  */
-export const signalePresence = async (endpoint: string, visible: boolean): Promise<void> => {
+export const signalePresence = async (signalement: {
+  readonly appareil: string;
+  readonly endpoint: string | null;
+  readonly visible: boolean;
+}): Promise<void> => {
+  const { appareil, endpoint, visible } = signalement;
   const response = await fetch("/api/notifications/presence", {
-    body: JSON.stringify({ endpoint, visible }),
+    body: JSON.stringify({ appareil, visible, ...(endpoint === null ? {} : { endpoint }) }),
     headers: { "content-type": "application/json" },
     keepalive: true,
     method: "POST",

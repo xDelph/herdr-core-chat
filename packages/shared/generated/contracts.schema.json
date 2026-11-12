@@ -3049,8 +3049,11 @@
     "PresenceRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
-      "description": "La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier\nplan (`visible: true`) ou vient de le quitter — l'endpoint push nomme\nl'appareil, qui n'est alors pas notifié.",
+      "description": "La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier\nplan (`visible: true`) ou vient de la quitter.\n\n⚠️ **Tant qu'une PWA est au premier plan, AUCUNE notification ne part** —\nquel que soit l'appareil où elle tourne, et qu'il ait activé les\nnotifications ou non (retour du 2026-11-12 : PWA ouverte sur la tablette,\nle téléphone notifié quand même). Un appareil sans abonnement push n'a donc\npas d'endpoint : il s'identifie par `appareil`.\n\n`appareil` (identifiant stable de la PWA) ou, pour une PWA déjà chargée qui\nne l'envoie pas, `endpoint` : l'un des deux est requis.",
       "properties": {
+        "appareil": {
+          "type": "string"
+        },
         "endpoint": {
           "type": "string"
         },
@@ -3059,7 +3062,6 @@
         }
       },
       "required": [
-        "endpoint",
         "visible"
       ],
       "title": "PresenceRequest",

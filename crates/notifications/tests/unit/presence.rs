@@ -19,6 +19,17 @@ fn une_presence_expire_sans_battement() {
 }
 
 #[test]
+fn une_presence_sur_n_importe_quel_appareil_retient_tout_le_monde() {
+    let presence = PresenceAppareils::nouvelle();
+    let debut = Instant::now();
+    assert!(!presence.quelqu_un_est_la(debut), "personne au départ");
+    // Un appareil SANS abonnement (identifiant d'appareil, pas d'endpoint).
+    presence.marque("tablette-sans-abonnement", true, debut);
+    assert!(presence.quelqu_un_est_la(debut));
+    assert!(!presence.quelqu_un_est_la(debut + DUREE_PRESENCE + Duration::from_secs(1)));
+}
+
+#[test]
 fn un_depart_efface_la_presence_tout_de_suite() {
     let presence = PresenceAppareils::nouvelle();
     let maintenant = Instant::now();

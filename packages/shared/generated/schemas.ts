@@ -621,7 +621,8 @@ export type PinResponse = typeof PinResponse.Type;
 
 /** La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier */
 export const PresenceRequest = Schema.Struct({
-  "endpoint": Schema.String,
+  "appareil": Schema.optional(Schema.String),
+  "endpoint": Schema.optional(Schema.String),
   "visible": Schema.Boolean,
 });
 export type PresenceRequest = typeof PresenceRequest.Type;
