@@ -66,14 +66,19 @@ const repriseAuReveil = () => {
 /** La présence de cet appareil suit sa visibilité (H23). */
 const suitPresence = () => void presence.surVisibilite();
 
+// ⚠️ **Hors du bloc `serviceWorker`.** L'API service worker n'existe qu'en HTTPS :
+// en HTTP, la présence ne partait jamais et le téléphone restait notifié. Une
+// tablette sans notifications (donc sans worker ni abonnement) doit pouvoir
+// retenir les notifications : la présence part sans endpoint (`presence.ts`).
+// Au premier plan, cet appareil n'est pas notifié (H23).
+suitPresence();
+document.addEventListener("visibilitychange", suitPresence);
+window.addEventListener("pagehide", suitPresence);
+
 if ("serviceWorker" in navigator) {
   // Après un appui sur une notification, le worker peut demander d'ouvrir une
   // conversation : le fragment change, le routage suit (`hashchange`).
   ecouteNavigationWorker(navigator.serviceWorker, vaVers);
-  // Au premier plan, cet appareil n'est pas notifié (H23).
-  suitPresence();
-  document.addEventListener("visibilitychange", suitPresence);
-  window.addEventListener("pagehide", suitPresence);
   repriseAuReveil();
   document.addEventListener("visibilitychange", repriseAuReveil);
   window.addEventListener("pageshow", repriseAuReveil);
