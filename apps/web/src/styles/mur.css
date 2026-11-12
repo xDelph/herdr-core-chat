@@ -447,3 +447,21 @@ a.tuile:hover {
     font-size: 26px;
   }
 }
+
+/* ---------- blocs « à relire » et « en fond » : défilent de dedans ----------
+  ⚠️ `.tuile` coupe son contenu (overflow: hidden) : avec beaucoup de réponses
+  à relire, les dernières étaient inaccessibles. Le bloc a une hauteur
+  maximale et défile lui-même ; son titre reste en haut pendant le défilement.
+  La hauteur suit l'écran (dvh) : petite en paysage, plus grande en portrait. */
+.tuile--lire {
+  max-height: 60dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.tuile--lire .tuile__section {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  padding: 0 0 6px;
+}
