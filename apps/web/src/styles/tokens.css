@@ -51,6 +51,10 @@
   --cible: 44px;
   --haut-sur: env(safe-area-inset-top, 0px);
   --bas-sur: env(safe-area-inset-bottom, 0px);
+  /* Encoche en paysage : la marge est la PLUS GRANDE des deux, et elle est
+     mise des deux côtés — le contenu reste centré, la zone morte n'est jamais
+     touchée, quel que soit le sens de rotation. Portrait : 0. */
+  --cote-sur: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   color-scheme: light;
 }
 

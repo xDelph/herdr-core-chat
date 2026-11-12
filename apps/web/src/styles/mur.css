@@ -410,3 +410,38 @@ a.tuile:hover {
     font-size: 13px;
   }
 }
+
+/* ---------- paysage (téléphone couché : peu de hauteur, ~390 px) ----------
+  ⚠️ Retour du 2026-11-12 : en paysage, les tuiles de 240 px de haut ne
+  laissaient qu'une rangée — deux tuiles visibles sur trois. Ici quatre
+  colonnes de tuiles compactes : quatre agents tiennent sur la première
+  rangée, sans défilement. Le titre et le chrono se réduisent, le reste garde
+  sa place. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .mur {
+    padding: calc(8px + var(--haut-sur)) 12px calc(8px + var(--bas-sur));
+    gap: 8px;
+  }
+  .mur__grille {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: 8px;
+  }
+  .tuile {
+    border-radius: 16px;
+    padding: 10px 12px;
+    gap: 6px;
+  }
+  .tuile__tete .marque,
+  .tuile__lu .marque {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
+  .tuile__titre {
+    font-size: 16px;
+  }
+  .tuile__chrono {
+    font-size: 26px;
+  }
+}

@@ -100,6 +100,9 @@ fieldset.seg {
   display: grid;
   grid-template-columns: 1fr;
   overflow: hidden;
+  /* Marges de l'encoche en paysage, symétriques (voir --cote-sur). */
+  padding-inline: var(--cote-sur);
+  background: var(--ground);
 }
 .app > .boite,
 .app > .conversation,
