@@ -33,6 +33,18 @@ select {
   font: inherit;
   color: inherit;
 }
+/*
+  ⚠️ **16 px minimum pour les champs de saisie.** Safari iOS/iPadOS zoome sur
+  tout champ dont la police est plus petite, au focus — et il rouvre le focus
+  au retour depuis le sélecteur d'apps (retour du 2026-11-13 : la vue se
+  retrouvait agrandie). Le corps est à 15 px : sans cette règle, les champs
+  l'héritaient.
+*/
+input,
+textarea,
+select {
+  font-size: max(16px, 1em);
+}
 button {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
