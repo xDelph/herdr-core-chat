@@ -17,6 +17,7 @@ import { App } from "./app/App.tsx";
 import { reportError } from "./api.ts";
 import { presence } from "./app/services.ts";
 import { ecouteNavigationWorker, reprendNavigation } from "./navigation-worker.ts";
+import { reinitialiseZoom } from "./zoom.ts";
 import {
   lireStyleMarque,
   lireTheme,
@@ -63,6 +64,16 @@ const repriseAuReveil = () => {
   for (const delai of [400, 1_200]) window.setTimeout(() => void reprend(), delai);
 };
 
+/**
+ * Retour depuis le gestionnaire de fenêtres de l'iPad : la vue restait zoomée.
+ * La meta `viewport` est réaffectée (deux fois, iOS recalcule à l'arrivée).
+ */
+const retourDuZoom = () => {
+  if (document.visibilityState !== "visible") return;
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+  for (const delai of [0, 300]) window.setTimeout(() => reinitialiseZoom(meta), delai);
+};
+
 /** La présence de cet appareil suit sa visibilité (H23). */
 const suitPresence = () => void presence.surVisibilite();
 
@@ -74,6 +85,9 @@ const suitPresence = () => void presence.surVisibilite();
 suitPresence();
 document.addEventListener("visibilitychange", suitPresence);
 window.addEventListener("pagehide", suitPresence);
+// Le retour depuis le gestionnaire de fenêtres : le zoom se remet à zéro, sans service worker.
+document.addEventListener("visibilitychange", retourDuZoom);
+window.addEventListener("pageshow", retourDuZoom);
 
 if ("serviceWorker" in navigator) {
   // Après un appui sur une notification, le worker peut demander d'ouvrir une
