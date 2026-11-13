@@ -756,7 +756,7 @@ impl ServiceConversations {
                     fournisseur: details.fournisseur,
                     pensee: details.pensee,
                     horodatage,
-                    tour_debut: self.tour_courant(&preuv.agent, details.tour_debut),
+                    tour_debut: self.tour_courant(preuv.agent, details.tour_debut),
                     ..base
                 }
             }
