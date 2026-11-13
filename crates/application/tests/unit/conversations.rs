@@ -1259,3 +1259,51 @@ fn un_agent_en_cours_garde_sa_derniere_entree_pour_horodatage() {
     let lignes = service.lignes(&HerdrFaux::nouveau(), &borne(vec![en_cours]));
     assert_eq!(lignes[0].horodatage, Some(1_180_000));
 }
+
+/// Retour du 2026-11-13 : le chrono reprenait le tour PRÉCÉDENT pendant quelques
+/// secondes, puis tombait à zéro (la session n'avait pas encore la nouvelle demande).
+#[test]
+fn le_chrono_part_du_nouveau_tour_sans_reprendre_l_ancien() {
+    // La session ne montre que la demande du tour 5 (à 1_000) : elle est en retard.
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture(
+            "p1",
+            Ok(vec![entree_datee(
+                RoleDeSession::User,
+                "tour précédent",
+                1_000,
+                false,
+            )]),
+        );
+    let service = service(faux);
+    let port = HerdrFaux::nouveau();
+    let travail = |tour: u64, changement: u64| {
+        let mut agent = agent("p1", Some("claude"), AgentStatus::Working, None);
+        agent.revision = tour;
+        agent.state_change_seq = Some(changement);
+        borne(vec![agent])
+    };
+
+    // 1. Premier instant vu : la session fait foi.
+    let lignes = service.lignes(&port, &travail(5, 1_000));
+    assert_eq!(lignes[0].tour_debut, Some(1_000));
+
+    // 2. Nouveau tour (6) : le statut vient de passer à `working` à 9_000, la
+    //    session n'a pas encore la demande. Le chrono part de 9_000, pas de 1_000.
+    let lignes = service.lignes(&port, &travail(6, 9_000));
+    assert_eq!(
+        lignes[0].tour_debut,
+        Some(9_000),
+        "le nouveau tour part de son changement de statut"
+    );
+
+    // 3. Même tour (6), après une question répondue (`blocked` → `working` à 12_000) :
+    //    le chrono garde le début du tour, il ne repart pas à zéro.
+    let lignes = service.lignes(&port, &travail(6, 12_000));
+    assert_eq!(
+        lignes[0].tour_debut,
+        Some(9_000),
+        "une question répondue ne remet pas le chrono à zéro"
+    );
+}

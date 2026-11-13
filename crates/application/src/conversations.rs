@@ -35,6 +35,7 @@ use interactions::ecran::question_de_l_ecran;
 /// `interactions` (graphe), et la ligne transporte le type.
 pub use interactions::ecran::{Choix, Question};
 use std::sync::Arc;
+use std::sync::PoisonError;
 
 /// Le plafond du contrat : 4 lectures de session en même temps.
 pub const MAX_SESSION_READS: usize = 4;
@@ -362,6 +363,9 @@ pub struct ServiceConversations {
     sas_sessions: SasDeLecture,
     sas_ecrans: SasDeLecture,
     ecrans: std::sync::Mutex<std::collections::HashMap<String, EcranRetenu>>,
+    /// Le début retenu de chaque tour, par pane : `(turn, début)`. Voir
+    /// [`ServiceConversations::tour_courant`].
+    tours: std::sync::Mutex<std::collections::HashMap<String, (u64, Option<u64>)>>,
 }
 
 impl ServiceConversations {
@@ -373,7 +377,41 @@ impl ServiceConversations {
             sas_sessions: SasDeLecture::nouveau(MAX_SESSION_READS),
             sas_ecrans: SasDeLecture::nouveau(MAX_ECRANS_LUS),
             ecrans: std::sync::Mutex::default(),
+            tours: std::sync::Mutex::default(),
         }
+    }
+
+    /// Le début du tour **courant** d'un agent (le chronomètre part de là).
+    ///
+    /// ⚠️ **Retour du 2026-11-13 : le chrono reprend le tour précédent, puis
+    /// tombe à zéro.** Le statut passe à `working` avant que la session n'écrive
+    /// la nouvelle demande : `tourDebut` (lu dans la session) est alors le début
+    /// du tour PRÉCÉDENT, pendant quelques secondes.
+    ///
+    /// Le début est retenu par tour (`revision` = `turn` de Herdr) :
+    /// - un **nouveau** tour (numéro différent) part de l'instant du changement de
+    ///   statut (`state_change_seq`), exact côté Herdr, sans attendre la session ;
+    /// - un **même** tour garde son début : une question répondue (`blocked` →
+    ///   `working`) ne remet pas le chrono à zéro ;
+    /// - au premier instant vu (ou sans instant de changement), la session fait foi.
+    ///
+    /// Hors travail, rien ne change : la session, comme avant.
+    fn tour_courant(&self, agent: &AgentObservation, session: Option<u64>) -> Option<u64> {
+        if agent.status != AgentStatus::Working {
+            return session;
+        }
+        let cle = agent.pane_id.as_str().to_string();
+        let mut tours = self.tours.lock().unwrap_or_else(PoisonError::into_inner);
+        let retenu = match tours.get(&cle).copied() {
+            // Même tour : son début déjà retenu (peut être « inconnu », alors la session).
+            Some((tour, debut)) if tour == agent.revision => debut,
+            // Nouveau tour : le changement de statut EST son début.
+            Some(_) => agent.state_change_seq,
+            // Premier instant vu : pas de début à retenir, la session fait foi.
+            None => None,
+        };
+        tours.insert(cle, (agent.revision, retenu));
+        retenu.or(session)
     }
 
     /// Les tâches de fond d'un pane de la génération observée.
@@ -718,7 +756,7 @@ impl ServiceConversations {
                     fournisseur: details.fournisseur,
                     pensee: details.pensee,
                     horodatage,
-                    tour_debut: details.tour_debut,
+                    tour_debut: self.tour_courant(&preuv.agent, details.tour_debut),
                     ..base
                 }
             }
