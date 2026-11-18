@@ -120,7 +120,7 @@ fn validite_index_codex(codex_home: &Path) -> Vec<(SystemTime, u64)> {
 /// Le résolveur — cache positif/négatif invalidable en mémoire.
 pub struct Resolveur {
     pub racines: Racines,
-    cache: Mutex<HashMap<(String, String), EntreeCache>>,
+    cache: Mutex<HashMap<CleIndex, EntreeCache>>,
     /// Le cache identifiant → fichier (codex, claude) : voir
     /// [`Resolveur::chemin_par_id`].
     ids: Mutex<HashMap<(FamilleId, String), EntreeId>>,
@@ -181,32 +181,81 @@ pub fn bases_codex(dossier_codex: &Path) -> Vec<PathBuf> {
     versionnees.into_iter().map(|(_, chemin)| chemin).collect()
 }
 
-/// Les noms de session codex, lus dans le titre du pane — ⚠️ **mesuré** :
-/// codex met `<nom du fil> | <dossier>` en titre, et le titre porte un
-/// **glyphe d'état quand codex travaille** (`⠼ Audit PWA and webapp |
-/// herdr-pwa`). On ne « nettoie » pas au jugé : on rend la lecture **brute**
-/// ET la lecture sans décoration, et c'est l'index qui tranche — un nom qui
-/// commence vraiment par un glyphe reste trouvable, et un faux nettoyage ne
-/// peut pas produire une session (il produit un nom que l'index ignore).
+/// Le titre d'un terminal codex, lu : les noms candidats du fil et le
+/// dossier que codex affiche.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct TitreCodex {
+    /// La lecture brute, puis (s'il y en a une) la lecture sans décoration.
+    pub noms: Vec<String>,
+    /// Le dossier affiché après ` | `, tel quel.
+    pub dossier: String,
+}
+
+impl TitreCodex {
+    /// Le titre nomme-t-il ce dossier ? Le **dernier segment** du chemin, en
+    /// entier — ou son début quand codex l'a tronqué.
+    ///
+    /// ⚠️ **Mesuré le 2026-11-18 (codex 0.169)** : un nom de dossier long est
+    /// coupé, suivi de `...` (`Improve 3MF ceiling curve |
+    /// Grotte_105x90x90mm_ap...` pour `Grotte_105x90x90mm_appuis_plats_STL_3MF`).
+    /// Comparé en entier, le dossier ne concordait plus : l'agent restait
+    /// « sans session lisible ».
+    #[must_use]
+    pub fn nomme_le_dossier(&self, chemin: &str) -> bool {
+        let segment = chemin
+            .trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .unwrap_or("");
+        if segment.is_empty() {
+            return false;
+        }
+        if segment == self.dossier {
+            return true;
+        }
+        ["...", "…"].iter().any(|coupure| {
+            self.dossier
+                .strip_suffix(coupure)
+                .is_some_and(|debut| !debut.is_empty() && segment.starts_with(debut))
+        })
+    }
+}
+
+/// Lit un titre codex `<nom du fil> | <dossier>` — `None` s'il n'a pas
+/// cette forme (pas de ` | `, nom ou dossier vide).
+///
+/// ⚠️ **mesuré** : le titre porte un **glyphe d'état quand codex travaille**
+/// (`⠼ Audit PWA and webapp | herdr-pwa`). On ne « nettoie » pas au jugé :
+/// on rend la lecture **brute** ET la lecture sans décoration, et c'est
+/// l'index qui tranche — un nom qui commence vraiment par un glyphe reste
+/// trouvable, et un faux nettoyage ne peut pas produire une session (il
+/// produit un nom que l'index ignore).
+#[must_use]
+pub fn lis_titre_codex(titre: &str) -> Option<TitreCodex> {
+    let barre = titre.rfind(" | ").filter(|barre| *barre > 0)?;
+    let prefixe = titre[..barre].trim();
+    let dossier = titre[barre + 3..].trim();
+    if prefixe.is_empty() || dossier.is_empty() {
+        return None;
+    }
+    Some(TitreCodex {
+        noms: lectures_du_nom(prefixe),
+        dossier: dossier.to_string(),
+    })
+}
+
+/// Les noms de session codex, lus dans le titre du pane — seulement si le
+/// titre nomme le dossier du pane (voir [`TitreCodex::nomme_le_dossier`]).
 #[must_use]
 pub fn noms_de_session_codex(titre: Option<&str>, cwd: Option<&str>) -> Vec<String> {
-    let (titre, cwd) = match (titre, cwd) {
-        (Some(titre), Some(cwd)) if !cwd.is_empty() => (titre, cwd),
-        _ => return Vec::new(),
-    };
-    let barre = match titre.rfind(" | ") {
-        Some(barre) if barre > 0 => barre,
-        _ => return Vec::new(),
-    };
-    let prefixe = titre[..barre].trim();
-    if prefixe.is_empty() {
-        return Vec::new();
+    match (titre.and_then(lis_titre_codex), cwd) {
+        (Some(lu), Some(cwd)) if lu.nomme_le_dossier(cwd) => lu.noms,
+        _ => Vec::new(),
     }
-    let dossier = titre[barre + 3..].trim();
-    let dernier_segment = cwd.trim_end_matches('/').rsplit('/').next().unwrap_or("");
-    if dossier != dernier_segment {
-        return Vec::new();
-    }
+}
+
+/// Les lectures du nom : brute, puis sans décoration quand elle diffère.
+fn lectures_du_nom(prefixe: &str) -> Vec<String> {
     // La lecture sans décoration : les premiers caractères non lettre/non
     // chiffre + espace tombent (le glyphe du spinner).
     let sans_decoration: String = {
@@ -382,7 +431,104 @@ pub fn chemin_codex_par_nom(resolveur: &Resolveur, nom: &str, cwd: &str) -> Opti
     if nom.trim().is_empty() || cwd.is_empty() {
         return None;
     }
-    let cle = (nom.to_string(), cwd.to_string());
+    let cle = CleIndex::Dossier {
+        nom: nom.to_string(),
+        cwd: cwd.to_string(),
+    };
+    cherche_dans_l_index(resolveur, cle, |ouvrier| {
+        let lignes = ouvrier
+            .interroge(
+                "select rollout_path from threads where name = ?1 and cwd = ?2 and archived = 0 limit 2",
+                &[nom, cwd],
+            )
+            .ok()?;
+        /*
+          ⚠️ **Deux fils du même nom dans le même dossier : aucun.** Prendre
+          le plus récent (`order by updated_at desc limit 1`) affichait, pour
+          un pane, la conversation d'un AUTRE pane lancé avec la même
+          première consigne. Comme pour opencode, l'ambiguïté ne prouve rien.
+        */
+        match lignes.as_slice() {
+            [ligne] => chemin_existant(ligne),
+            _ => None,
+        }
+    })
+}
+
+/// Chemin du fichier de session codex, retrouvé par le **nom du fil** et le
+/// **dossier du fil** tel que le titre le nomme — sans le dossier du pane.
+///
+/// ⚠️ **Mesuré le 2026-11-18** : `codex resume` lancé depuis
+/// `~/projects/perso/dashboard` reprend un fil né dans `~` ; le titre dit
+/// `Réduire l’épaisseur du tronc | thomas.delalonde` (le dossier du FIL),
+/// l'index aussi (`cwd = /Users/thomas.delalonde`), le pane non. Exiger le
+/// dossier du pane laissait l'agent « sans session lisible ».
+///
+/// Les garde-fous restent : le nom exact, un dossier de fil que le titre
+/// nomme, le fichier existe — et **un seul** fil concorde. Deux fils du même
+/// nom dont les dossiers portent le même nom : aucun.
+#[must_use]
+pub fn chemin_codex_par_dossier_du_fil(
+    resolveur: &Resolveur,
+    nom: &str,
+    titre: &TitreCodex,
+) -> Option<PathBuf> {
+    if nom.trim().is_empty() {
+        return None;
+    }
+    let cle = CleIndex::DossierDuFil {
+        nom: nom.to_string(),
+        dossier: titre.dossier.clone(),
+    };
+    cherche_dans_l_index(resolveur, cle, |ouvrier| {
+        let lignes = ouvrier
+            .interroge(
+                "select rollout_path, cwd from threads where name = ?1 and archived = 0",
+                &[nom],
+            )
+            .ok()?;
+        let mut concordants = lignes.iter().filter(|ligne| {
+            ligne
+                .valeurs
+                .get(1)
+                .and_then(Value::as_str)
+                .is_some_and(|cwd| titre.nomme_le_dossier(cwd))
+        });
+        let seul = concordants.next()?;
+        if concordants.next().is_some() {
+            return None;
+        }
+        chemin_existant(seul)
+    })
+}
+
+/// Ce qu'on cherche dans l'index codex — la clé du cache.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+enum CleIndex {
+    /// Le nom du fil et le dossier exact du pane.
+    Dossier { nom: String, cwd: String },
+    /// Le nom du fil et le dossier affiché par le titre.
+    DossierDuFil { nom: String, dossier: String },
+}
+
+/// Le `rollout_path` d'une ligne d'index (première colonne), s'il existe.
+fn chemin_existant(ligne: &crate::storage::sqlite::worker::Ligne) -> Option<PathBuf> {
+    ligne
+        .valeurs
+        .first()
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .filter(|chemin| chemin.exists())
+}
+
+/// Interroge chaque base d'index (la plus récente d'abord) jusqu'à ce que
+/// `cherche` trouve — résultat trouvé OU pas mis en cache, invalidé par les
+/// bases elles-mêmes.
+fn cherche_dans_l_index(
+    resolveur: &Resolveur,
+    cle: CleIndex,
+    cherche: impl Fn(&Ouvrier) -> Option<PathBuf>,
+) -> Option<PathBuf> {
     let validite = validite_index_codex(&resolveur.racines.codex_home);
     if let Ok(cache) = resolveur.cache.lock()
         && let Some(entree) = cache.get(&cle)
@@ -390,42 +536,11 @@ pub fn chemin_codex_par_nom(resolveur: &Resolveur, nom: &str, cwd: &str) -> Opti
     {
         return entree.chemin.clone();
     }
-    let mut chemin_trouve: Option<PathBuf> = None;
-    for base in bases_codex(&resolveur.racines.codex_home) {
-        let ouvrier = match Ouvrier::nouveau(&base) {
-            Ok(ouvrier) => ouvrier,
-            // Une base illisible/absente/inattendue ne PROUVE rien : on
-            // essaie la suivante, puis on renonce. Jamais de substitution.
-            Err(_) => continue,
-        };
-        let lignes = match ouvrier.interroge(
-            "select rollout_path from threads where name = ?1 and cwd = ?2 and archived = 0 limit 2",
-            &[nom, cwd],
-        ) {
-            Ok(lignes) => lignes,
-            Err(_) => continue,
-        };
-        /*
-          ⚠️ **Deux fils du même nom dans le même dossier : aucun.** Prendre
-          le plus récent (`order by updated_at desc limit 1`) affichait, pour
-          un pane, la conversation d'un AUTRE pane lancé avec la même
-          première consigne. Comme pour opencode, l'ambiguïté ne prouve rien.
-        */
-        let chemin = match lignes.as_slice() {
-            [ligne] => ligne
-                .valeurs
-                .first()
-                .and_then(Value::as_str)
-                .map(PathBuf::from),
-            _ => None,
-        };
-        if let Some(chemin) = chemin
-            && chemin.exists()
-        {
-            chemin_trouve = Some(chemin);
-            break;
-        }
-    }
+    // Une base illisible/absente/inattendue ne PROUVE rien : on essaie la
+    // suivante, puis on renonce. Jamais de substitution.
+    let chemin_trouve = bases_codex(&resolveur.racines.codex_home)
+        .iter()
+        .find_map(|base| cherche(&Ouvrier::nouveau(base).ok()?));
     if let Ok(mut cache) = resolveur.cache.lock() {
         cache.insert(
             cle,
@@ -443,19 +558,30 @@ pub fn chemin_codex_par_nom(resolveur: &Resolveur, nom: &str, cwd: &str) -> Opti
 /// le pane garde son panneau neutre, ce qui est exact. ⚠️ On essaie chaque
 /// lecture contre l'index, et c'est LUI qui tranche — la première confirmée
 /// gagne, aucune autre n'est inventée.
+///
+/// Deux preuves, dans cet ordre : (1) le titre nomme le dossier du pane et
+/// l'index confirme nom + ce dossier exact ; (2) sinon (fil repris depuis un
+/// autre dossier), l'index confirme le nom et **un seul** fil dont le
+/// dossier est celui du titre.
 #[must_use]
 pub fn session_codex_par_titre(
     resolveur: &Resolveur,
     titre: Option<&str>,
     cwd: Option<&str>,
 ) -> Option<Emplacement> {
-    let cwd = cwd?;
-    for nom in noms_de_session_codex(titre, Some(cwd)) {
-        if let Some(chemin) = chemin_codex_par_nom(resolveur, &nom, cwd) {
-            return Some(Emplacement::nouveau("path", &chemin.to_string_lossy()));
+    let lu = lis_titre_codex(titre?)?;
+    let vers = |chemin: PathBuf| Emplacement::nouveau("path", &chemin.to_string_lossy());
+    if let Some(cwd) = cwd.filter(|cwd| !cwd.is_empty() && lu.nomme_le_dossier(cwd)) {
+        for nom in &lu.noms {
+            if let Some(chemin) = chemin_codex_par_nom(resolveur, nom, cwd) {
+                return Some(vers(chemin));
+            }
         }
     }
-    None
+    lu.noms
+        .iter()
+        .find_map(|nom| chemin_codex_par_dossier_du_fil(resolveur, nom, &lu))
+        .map(vers)
 }
 
 /// Source de la session d'un agent, ou `None` s'il n'y en a pas.

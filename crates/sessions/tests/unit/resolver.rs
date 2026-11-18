@@ -678,3 +678,163 @@ fn une_resolution_est_resservie_tant_que_le_fichier_pid_ne_bouge_pas() {
     let _ = resout_par_port(&port, 5151);
     assert_eq!(port.resolutions_calculees(), 3);
 }
+
+/// Un index codex factice : une ligne par (nom, dossier du fil), chaque
+/// rollout écrit SUR DISQUE. Rend les chemins des rollouts, dans l'ordre.
+fn index_codex(racines: &Racines, fils: &[(&str, &str)]) -> Vec<PathBuf> {
+    let base = racines.codex_home.join("state_5.sqlite");
+    let connexion = match rusqlite::Connection::open(&base) {
+        Ok(connexion) => connexion,
+        Err(cause) => panic!("index refusé : {cause}"),
+    };
+    let mut lignes = String::new();
+    let mut rollouts = Vec::new();
+    for (rang, (nom, cwd)) in fils.iter().enumerate() {
+        let rollout = racines
+            .codex_sessions
+            .join(format!("rollout-2026-11-18-{rang}.jsonl"));
+        if let Err(cause) = fs::write(&rollout, "{}") {
+            panic!("rollout refusé : {cause}");
+        }
+        lignes.push_str(&format!(
+            "INSERT INTO threads (id, name, cwd, rollout_path, archived) VALUES ('{rang}', '{nom}', '{cwd}', '{}', 0);",
+            rollout.display()
+        ));
+        rollouts.push(rollout);
+    }
+    if let Err(cause) = connexion.execute_batch(&format!(
+        "CREATE TABLE threads (id TEXT PRIMARY KEY, name TEXT, cwd TEXT, rollout_path TEXT, archived INTEGER); {lignes}"
+    )) {
+        panic!("schéma refusé : {cause}");
+    }
+    rollouts
+}
+
+fn fichier_de(source: Option<sessions::resolver::SourceSession>) -> Option<PathBuf> {
+    match source {
+        Some(sessions::resolver::SourceSession::Fichier { base }) => Some(base),
+        Some(autre) => panic!("codex = un fichier : {autre:?}"),
+        None => None,
+    }
+}
+
+#[test]
+fn un_dossier_tronque_par_codex_nomme_encore_le_pane() {
+    // Mesuré (codex 0.169) : un nom de dossier long est coupé et suivi de `...`.
+    let cwd = "/dl/Grotte_105x90x90mm_appuis_plats_STL_3MF";
+    assert!(
+        noms_de_session_codex(
+            Some("⠸ Improve 3MF ceiling curve | Grotte_105x90x90mm_ap..."),
+            Some(cwd)
+        ) == vec!["⠸ Improve 3MF ceiling curve", "Improve 3MF ceiling curve"],
+        "un dossier tronqué nomme le dossier dont il est le début"
+    );
+    assert!(
+        !noms_de_session_codex(Some("Improve | Grotte_105…"), Some(cwd)).is_empty(),
+        "l'ellipse en un caractère aussi"
+    );
+    // Le début d'un AUTRE dossier : rien.
+    assert!(noms_de_session_codex(Some("Improve | Grotte_200..."), Some(cwd)).is_empty());
+    // Une ellipse seule ne nomme aucun dossier (elle les nommerait tous).
+    assert!(noms_de_session_codex(Some("Improve | ..."), Some(cwd)).is_empty());
+    assert!(noms_de_session_codex(Some("Improve | …"), Some(cwd)).is_empty());
+}
+
+#[test]
+fn un_titre_tronque_retrouve_sa_session_dans_l_index() {
+    let racines = racines_fake();
+    let cwd = "/dl/Grotte_105x90x90mm_appuis_plats_STL_3MF";
+    let rollouts = index_codex(&racines, &[("Improve 3MF ceiling curve", cwd)]);
+    let resolveur = Resolveur::nouveau(racines);
+    let trouve = fichier_de(source_session_de(
+        &resolveur,
+        Some("codex"),
+        None,
+        Some("⠸ Improve 3MF ceiling curve | Grotte_105x90x90mm_ap..."),
+        Some(cwd),
+        None,
+    ));
+    assert!(
+        trouve.as_ref() == rollouts.first(),
+        "la session du fil : {trouve:?}"
+    );
+}
+
+#[test]
+fn un_fil_repris_depuis_un_autre_dossier_se_retrouve_par_le_dossier_du_fil() {
+    // Mesuré : `codex resume` lancé dans ~/projets/dashboard reprend un fil
+    // né dans ~ ; le titre et l'index disent le dossier du FIL, pas du pane.
+    let racines = racines_fake();
+    let rollouts = index_codex(&racines, &[("Réduire le tronc", "/home/thomas")]);
+    let resolveur = Resolveur::nouveau(racines);
+    let trouve = fichier_de(source_session_de(
+        &resolveur,
+        Some("codex"),
+        None,
+        Some("Réduire le tronc | thomas"),
+        Some("/home/thomas/projets/dashboard"),
+        None,
+    ));
+    assert!(
+        trouve.as_ref() == rollouts.first(),
+        "le fil repris : {trouve:?}"
+    );
+    // Le titre nomme un autre dossier que celui du fil : rien.
+    assert!(
+        source_session_de(
+            &resolveur,
+            Some("codex"),
+            None,
+            Some("Réduire le tronc | dashboard"),
+            Some("/home/thomas/projets/dashboard"),
+            None,
+        )
+        .is_none(),
+        "le dossier du titre doit être celui du fil"
+    );
+    // Un nom que l'index ne connaît pas : rien.
+    assert!(
+        source_session_de(
+            &resolveur,
+            Some("codex"),
+            None,
+            Some("Autre chose | thomas"),
+            Some("/home/thomas/projets/dashboard"),
+            None,
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn deux_fils_du_meme_nom_dont_les_dossiers_se_nomment_pareil_ne_prouvent_rien() {
+    let racines = racines_fake();
+    let rollouts = index_codex(&racines, &[("Fix", "/a/proj"), ("Fix", "/b/proj")]);
+    let resolveur = Resolveur::nouveau(racines);
+    // Le pane n'est dans aucun des deux : l'ambiguïté ne désigne personne.
+    assert!(
+        source_session_de(
+            &resolveur,
+            Some("codex"),
+            None,
+            Some("Fix | proj"),
+            Some("/c/ailleurs"),
+            None
+        )
+        .is_none(),
+        "deux fils concordent : aucun"
+    );
+    // Le pane est dans l'un : le dossier exact du pane tranche.
+    let trouve = fichier_de(source_session_de(
+        &resolveur,
+        Some("codex"),
+        None,
+        Some("Fix | proj"),
+        Some("/b/proj"),
+        None,
+    ));
+    assert!(
+        trouve.as_ref() == rollouts.get(1),
+        "le fil du dossier du pane : {trouve:?}"
+    );
+}
