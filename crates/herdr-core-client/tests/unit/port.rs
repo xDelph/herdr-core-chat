@@ -904,3 +904,65 @@ fn un_onglet_cree_avant_un_redemarrage_se_reconnait_a_notre_label() {
     assert_eq!(tues.len(), 1);
     assert_eq!(tues[0]["terminal"], "t9");
 }
+
+/// Un codex : il se dit `idle` à la fin d'un tour, jamais `done`.
+fn codex(etat: &str, tour: u64, vu: Option<&str>, fin_ms: u64) -> Value {
+    let mut term = terminal("t1", json!({"app":"codex","state":etat}), "codex", "/p");
+    term["turn"] = json!(tour);
+    term["status_ms"] = json!(fin_ms);
+    if let Some(vu) = vu {
+        term["labels"] = json!({"herdr.seen": vu});
+    }
+    term
+}
+
+/// Retour du 2026-11-18 : un codex lu sur le téléphone restait « non vu » sur
+/// le Mac — `idle` n'était pas un tour fini pour le « vu » partagé.
+#[test]
+fn une_lecture_note_aussi_le_vu_d_un_codex_au_repos() {
+    let (port, demandes) = port_sur(
+        json!([codex("idle", 7, Some("6"), 1_000)]),
+        sans_doc(),
+        rien,
+    );
+    assert_eq!(marque_vu(&port, 1_500), Some(7));
+    let poses = demandes_de(&demandes, "terminal.label");
+    assert_eq!(poses.len(), 1);
+    assert_eq!(poses[0]["labels"], json!({"herdr.seen": "7"}));
+}
+
+fn reporte_vu(port: &PortCore, avant: u64, apres: u64) -> Option<u64> {
+    attends(port.reporte_vu(PaneId::from(String::from("t1")), avant, apres))
+        .unwrap_or_else(|erreur| panic!("reporte_vu : {erreur}"))
+}
+
+/// Un tour fantôme : le « vu » suit seulement si le tour d'avant était vu, à
+/// ce tour exact, au repos — jamais en arrière, jamais sur un tour suivant.
+#[test]
+fn un_tour_fantome_reporte_le_vu_seulement_s_il_etait_vu() {
+    for (term, attendu) in [
+        // Vu au tour 8, fantôme au 9 : reporté.
+        (codex("idle", 9, Some("8"), 1_000), Some(9)),
+        (fini(9, Some("8"), 1_000), Some(9)),
+        // Le tour 8 n'avait pas été vu : il reste à voir.
+        (codex("idle", 9, Some("7"), 1_000), None),
+        (codex("idle", 9, None, 1_000), None),
+        // Un autre tour a commencé ou fini depuis : on n'y touche pas.
+        (codex("idle", 10, Some("8"), 1_000), None),
+        (codex("working", 9, Some("8"), 1_000), None),
+        // Déjà vu : rien à poser.
+        (codex("idle", 9, Some("9"), 1_000), None),
+    ] {
+        let (port, demandes) = port_sur(json!([term.clone()]), sans_doc(), rien);
+        assert_eq!(reporte_vu(&port, 8, 9), attendu, "{term}");
+        let poses = demandes_de(&demandes, "terminal.label");
+        match attendu {
+            Some(tour) => {
+                assert_eq!(poses.len(), 1);
+                assert_eq!(poses[0]["terminal"], "t1");
+                assert_eq!(poses[0]["labels"], json!({"herdr.seen": tour.to_string()}));
+            }
+            None => assert!(poses.is_empty(), "label posé sans preuve : {poses:?}"),
+        }
+    }
+}

@@ -205,9 +205,37 @@ pub struct Changement {
     /// côté — apparition, disparition).
     pub tour_avant: Option<u64>,
     pub tour_apres: Option<u64>,
+    /// Le tour qui vient de finir n'a **rien écrit** dans sa session : le
+    /// fichier `.jsonl`, lisible, a la même taille et la même date qu'avant
+    /// le tour. Voir [`Changement::fin_sans_trace`].
+    pub sans_trace: bool,
 }
 
 impl Changement {
+    /// Un tour **fantôme** : fini au repos (`idle`/`done`), un tour plus
+    /// loin, sans rien écrire dans la session.
+    ///
+    /// ⚠️ **Mesuré le 2026-11-18** : quand le serveur d'app de Codex recharge
+    /// ses MCP (un plugin mis à jour), il ferme puis reprend **chaque** fil
+    /// ouvert. Chaque codex passe un instant `working`, herdr-core compte un
+    /// tour, et tous « finissaient » dans la même seconde (04:45:43Z : t36,
+    /// t3b, t3y, t3c) — sans une ligne écrite dans leurs sessions. Il en
+    /// sortait un push « Agent finished » par agent et un faux « non vu »
+    /// sur le Mac.
+    ///
+    /// Seule une **preuve** fait un fantôme : un fichier de session lisible,
+    /// inchangé. Une session inconnue ou illisible ne prouve rien — le tour
+    /// reste un vrai tour.
+    #[must_use]
+    pub fn fin_sans_trace(&self) -> bool {
+        self.sans_trace
+            && self.tour_avance()
+            && matches!(
+                self.a,
+                CibleDeChangement::Statut(AgentStatus::Idle | AgentStatus::Done)
+            )
+    }
+
     /// Le tour a-t-il avancé ? Un tour entier s'est alors joué depuis la
     /// vue précédente, même si le statut est revenu au même mot.
     #[must_use]
@@ -220,6 +248,10 @@ impl Changement {
     /// revenu au repos, ou bloqué, ou en erreur, à un tour plus loin (B1.4).
     #[must_use]
     pub fn faut_notifier(&self) -> bool {
+        // Un tour qui n'a rien produit n'a rien à annoncer.
+        if self.fin_sans_trace() {
+            return false;
+        }
         if faut_notifier(self.de, self.a) {
             return true;
         }
@@ -256,6 +288,25 @@ struct EntreePrecedente {
     statut: AgentStatus,
     tour: u64,
     vue: AgentView,
+    /// La trace de la session ([`trace_de`]) vue **la dernière fois que
+    /// l'agent n'était pas `working`** — l'état d'avant le tour en cours.
+    trace_au_repos: Option<String>,
+}
+
+/// La trace d'une session : chemin, taille et date d'un fichier `.jsonl`
+/// lisible — `None` sinon (pas de session, illisible, ou une base).
+///
+/// ⚠️ **`.jsonl` seulement** : un tour réel y écrit toujours (la demande, la
+/// réponse), donc la taille ou la date bouge. Une base SQLite (opencode,
+/// devin) en WAL ne bouge qu'au checkpoint : sa trace inchangée ne
+/// prouverait rien.
+fn trace_de(vue: &AgentView) -> Option<String> {
+    let chemin = vue
+        .session_path
+        .as_deref()
+        .filter(|chemin| chemin.ends_with(".jsonl"))?;
+    let (taille, mtime) = observation_de_fichier(chemin)?;
+    Some(format!("{chemin}\u{0}{taille}:{mtime}"))
 }
 
 /// Le moteur de diff — partageable (une seule mémoire entre tous les
@@ -286,6 +337,11 @@ impl Veilleur {
         for agent in &agents {
             let signature = signature_de(agent);
             let revision = revision_de(agent);
+            let trace = trace_de(agent);
+            let avant = precedent.get(&agent.pane_id);
+            // La trace d'AVANT le tour : celle de la dernière vue au repos.
+            let trace_avant = avant.and_then(|ancienne| ancienne.trace_au_repos.clone());
+            let sans_trace = trace.is_some() && trace_avant == trace;
             suivantes.insert(
                 agent.pane_id.clone(),
                 EntreePrecedente {
@@ -294,9 +350,15 @@ impl Veilleur {
                     statut: agent.status,
                     tour: agent.turn,
                     vue: agent.clone(),
+                    // Au travail : on garde la trace d'avant le tour.
+                    trace_au_repos: if agent.status == AgentStatus::Working {
+                        trace_avant
+                    } else {
+                        trace
+                    },
                 },
             );
-            match precedent.get(&agent.pane_id) {
+            match avant {
                 None => {
                     // Premier passage : on n'annonce pas « apparu » pour tout
                     // le parc, sinon chaque démarrage produirait une rafale.
@@ -314,6 +376,7 @@ impl Veilleur {
                             revision_apres: revision.clone(),
                             tour_avant: None,
                             tour_apres: Some(agent.turn),
+                            sans_trace: false,
                         });
                     }
                 }
@@ -328,6 +391,7 @@ impl Veilleur {
                         revision_apres: revision,
                         tour_avant: Some(ancienne.tour),
                         tour_apres: Some(agent.turn),
+                        sans_trace,
                     });
                 }
                 /*
@@ -348,6 +412,7 @@ impl Veilleur {
                         revision_apres: revision,
                         tour_avant: Some(ancienne.tour),
                         tour_apres: Some(agent.turn),
+                        sans_trace: false,
                     });
                 }
                 Some(_) => {}
@@ -369,6 +434,7 @@ impl Veilleur {
                     revision_apres: revision_absente(),
                     tour_avant: connue.map(|entree| entree.tour),
                     tour_apres: None,
+                    sans_trace: false,
                 });
             }
         }

@@ -42,6 +42,9 @@ pub enum Op {
     /// Le « vu » partagé avec l'amont (`herdr.seen`) — capturé pour prouver
     /// qu'une lecture le transmet, avec l'instant lu.
     MarqueVu,
+    /// Le « vu » reporté d'un tour fantôme (`herdr.seen`) — capturé pour
+    /// prouver que la veille le demande, avec les deux tours.
+    ReporteVu,
     /// L'épingle partagée (`herdr.pinned`) — lot 4.
     Epingle,
     /// Un fichier posé à côté du terminal (`terminal.put`) — lot 4.
@@ -496,6 +499,25 @@ impl ControlPort for HerdrFaux {
                 // jamais ici.
                 None => Ok(StopEvidence::InterruptSent),
             }
+        })
+    }
+
+    fn reporte_vu(
+        &self,
+        pane: PaneId,
+        tour_avant: u64,
+        tour_apres: u64,
+    ) -> PortFuture<'_, Option<u64>> {
+        let cible = pane.as_str().to_string();
+        Box::pin(async move {
+            let mut interieur = self.verrou();
+            interieur.actions.push(ActionCapturee {
+                op: Op::ReporteVu,
+                cible,
+                detail: format!("tour {tour_avant} → {tour_apres}"),
+            });
+            Self::note_panne(&interieur, Op::ReporteVu)?;
+            Ok(Some(tour_apres))
         })
     }
 

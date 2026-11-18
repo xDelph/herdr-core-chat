@@ -325,6 +325,21 @@ pub trait ControlPort: Send + Sync {
         let _ = (pane, vu_a);
         Box::pin(std::future::ready(Ok(None)))
     }
+    /// Le tour `tour_apres` vient de finir **sans rien écrire** dans la
+    /// session (un tour fantôme) : si `tour_avant` avait été vu, le « vu »
+    /// passe à `tour_apres` — un tour qui n'a rien produit n'a rien à
+    /// montrer. `Some(tour)` : le tour noté vu ; `None` : rien à noter (le
+    /// tour d'avant n'était pas vu, un autre tour a commencé depuis, l'agent
+    /// n'est pas au repos). Par défaut, un amont qui ne partage pas le « vu ».
+    fn reporte_vu(
+        &self,
+        pane: PaneId,
+        tour_avant: u64,
+        tour_apres: u64,
+    ) -> PortFuture<'_, Option<u64>> {
+        let _ = (pane, tour_avant, tour_apres);
+        Box::pin(std::future::ready(Ok(None)))
+    }
     /// Épingle (ou désépingle) un agent, pour tous les clients (lot 4) —
     /// sous herdr-core, le label `herdr.pinned` que Herdr.app lit aussi.
     fn epingle(&self, pane: PaneId, epingle: bool) -> PortFuture<'_, ()> {

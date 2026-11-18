@@ -862,3 +862,120 @@ fn un_reveil_fait_repasser_la_veille_sans_attendre_sa_cadence() {
     fil.join().unwrap_or_else(|_| panic!("la boucle s'arrête"));
     assert!(arret.elapsed() < Duration::from_secs(5), "arrêt immédiat");
 }
+
+// ─────────────────────── les tours fantômes (2026-11-18) ───────────────────────
+
+/// Un fichier de session `.jsonl` réel, dans un dossier temporaire du test.
+fn session_sur_disque(nom: &str) -> std::path::PathBuf {
+    static NONCE: AtomicU64 = AtomicU64::new(0);
+    let dossier = std::env::temp_dir().join(format!(
+        "herdr-veille-fantome-{}-{}",
+        std::process::id(),
+        NONCE.fetch_add(1, Ordering::SeqCst)
+    ));
+    std::fs::create_dir_all(&dossier).unwrap_or_else(|cause| panic!("dossier : {cause}"));
+    let chemin = dossier.join(nom);
+    std::fs::write(&chemin, "{\"type\":\"session_meta\"}\n")
+        .unwrap_or_else(|cause| panic!("session : {cause}"));
+    chemin
+}
+
+fn ajoute_une_ligne(chemin: &std::path::Path) {
+    use std::io::Write;
+    let mut fichier = std::fs::OpenOptions::new()
+        .append(true)
+        .open(chemin)
+        .unwrap_or_else(|cause| panic!("ouverture : {cause}"));
+    writeln!(fichier, "{{\"type\":\"response_item\"}}").unwrap_or_else(|cause| panic!("{cause}"));
+}
+
+/// La vue d'un agent codex à un tour, avec sa session.
+fn vue_avec_session(statut: AgentStatus, tour: u64, session: &std::path::Path) -> AgentView {
+    AgentView {
+        session_path: Some(session.to_string_lossy().to_string()),
+        ..vue_au_tour("p1", statut, tour)
+    }
+}
+
+#[test]
+fn un_tour_qui_n_ecrit_rien_dans_la_session_ne_notifie_pas() {
+    // Mesuré : Codex recharge ses MCP, reprend chaque fil, herdr-core compte
+    // un tour — et la session ne bouge pas d'un octet.
+    let session = session_sur_disque("rollout-fantome.jsonl");
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![vue_avec_session(AgentStatus::Idle, 8, &session)]);
+    let travail = veilleur.tick(vec![vue_avec_session(AgentStatus::Working, 8, &session)]);
+    assert!(!travail.changements[0].fin_sans_trace(), "pas encore fini");
+    let tour = veilleur.tick(vec![vue_avec_session(AgentStatus::Idle, 9, &session)]);
+    assert_eq!(tour.changements.len(), 1, "{:?}", tour.changements);
+    let changement = &tour.changements[0];
+    assert!(changement.fin_sans_trace(), "{changement:?}");
+    assert!(!changement.faut_notifier(), "un tour fantôme ne sonne pas");
+    // Vu entre deux passages (B1.4) : même verdict.
+    let tour = veilleur.tick(vec![vue_avec_session(AgentStatus::Idle, 10, &session)]);
+    assert!(tour.changements[0].fin_sans_trace());
+    assert!(!tour.changements[0].faut_notifier());
+}
+
+#[test]
+fn un_vrai_tour_ecrit_dans_la_session_et_notifie() {
+    let session = session_sur_disque("rollout-vrai.jsonl");
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![vue_avec_session(AgentStatus::Idle, 8, &session)]);
+    let _ = veilleur.tick(vec![vue_avec_session(AgentStatus::Working, 8, &session)]);
+    ajoute_une_ligne(&session);
+    let _ = veilleur.tick(vec![vue_avec_session(AgentStatus::Working, 8, &session)]);
+    let tour = veilleur.tick(vec![vue_avec_session(AgentStatus::Idle, 9, &session)]);
+    let changement = &tour.changements[0];
+    assert!(!changement.fin_sans_trace(), "{changement:?}");
+    assert!(changement.faut_notifier(), "un vrai tour fini se notifie");
+    // Un tour vu entre deux passages qui a écrit : notifié aussi.
+    ajoute_une_ligne(&session);
+    let tour = veilleur.tick(vec![vue_avec_session(AgentStatus::Done, 10, &session)]);
+    assert!(tour.changements[0].faut_notifier());
+}
+
+#[test]
+fn sans_session_lisible_aucun_tour_n_est_fantome() {
+    // Pas de preuve, pas de fantôme : la session inconnue, absente du
+    // disque, ou une base (WAL : elle ne bouge qu'au checkpoint).
+    let base = session_sur_disque("opencode.db");
+    for chemin in [
+        None,
+        Some(std::path::PathBuf::from("/nulle/part/rollout.jsonl")),
+        Some(base),
+    ] {
+        let veilleur = Veilleur::nouveau();
+        let vue = |statut, tour| AgentView {
+            session_path: chemin.as_ref().map(|c| c.to_string_lossy().to_string()),
+            ..vue_au_tour("p1", statut, tour)
+        };
+        let _ = veilleur.tick(vec![vue(AgentStatus::Idle, 8)]);
+        let tour = veilleur.tick(vec![vue(AgentStatus::Idle, 9)]);
+        assert!(!tour.changements[0].fin_sans_trace(), "{chemin:?}");
+        assert!(tour.changements[0].faut_notifier(), "{chemin:?}");
+    }
+}
+
+#[test]
+fn un_tour_sans_trace_qui_finit_bloque_redemande_quand_meme() {
+    // Seule une fin au repos est un fantôme : une question, une erreur
+    // demandent l'utilisateur.
+    let session = session_sur_disque("rollout-bloque.jsonl");
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![vue_avec_session(AgentStatus::Idle, 8, &session)]);
+    let tour = veilleur.tick(vec![vue_avec_session(AgentStatus::Blocked, 9, &session)]);
+    assert!(!tour.changements[0].fin_sans_trace());
+    assert!(tour.changements[0].faut_notifier());
+}
+
+#[test]
+fn un_agent_deja_au_travail_au_demarrage_ne_prouve_rien() {
+    // Le démon démarre en plein tour : la trace d'avant le tour est inconnue.
+    let session = session_sur_disque("rollout-demarrage.jsonl");
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![vue_avec_session(AgentStatus::Working, 8, &session)]);
+    let tour = veilleur.tick(vec![vue_avec_session(AgentStatus::Idle, 9, &session)]);
+    assert!(!tour.changements[0].fin_sans_trace());
+    assert!(tour.changements[0].faut_notifier());
+}

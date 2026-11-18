@@ -127,8 +127,20 @@ they look »). Relevé sur le core de l'utilisateur, lecture seule : `view.json`
 - Mac → téléphone : `done` + `herdr.seen >= turn` → affiché `idle`, et
   `seen_at = status_ms` alimente `readAt`.
 - Téléphone → Mac : une lecture (`POST /read`) pose `herdr.seen = turn`
-  (`terminal.label`) sur un `done` fini **avant** l'instant lu. Vérifié sur
-  core isolé : lecture antérieure → rien ; lecture courante → `herdr.seen=1`.
+  (`terminal.label`) sur un agent au repos (`done` **ou `idle`**) fini
+  **avant** l'instant lu. Vérifié sur core isolé : lecture antérieure → rien ;
+  lecture courante → `herdr.seen=1`.
+- ⚠️ Codex finit ses tours en `idle`, jamais en `done` (relevé le 2026-11-18,
+  `hc ls`). Tant que seul `done` était marqué, aucun codex lu sur le téléphone
+  n'était « vu » sur le Mac (aucun « vu partagé » codex au journal).
+- ⚠️ **Tours fantômes** (relevé le 2026-11-18, codex 0.169) : quand le serveur
+  d'app de Codex recharge ses MCP (`mcp.runtime.refresh_if_dirty`, raison
+  `InstalledPluginMetadata`), il ferme puis reprend (`thread/resume`) chaque
+  fil ouvert. Chaque codex passe un instant `working`, `turn` avance, rien
+  n'est écrit dans les rollouts — tous « finissaient » dans la même seconde.
+  La veille reconnaît un tour fini au repos dont le `.jsonl` de session n'a
+  changé ni de taille ni de date : pas de push, et `herdr.seen` suit le tour
+  si le tour d'avant était vu.
 
 ### 4.2 `terminal.keys` `[SCHÉMA]`
 

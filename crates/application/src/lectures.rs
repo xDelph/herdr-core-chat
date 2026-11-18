@@ -143,3 +143,20 @@ pub fn partage_vu(port: &dyn ControlPort, pane: &str, vu_a: u64) -> Result<Optio
     let mut demande = port.marque_vu(PaneId::from(pane.to_string()), vu_a);
     crate::commands::pousse(&mut demande)
 }
+
+/// Un tour fantôme vient de finir (rien écrit dans la session) : le « vu »
+/// de `tour_avant` passe à `tour_apres` — sinon Herdr.app montrait « non vu »
+/// un agent qui n'avait rien fait. `Some(tour)` : noté vu ; `None` : rien à
+/// noter (le port décide de ce qui est prouvé).
+///
+/// # Errors
+/// La cause réelle d'un amont qui refuse ou ne répond pas.
+pub fn reporte_vu(
+    port: &dyn ControlPort,
+    pane: &PaneId,
+    tour_avant: u64,
+    tour_apres: u64,
+) -> Result<Option<u64>, PortError> {
+    let mut demande = port.reporte_vu(pane.clone(), tour_avant, tour_apres);
+    crate::commands::pousse(&mut demande)
+}

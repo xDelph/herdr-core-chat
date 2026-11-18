@@ -428,3 +428,76 @@ fn une_attente_dit_ce_qu_elle_attend_et_une_fin_son_code() {
     assert_eq!(payload.body, "un agent · tab 1 was killed (code 1).");
     assert_eq!(payload.tag, "error-w1:p1");
 }
+
+/// Retour du 2026-11-18 : Codex reprend tous ses fils (rechargement de ses
+/// MCP), chaque codex « finit » un tour sans rien écrire — un push par agent
+/// et un faux « non vu » sur le Mac. Ni l'un ni l'autre ne doit partir.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn un_tour_fantome_ne_sonne_pas_et_reporte_le_vu() {
+    use application::noyau::AgentStatus;
+    use test_support::fake_herdr::{HerdrFaux, Op};
+
+    let dossier = std::env::temp_dir().join(format!("herdr-veille-fantome-{}", std::process::id()));
+    std::fs::create_dir_all(&dossier).unwrap_or_else(|cause| panic!("dossier : {cause}"));
+    let session = dossier.join("rollout-fantome.jsonl");
+    std::fs::write(&session, "{}\n").unwrap_or_else(|cause| panic!("session : {cause}"));
+    let vue = |statut, tour| AgentView {
+        session_path: Some(session.to_string_lossy().to_string()),
+        turn: tour,
+        ..une_vue(statut)
+    };
+
+    let service = FauxServicePush::qui_repond(Ok(()));
+    let faux = HerdrFaux::nouveau();
+    let journal = Arc::new(ServiceAbonnements::nouveau(Arc::new(Journal::nouveau())));
+    let vues: DernieresVues = Arc::new(Mutex::new(Vec::new()));
+    let notifieur = Arc::new(Notifieur::nouveau(service.clone(), store_avec_un_abonne()));
+    let source = Arc::new(SourceFixe {
+        vues: Mutex::new(vec![vue(AgentStatus::Idle, 8)]),
+    });
+    let boucle = BoucleDeVeille::nouvelle(
+        Arc::new(SourceMemorisee::nouvelle(source.clone(), Arc::clone(&vues))),
+        Arc::new(Veilleur::nouveau()),
+        Arc::new(
+            PublieDansLeJournal::nouveau(journal)
+                .avec_notifications(notifieur, vues)
+                .avec_vu_reporte(Arc::new(faux.clone())),
+        ),
+        Arc::new(MaintenantReelle),
+    );
+    boucle.une_fois().unwrap_or_else(|cause| panic!("{cause}"));
+    change_le_parc(&source, vec![vue(AgentStatus::Working, 8)]);
+    boucle.une_fois().unwrap_or_else(|cause| panic!("{cause}"));
+    change_le_parc(&source, vec![vue(AgentStatus::Idle, 9)]);
+    boucle.une_fois().unwrap_or_else(|cause| panic!("{cause}"));
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(
+        service.envois().is_empty(),
+        "push d'un fantôme : {:?}",
+        service.envois()
+    );
+    let reportes: Vec<_> = faux
+        .actions()
+        .into_iter()
+        .filter(|action| action.op == Op::ReporteVu)
+        .collect();
+    assert_eq!(reportes.len(), 1, "{reportes:?}");
+    assert_eq!(reportes[0].cible, "w1:p1");
+    assert_eq!(reportes[0].detail, "tour 8 → 9");
+
+    // Un vrai tour ensuite : la session grandit, le push part, aucun report.
+    change_le_parc(&source, vec![vue(AgentStatus::Working, 9)]);
+    boucle.une_fois().unwrap_or_else(|cause| panic!("{cause}"));
+    std::fs::write(&session, "{}\n{\"type\":\"response_item\"}\n")
+        .unwrap_or_else(|cause| panic!("session : {cause}"));
+    change_le_parc(&source, vec![vue(AgentStatus::Idle, 10)]);
+    boucle.une_fois().unwrap_or_else(|cause| panic!("{cause}"));
+    attend_envois(&service, 1).await;
+    let reportes = faux
+        .actions()
+        .into_iter()
+        .filter(|action| action.op == Op::ReporteVu)
+        .count();
+    assert_eq!(reportes, 1, "un vrai tour ne reporte aucun vu");
+}

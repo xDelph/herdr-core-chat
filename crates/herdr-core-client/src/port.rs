@@ -267,6 +267,26 @@ impl PortCore {
         term.labels.get(Self::LABEL_VU)?.trim().parse().ok()
     }
 
+    /// Un terminal vivant dont le programme dit son tour fini (`done` ou
+    /// `idle`) — le seul dont on peut dire le tour « vu ».
+    fn au_repos(term: &Terminal) -> bool {
+        Self::fin_de(term).is_none()
+            && matches!(
+                Self::agent_status_depuis(term.status.as_ref()),
+                AgentStatus::Done | AgentStatus::Idle
+            )
+    }
+
+    /// Pose `herdr.seen = <tour>` — `Some(tour)` une fois posé.
+    fn pose_vu(&self, adresse: &str, tour: u64) -> Result<Option<u64>, PortError> {
+        let labels: BTreeMap<String, String> = [(String::from(Self::LABEL_VU), tour.to_string())]
+            .into_iter()
+            .collect();
+        self.verrouiller()
+            .and_then(|mut client| client.terminal_label(adresse, &labels).map_err(erreur_port))
+            .map(|()| Some(tour))
+    }
+
     /// L'état affiché, **comme Herdr.app** : `done` = « fini pendant que
     /// l'utilisateur ne regardait pas — devient `idle` une fois regardé »
     /// (guide de Herdr.app). Le core garde le mot `done` ; c'est
@@ -1204,32 +1224,52 @@ impl ControlPort for PortCore {
     }
 
     /// Le « vu » partagé avec Herdr.app (`herdr.seen`), seulement pour un
-    /// agent `done` dont le tour n'est pas encore vu, **et** fini avant la
-    /// lecture (`status_ms <= vu_a`) : un tour terminé après que la
-    /// conversation a été regardée reste « non vu ». Jamais un label en
-    /// arrière.
+    /// agent au repos (`done` ou `idle`) dont le tour n'est pas encore vu,
+    /// **et** fini avant la lecture (`status_ms <= vu_a`) : un tour terminé
+    /// après que la conversation a été regardée reste « non vu ». Jamais un
+    /// label en arrière.
+    ///
+    /// ⚠️ **`idle` compte (retour du 2026-11-18).** Codex se dit `idle` à la
+    /// fin d'un tour, jamais `done` ; Herdr.app, lui, juge « non vu » sur
+    /// `herdr.seen < turn`, quel que soit le mot. Exiger `done` : un codex
+    /// lu sur le téléphone restait « non vu » sur le Mac (aucun « vu
+    /// partagé » codex dans le journal).
     fn marque_vu(&self, pane: PaneId, vu_a: u64) -> PortFuture<'_, Option<u64>> {
         let adresse = pane.to_string();
         let terminal = match self.terminal(&adresse) {
             Ok(terminal) => terminal,
             Err(erreur) => return pret(Err(erreur)),
         };
-        let fini = Self::agent_status_depuis(terminal.status.as_ref()) == AgentStatus::Done;
         let deja = Self::tour_vu(&terminal).is_some_and(|vu| vu >= terminal.turn);
         let avant_lecture = terminal.status_ms.is_some_and(|instant| instant <= vu_a);
-        if !fini || deja || !avant_lecture {
+        if !Self::au_repos(&terminal) || deja || !avant_lecture {
             return pret(Ok(None));
         }
-        let labels: BTreeMap<String, String> =
-            [(String::from(Self::LABEL_VU), terminal.turn.to_string())]
-                .into_iter()
-                .collect();
-        let resultat = self.verrouiller().and_then(|mut client| {
-            client
-                .terminal_label(&adresse, &labels)
-                .map_err(erreur_port)
-        });
-        pret(resultat.map(|()| Some(terminal.turn)))
+        pret(self.pose_vu(&adresse, terminal.turn))
+    }
+
+    /// Un tour fantôme (rien écrit dans la session) : le « vu » le suit, si
+    /// le tour d'avant était vu, que l'agent est au repos **à ce tour-là**
+    /// (un tour suivant a pu commencer : on n'y touche pas), et jamais en
+    /// arrière.
+    fn reporte_vu(
+        &self,
+        pane: PaneId,
+        tour_avant: u64,
+        tour_apres: u64,
+    ) -> PortFuture<'_, Option<u64>> {
+        let adresse = pane.to_string();
+        let terminal = match self.terminal(&adresse) {
+            Ok(terminal) => terminal,
+            Err(erreur) => return pret(Err(erreur)),
+        };
+        let vu = Self::tour_vu(&terminal);
+        let vu_avant = vu.is_some_and(|vu| vu >= tour_avant);
+        let deja = vu.is_some_and(|vu| vu >= terminal.turn);
+        if !Self::au_repos(&terminal) || terminal.turn != tour_apres || !vu_avant || deja {
+            return pret(Ok(None));
+        }
+        pret(self.pose_vu(&adresse, terminal.turn))
     }
 
     fn epingle(&self, pane: PaneId, epingle: bool) -> PortFuture<'_, ()> {

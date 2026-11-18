@@ -17,6 +17,7 @@ fn changement(genre: GenreDeChangement, de: AgentStatus, a: AgentStatus) -> Chan
         revision_apres: String::from("bbbbbbbbbbbbbbbb"),
         tour_avant: None,
         tour_apres: None,
+        sans_trace: false,
     }
 }
 

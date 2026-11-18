@@ -18,6 +18,7 @@ use application::events::watcher::{
 };
 use application::noyau::{AgentStatus, AgentView};
 use application::overview::ComposeurOverview;
+use application::ports::ControlPort;
 use application::refresh::SourceMaintenant;
 use http_api::services::Services;
 use notifications::notifieur::Notifieur;
@@ -163,6 +164,9 @@ pub fn notification_de_changement(
 pub struct PublieDansLeJournal {
     journal: Arc<ServiceAbonnements>,
     notifications: Option<(Arc<Notifieur>, DernieresVues)>,
+    /// Le port qui reporte le « vu » d'un tour fantôme vers Herdr.app
+    /// (`None` : rien n'est écrit chez l'amont).
+    vu: Option<Arc<dyn ControlPort>>,
     /// Le dernier push de chaque pane : `(tour, tag)`. Le même tour au même
     /// statut ne sonne qu'une fois — un statut qui clignote (`blocked →
     /// unknown → blocked`) ne redemande pas l'utilisateur (B1.4).
@@ -175,7 +179,44 @@ impl PublieDansLeJournal {
         Self {
             journal,
             notifications: None,
+            vu: None,
             deja_notifies: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Reporte le « vu » des tours fantômes vers l'amont
+    /// ([`Changement::fin_sans_trace`]) : un agent vu avant un tour qui n'a
+    /// rien produit reste vu.
+    #[must_use]
+    pub fn avec_vu_reporte(mut self, port: Arc<dyn ControlPort>) -> Self {
+        self.vu = Some(port);
+        self
+    }
+
+    /// Les tours fantômes du passage : journalisés (aucun push n'en part,
+    /// [`Changement::faut_notifier`]), et leur « vu » reporté.
+    fn traite_les_fantomes(&self, changements: &[Changement]) {
+        for changement in changements.iter().filter(|c| c.fin_sans_trace()) {
+            let (Some(avant), Some(apres)) = (changement.tour_avant, changement.tour_apres) else {
+                continue;
+            };
+            let pane = &changement.pane_id;
+            info!(%pane, avant, apres, "tour sans trace dans la session : pas de push");
+            let Some(port) = &self.vu else {
+                continue;
+            };
+            match application::lectures::reporte_vu(port.as_ref(), pane, avant, apres) {
+                Ok(Some(tour)) => {
+                    info!(%pane, tour, "tour sans trace : vu reporté (herdr.seen)");
+                }
+                Ok(None) => {}
+                // La cause est dite : un faux « non vu » qui reste a une raison.
+                Err(cause) => warn!(
+                    %pane,
+                    cause = %cause.description(),
+                    "tour sans trace : vu non reporté"
+                ),
+            }
         }
     }
 
@@ -252,6 +293,7 @@ impl PublicateurDeChangements for PublieDansLeJournal {
             }
         }
         self.notifie(changements);
+        self.traite_les_fantomes(changements);
     }
 }
 
@@ -295,7 +337,8 @@ impl Veille {
         notifieur: Option<Arc<Notifieur>>,
     ) -> Self {
         let vues: DernieresVues = Arc::new(Mutex::new(Vec::new()));
-        let mut publicateur = PublieDansLeJournal::nouveau(Arc::clone(&services.journal));
+        let mut publicateur = PublieDansLeJournal::nouveau(Arc::clone(&services.journal))
+            .avec_vu_reporte(Arc::clone(&services.port));
         if let Some(notifieur) = notifieur {
             publicateur = publicateur.avec_notifications(notifieur, Arc::clone(&vues));
         }
